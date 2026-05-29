@@ -1,0 +1,29 @@
+name: IpsecuzPet
+version: 1.4
+main: org.ipsecuz.pet.IpsecuzPet
+api-version: 1.19
+folia-supported: true
+authors: [Ipsecuz]
+description: Plugin Pet RPG System - Stats, Duel, Mount, Shop.
+softdepend: [BetterModel]
+commands:
+  ipsecuzpet:
+    description: Lệnh chính của hệ thống Pet
+    usage: |
+      §cSai cú pháp! Hãy thử:
+      §e/pet help §7- Xem danh sách lệnh
+      §e/pet shop §7- Mua pet mới
+      §e/pet despawn §7- Cất pet đi
+      §e/pet duel <tên> §7- Thách đấu
+    aliases: pet
+    permission: ipsecuzpet.use
+    permission-message: "§cBạn không có quyền sử dụng lệnh này!"
+
+permissions:
+  ipsecuzpet.use:
+    description: Cho phép người chơi dùng các lệnh cơ bản (menu, duel, shop, help)
+    default: true
+
+  ipsecuzpet.admin:
+    description: Quyền Admin
+    default: op

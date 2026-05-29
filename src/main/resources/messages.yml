@@ -1,0 +1,133 @@
+prefix: "&#00AAFF[IpsecuzPets] &r"
+
+general:
+  no_permission: "&cBạn không có quyền sử dụng lệnh này."
+  config_reloaded: "&aĐã tải lại cấu hình thành công!"
+  player_only: "&cLệnh này chỉ dành cho người chơi."
+  inventory_full: "&cTúi đồ của bạn đã đầy!"
+
+pet:
+  display_format: "&8[&eLv.%level%&8] &a%name% &7(&f%owner%&7)"
+  spawn: "&aĐã triệu hồi &e%pet_name%&a!"
+  despawn: "&cĐã cất Pet vào kho."
+  no_pet: "&cBạn đang không có Pet nào hoạt động."
+  caught: "&aĐã bắt thành công: &e%pet_type%"
+  mount: "&aBạn đang cưỡi lên Pet!"
+  limit_reached: "&cBạn không thể sở hữu thêm Pet nữa! (Đã đạt giới hạn)"
+  already_owned: "&cBạn đã sở hữu Pet này rồi! Không thể mua thêm."
+  catch_impossible: "&cCon thú này quá mạnh! Bạn chỉ có thể mua nó trong Shop."
+  rename_success: "&aĐã đổi tên pet thành: &e%new_name%"
+
+  # Withdraw
+  withdraw_usage: "&cCú pháp: /pet withdraw <tên_id_pet>"
+  not_owned: "&cBạn không sở hữu Pet có ID: &e%pet_id%"
+  cannot_withdraw_dead: "&cPet này đang chết! Hãy hồi sinh nó trước khi rút."
+  cannot_withdraw_active: "&cVui lòng thu hồi Pet này trước khi rút! Dùng lệnh /pet despawn."
+  withdraw_success: "&aĐã rút Pet &e%pet_name% &athành vật phẩm!"
+  redeem_success: "&aĐã nhận thành công Pet &e%pet_id%&a!"
+
+  # Catch
+  catch_start: "&eĐang bắt pet..."
+  catch_fail_type: "&cBóng này không đủ trình để bắt loài này!"
+  catch_fail: "&cBắt Pet Không Thành Công!"
+
+  #stats
+  stats_header: "&8&m------------------------"
+  stats_title: "&e&lTHÔNG TIN PET: &f%pet_name%"
+  stats_level: "&7Cấp độ: &6%level%"
+  stats_exp: "&e✨ Kinh nghiệm: &f%exp%/%req%"
+  stats_damage: "&c⚔ Sát thương: &f%val%"
+  stats_health: "&a❤ Máu tối đa: &f%val%"
+  stats_defense: "&9🛡 Giáp: &f%val%"
+  stats_speed: "&b⚡ Tốc độ: &f%val%"
+
+  # RPG Messages
+  level_up: "&6&lLÊN CẤP! &ePet của bạn đã đạt cấp &b%level%&e!"
+  death: "&cPet của bạn đã chết! Hãy đi đào quặng để hồi sinh nó."
+  revive_progress: "&bTiến độ hồi sinh: &e%current%/%max%"
+  revive_complete: "&a&lTHÀNH CÔNG! &eTất cả Pet đã được hồi sinh!"
+
+  # Shop Messages
+  buy_success: "&aMua thành công &e%pet_name%&a!"
+  buy_fail_money: "&cBạn cần có &e%cost% tiền &cđể mua!"
+  buy_fail_points: "&cBạn cần có &e%cost% points &cđể mua!"
+  buy_fail_items: "&cBạn cần có &e%amount%x %material% &cđể mua!"
+
+admin:
+  give_success: "&aĐã gửi Pet &e%pet_id% &acho người chơi &e%player%&a."
+  give_received: "&aBạn đã nhận được Pet &e%pet_id% &atừ Admin!"
+  already_owned: "&cNgười chơi này đã sở hữu Pet đó rồi! Không thể gửi thêm."
+  invalid_id: "&cID Pet không tồn tại trong config."
+  invalid_ball_id: "&cID bóng không tồn tại (Check config capture_system)."
+  giveball_success: "&aĐã gửi &e%amount%x %ball_id% &acho &e%player%&a."
+  giveball_received: "&aBạn đã nhận được vật phẩm bắt thú!"
+
+duel:
+  usage: "&cCú pháp: /pet duel <người_chơi>"
+  invite_sent: "&aĐã gửi lời thách đấu tới &e%target%&a."
+  invite_received: "&e%player% &7muốn thách đấu Pet! Nhập &b/pet accept &7để đồng ý."
+  no_invite: "&cKhông có lời mời thách đấu nào."
+  accepted: "&aĐã chấp nhận kèo! &c&lCHIẾN THÔI!"
+  opponent_accepted: "&aĐối thủ đã chấp nhận! &c&lCHIẾN THÔI!"
+  invalid_target: "&cNgười chơi không hợp lệ hoặc đang offline."
+  already_dueling: "&cBạn hoặc đối phương đang trong trận đấu khác!"
+  win: "&6&lCHIẾN THẮNG! &ePet của bạn đã đánh bại đối thủ!"
+  lose: "&c&lTHẤT BẠI! &7Pet của bạn đã bị hạ gục."
+
+gui:
+  menu_title: "&1Hồ Sơ Pet"
+  shop_title: "&6Cửa Hàng Pet"
+
+  # Item Lore
+  lore_level: "&7Cấp độ: &e%level%"
+  lore_damage: "&c⚔ Sát thương: %value%"
+  lore_health: "&a❤ Máu: %value%"
+  lore_click_summon: "&eNhấn chuột để Triệu hồi"
+  lore_click_despawn: "&cNhấn chuột để Cất đi"
+  lore_dead: "&c☠ ĐÃ CHẾT (Đào quặng hồi sinh)"
+  lore_price: "&eGiá: %cost%"
+
+help:
+  header: "&8&m------------------------"
+  title: " &#00aaff✦ &#fb00ffIPSECUZ PETS &#00aaff✦"
+  cmd_gui: "&e/pet &7- Mở Menu Pet"
+  cmd_shop: "&e/pet shop &7- Mở Cửa hàng"
+  cmd_despawn: "&e/pet despawn &7- Cất Pet"
+  cmd_duel: "&e/pet duel <tên> &7- Thách đấu"
+  cmd_accept: "&e/pet accept &7- Chấp nhận thách đấu"
+  footer: "&8&m------------------------"
+
+  #
+  # model_handler giúp bạn có thể báo những gì plugin đang lỗi về model
+  #
+model_handler:
+  # Info messages
+  manager_found: "&aĐã tìm thấy BetterModel ModelManager thành công."
+  model_spawned_bound: "&aĐã tạo và gắn thành công model '%model_id%' bằng create(Location, Entity)."
+  model_spawned_unbound: "&eĐã tạo model '%model_id%' bằng create(Location). Đang cố gắng gắn vào entity..."
+  model_bound_success: "&aĐã gắn thành công model '%model_id%' vào entity bằng phương thức '%method_name%'."
+  model_removed_success: "&aĐã xóa model thành công bằng phương thức '%method_name%'."
+  all_models_removed: "&aĐã xóa tất cả các model đang hoạt động."
+
+  # Warning messages
+  manager_not_found: "&cKhông thể tìm thấy BetterModel Manager. Plugin BetterModel có được cài đặt và bật không?"
+  model_id_not_found: "&cKhông tìm thấy Model ID: %model_id%. Hãy kiểm tra lại cấu hình của BetterModel."
+  available_model_ids: "&cCác ID model hiện có: %keys%"
+  model_bind_failed: "&cKhông thể gắn model '%model_id%' vào entity. Model có thể không di chuyển theo pet."
+  model_remove_method_not_found: "&cKhông thể tìm thấy phương thức nào để xóa model. Model có thể không được xóa khỏi bộ nhớ."
+  plugin_not_found: "&cPlugin BetterModel không được tìm thấy!"
+  model_manager_not_found: "&cKhông thể tìm thấy ModelManager trong BetterModel."
+  model_returned_null: "&cBetterModel trả về null cho model: %model_id%"
+
+  # Debug/Error messages
+  debug_method_list: "&eĐể gỡ lỗi, đây là danh sách các phương thức công khai của đối tượng model '%class_name%':"
+  error_calling_model_method: "&cLỗi khi gọi BetterModel.model('%model_id%')"
+  error_getting_model_keys: "&cLỗi khi lấy danh sách model keys."
+  error_calling_create_loc: "&cLỗi khi gọi create(Location)"
+  error_calling_create_loc_ent: "&cLỗi khi gọi create(Location, Entity)"
+  error_calling_bind_method: "&cLỗi khi gọi phương thức gắn '%method_name%'"
+  error_calling_remove_method: "&cLỗi khi gọi phương thức xóa '%method_name%'"
+  error_spawning_model: "&cLỗi không xác định khi spawn model: %model_id%"
+
+  # Misc
+  no_inst_method: "&eKhông tìm thấy phương thức inst(), sử dụng instance của plugin."

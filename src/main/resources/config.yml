@@ -1,0 +1,822 @@
+# ==========================================================
+#               IPSECUZ PETS - CONFIGURATION
+# ==========================================================
+# Giới hạn số lượng Pet tối đa một người chơi có thể sở hữu
+max_pets: 2
+
+# ==========================================================
+#               HỆ THỐNG RPG & CẤP ĐỘ
+# ==========================================================
+rpg_system:
+  max_level: 100
+
+  # EXP cần thiết = Level hiện tại * base_exp_requirement
+  base_exp_requirement: 50
+
+  # EXP nhận được khi chủ giết 1 con quái (Mob)
+  exp_per_kill: 10
+  # Người chơi có quyền 'ipsecuzpet.multiplier.1.5' sẽ nhận 1.5x kinh nghiệm
+  xp_multiplier_permissions:
+    ipsecuzpet.multiplier.1.5: 1.5
+    ipsecuzpet.multiplier.2.0: 2.0
+
+  # Số lượng quặng Kim Cương cần đào để hồi sinh 1 con Pet chết
+  revive_cost_diamonds: 32
+
+  # Chỉ số cộng thêm mỗi khi Pet lên 1 Level
+  # Công thức: Chỉ số gốc + (Level * Giá trị này)
+  default_growth:
+    damage: 0.5   # Tăng 0.5 dame/cấp
+    health: 2.0   # Tăng 2 máu/cấp
+    defense: 0.2  # Tăng 0.2 giáp/cấp
+    speed: 0.001  # Tăng tốc chạy
+    intelligence: 0.5 # Tăng hiệu quả buffww
+  # Quà tặng khi Pet lên cấp (Buff cho chủ trong thời gian ngắn)
+  level_up_rewards:
+    duration: 120 # Giây
+    effects:
+      - "SPEED:1"
+      - "INCREASE_DAMAGE:1"
+      - "REGENERATION:0"
+
+# ==========================================================
+#               DANH SÁCH PET
+# ==========================================================
+# Lưu ý:
+# - currency: ITEM (Cần 'material'), MONEY (Cần Vault), POINTS (Cần PlayerPoints)
+# - catchable: true (Cho bắt ngoài tự nhiên), false (Chỉ mua trong Shop)
+# - Chỉ có pet nào có khả năng đánh nhau thì mới duel được nhá
+# - Bạn có thể thêm key model cho pet ví dụ: model_id: "red_dragon"
+# - Nếu bạn không để model_id thì xem như mob đó sẽ là vanilla
+# ==========================================================
+pets:
+  # ==========================================
+  # NHÓM 1: MUA BẰNG VẬT PHẨM (ITEM) - Dành cho Newbie
+  # ==========================================
+  chicken_pet:
+    type: CHICKEN
+    name: "&eGà Con Lon Ton"
+    #model_id: "red_dragon"    # ID của model trong BetterModel ("tên file".bbmodel)
+    icon: FEATHER
+    price: 32
+    currency: ITEM
+    material: WHEAT_SEEDS
+    catchable: true
+    particle: "VILLAGER_HAPPY"
+    effects: ["SLOW_FALLING:0"]
+    stats:
+      damage: 2.0
+      health: 10.0
+      defense: 0.0
+      speed: 0.3
+      intelligence: 5.0
+
+  pig_pet:
+    type: PIG
+    name: "&dHeo Ủn Ỉn"
+    icon: PORKCHOP
+    price: 16
+    currency: ITEM
+    material: CARROT
+    catchable: true
+    particle: "HEART"
+    effects: []
+    stats:
+      damage: 3.0
+      health: 15.0
+      defense: 0.0
+      speed: 0.25
+      intelligence: 3.0
+
+  cow_pet:
+    type: COW
+    name: "&fBò Sữa"
+    icon: BEEF
+    price: 32
+    currency: ITEM
+    material: WHEAT
+    catchable: true
+    particle: "CLOUD"
+    effects: []
+    stats:
+      damage: 4.0
+      health: 20.0
+      defense: 1.0
+      speed: 0.2
+      intelligence: 4.0
+
+  sheep_pet:
+    type: SHEEP
+    name: "&fCừu Bông"
+    icon: WHITE_WOOL
+    price: 32
+    currency: ITEM
+    material: WHITE_WOOL
+    catchable: true
+    particle: "CLOUD"
+    effects: []
+    stats:
+      damage: 3.0
+      health: 18.0
+      defense: 0.5
+      speed: 0.23
+      intelligence: 4.0
+
+  zombie_pet:
+    type: ZOMBIE
+    name: "&2Zombie Nông Dân"
+    icon: ROTTEN_FLESH
+    price: 64
+    currency: ITEM
+    material: ROTTEN_FLESH
+    catchable: true
+    particle: "VILLAGER_ANGRY"
+    effects: []
+    stats:
+      damage: 5.0
+      health: 25.0
+      defense: 2.0
+      speed: 0.23
+      intelligence: 2.0
+
+  skeleton_pet:
+    type: SKELETON
+    name: "&7Xạ Thủ Xương"
+    icon: BOW
+    price: 64
+    currency: ITEM
+    material: BONE
+    catchable: true
+    particle: "SMOKE_NORMAL"
+    effects: []
+    stats:
+      damage: 6.0
+      health: 20.0
+      defense: 1.0
+      speed: 0.25
+      intelligence: 5.0
+
+  spider_pet:
+    type: SPIDER
+    name: "&4Nhện Độc"
+    icon: SPIDER_EYE
+    price: 32
+    currency: ITEM
+    material: SPIDER_EYE
+    catchable: true
+    particle: "CRIT"
+    effects: []
+    stats:
+      damage: 5.0
+      health: 18.0
+      defense: 0.0
+      speed: 0.33
+      intelligence: 4.0
+
+  creeper_pet:
+    type: CREEPER
+    name: "&aBom Di Động"
+    icon: GUNPOWDER
+    price: 64
+    currency: ITEM
+    material: GUNPOWDER
+    catchable: true
+    particle: "EXPLOSION_NORMAL"
+    effects: []
+    stats:
+      damage: 15.0
+      health: 15.0
+      defense: 0.0
+      speed: 0.25
+      intelligence: 1.0
+
+  slime_pet:
+    type: SLIME
+    name: "&aCục Nhớt Vui Vẻ"
+    icon: SLIME_BALL
+    price: 32
+    currency: ITEM
+    material: SLIME_BALL
+    catchable: true
+    particle: "SLIME"
+    effects: ["JUMP:1"]
+    stats:
+      damage: 4.0
+      health: 20.0
+      defense: 0.0
+      speed: 0.3
+      intelligence: 5.0
+
+  bee_pet:
+    type: BEE
+    name: "&eOng Chúa"
+    icon: HONEYCOMB
+    price: 10
+    currency: ITEM
+    material: HONEY_BOTTLE
+    catchable: true
+    particle: "WAX_ON"
+    effects: []
+    stats:
+      damage: 4.0
+      health: 10.0
+      defense: 0.0
+      speed: 0.4
+      intelligence: 6.0
+
+  # ==========================================
+  # NHÓM 2: MUA BẰNG TIỀN (MONEY - VAULT)
+  # ==========================================
+  wolf_pet:
+    type: WOLF
+    name: "&7Sói Tinh Anh"
+    icon: BONE
+    price: 5000
+    currency: MONEY
+    catchable: true # Pet xịn phải mua
+    particle: "ANGRY_VILLAGER"
+    effects: ["SPEED:0", "INCREASE_DAMAGE:0"]
+    stats:
+      damage: 7.0
+      health: 20.0
+      defense: 1.0
+      speed: 0.35
+      intelligence: 7.0
+
+  cat_pet:
+    type: CAT
+    name: "&bMèo Mun Quý Tộc"
+    icon: STRING
+    price: 3000
+    currency: MONEY
+    catchable: true
+    particle: "NOTE"
+    effects: ["SPEED:0"]
+    stats:
+      damage: 5.0
+      health: 12.0
+      defense: 0.0
+      speed: 0.4
+      intelligence: 8.0
+
+  fox_pet:
+    type: FOX
+    name: "&6Cáo Tuyết"
+    icon: SWEET_BERRIES
+    price: 4500
+    currency: MONEY
+    catchable: true
+    particle: "SNOWBALL"
+    effects: ["SPEED:1"]
+    stats:
+      damage: 5.0
+      health: 15.0
+      defense: 0.0
+      speed: 0.45
+      intelligence: 9.0
+
+  panda_pet:
+    type: PANDA
+    name: "&fGấu Trúc Kungfu"
+    icon: BAMBOO
+    price: 6000
+    currency: MONEY
+    catchable: true
+    particle: "SNEEZE"
+    effects: []
+    stats:
+      damage: 8.0
+      health: 40.0
+      defense: 4.0
+      speed: 0.15
+      intelligence: 4.0
+
+  iron_golem_pet:
+    type: IRON_GOLEM
+    name: "&fVệ Thần Sắt"
+    icon: IRON_BLOCK
+    price: 15000
+    currency: MONEY
+    catchable: true
+    particle: "BLOCK_CRACK"
+    effects: ["DAMAGE_RESISTANCE:0"]
+    stats:
+      damage: 12.0
+      health: 100.0
+      defense: 10.0
+      speed: 0.18
+      intelligence: 3.0
+
+  blaze_pet:
+    type: BLAZE
+    name: "&6Quỷ Lửa"
+    icon: BLAZE_ROD
+    price: 8000
+    currency: MONEY
+    catchable: true
+    particle: "FLAME"
+    effects: ["FIRE_RESISTANCE:0"]
+    stats:
+      damage: 7.0
+      health: 30.0
+      defense: 2.0
+      speed: 0.25
+      intelligence: 8.0
+
+  magma_cube_pet:
+    type: MAGMA_CUBE
+    name: "&cKhối Nham Thạch"
+    icon: MAGMA_CREAM
+    price: 7500
+    currency: MONEY
+    catchable: true
+    particle: "DRIP_LAVA"
+    effects: ["FIRE_RESISTANCE:0"]
+    stats:
+      damage: 6.0
+      health: 35.0
+      defense: 3.0
+      speed: 0.2
+      intelligence: 2.0
+
+  enderman_pet:
+    type: ENDERMAN
+    name: "&5Slenderman"
+    icon: ENDER_PEARL
+    price: 10000
+    currency: MONEY
+    catchable: true
+    particle: "PORTAL"
+    effects: []
+    stats:
+      damage: 9.0
+      health: 40.0
+      defense: 0.0
+      speed: 0.3
+      intelligence: 10.0
+
+  witch_pet:
+    type: WITCH
+    name: "&5Phù Thủy Hắc Ám"
+    icon: POTION
+    price: 12000
+    currency: MONEY
+    catchable: true
+    particle: "SPELL_WITCH"
+    effects: []
+    stats:
+      damage: 6.0
+      health: 26.0
+      defense: 1.0
+      speed: 0.25
+      intelligence: 15.0
+
+  axolotl_pet:
+    type: AXOLOTL
+    name: "&dKỳ Nhông Cute"
+    icon: WATER_BUCKET
+    price: 5000
+    currency: MONEY
+    catchable: true
+    particle: "HEART"
+    effects: ["REGENERATION:0"]
+    stats:
+      damage: 4.0
+      health: 25.0
+      defense: 2.0
+      speed: 0.3
+      intelligence: 12.0
+
+  turtle_pet:
+    type: TURTLE
+    name: "&2Cụ Rùa Ngàn Năm"
+    icon: TURTLE_SCUTE
+    price: 9000
+    currency: MONEY
+    catchable: true
+    particle: "WATER_BUBBLE"
+    effects: ["WATER_BREATHING:0"]
+    stats:
+      damage: 3.0
+      health: 60.0
+      defense: 15.0
+      speed: 0.1
+      intelligence: 10.0
+
+  # ==========================================
+  # NHÓM 3: MUA BẰNG POINTS (PLAYER POINTS) - VIP/Boss
+  # ==========================================
+  wither_pet:
+    type: WITHER
+    name: "&8Wither Boss"
+    icon: NETHER_STAR
+    price: 100
+    currency: POINTS
+    catchable: true
+    particle: "SMOKE_LARGE"
+    effects: ["INCREASE_DAMAGE:1"]
+    stats:
+      damage: 20.0
+      health: 200.0
+      defense: 5.0
+      speed: 0.3
+      intelligence: 15.0
+
+  ender_dragon_pet:
+    type: ENDER_DRAGON
+    name: "&5Rồng Ender"
+    icon: DRAGON_EGG
+    price: 200
+    currency: POINTS
+    catchable: true
+    particle: "DRAGON_BREATH"
+    effects: ["INCREASE_DAMAGE:1", "NIGHT_VISION:0", "SPEED:1"]
+    stats:
+      damage: 25.0
+      health: 250.0
+      defense: 8.0
+      speed: 0.35
+      intelligence: 25.0
+
+  warden_pet:
+    type: WARDEN
+    name: "&3Kẻ Cai Ngục"
+    icon: SCULK_SENSOR
+    price: 150
+    currency: POINTS
+    catchable: true
+    particle: "SONIC_BOOM"
+    effects: ["INCREASE_DAMAGE:1", "DAMAGE_RESISTANCE:1"]
+    stats:
+      damage: 35.0
+      health: 300.0
+      defense: 10.0
+      speed: 0.2
+      intelligence: 5.0
+
+  ravager_pet:
+    type: RAVAGER
+    name: "&8Quái Thú Ravager"
+    icon: SADDLE
+    price: 80
+    currency: POINTS
+    catchable: true
+    particle: "DAMAGE_INDICATOR"
+    effects: ["INCREASE_DAMAGE:0"]
+    stats:
+      damage: 18.0
+      health: 120.0
+      defense: 8.0
+      speed: 0.25
+      intelligence: 2.0
+
+  allay_pet:
+    type: ALLAY
+    name: "&bTiểu Tiên Nữ"
+    icon: AMETHYST_SHARD
+    price: 50
+    currency: POINTS
+    catchable: true
+    particle: "END_ROD"
+    effects: ["LUCK:0"]
+    stats:
+      damage: 2.0
+      health: 20.0
+      defense: 5.0
+      speed: 0.35
+      intelligence: 20.0
+
+  sniffer_pet:
+    type: SNIFFER
+    name: "&cThú Cổ Đại"
+    icon: TORCHFLOWER
+    price: 70
+    currency: POINTS
+    catchable: true
+    particle: "CHERRY_LEAVES"
+    effects: []
+    stats:
+      damage: 8.0
+      health: 100.0
+      defense: 5.0
+      speed: 0.2
+      intelligence: 8.0
+
+  camel_pet:
+    type: CAMEL
+    name: "&6Lạc Đà Sa Mạc"
+    icon: CACTUS
+    price: 40
+    currency: POINTS
+    catchable: true
+    particle: "SAND"
+    effects: []
+    stats:
+      damage: 6.0
+      health: 50.0
+      defense: 3.0
+      speed: 0.28
+      intelligence: 5.0
+
+  frog_pet:
+    type: FROG
+    name: "&2Ếch Cốm"
+    icon: LILY_PAD
+    price: 20
+    currency: POINTS
+    catchable: true
+    particle: "VILLAGER_HAPPY"
+    effects: ["JUMP:2"]
+    stats:
+      damage: 5.0
+      health: 20.0
+      defense: 1.0
+      speed: 0.3
+      intelligence: 6.0
+
+  piglin_pet:
+    type: PIGLIN
+    name: "&6Thợ Săn Piglin"
+    icon: GOLDEN_SWORD
+    price: 30
+    currency: POINTS
+    catchable: true
+    particle: "SOUL_FIRE_FLAME"
+    effects: []
+    stats:
+      damage: 8.0
+      health: 30.0
+      defense: 2.0
+      speed: 0.3
+      intelligence: 6.0
+
+  goat_pet:
+    type: GOAT
+    name: "&fDê Núi"
+    icon: GOAT_HORN
+    price: 25
+    currency: POINTS
+    catchable: true
+    particle: "CLOUD"
+    effects: ["JUMP:1"]
+    stats:
+      damage: 5.0
+      health: 25.0
+      defense: 1.0
+      speed: 0.3
+      intelligence: 4.0
+
+      # ====================================================================
+      # NHÓM 4: MUA BẰNG POINTS (PLAYER POINTS) VÀ (MONEY) - VIP/Boss/NORMAL
+      # ====================================================================
+
+  polar_bear_pet:
+    type: POLAR_BEAR
+    name: "&fGấu Bắc Cực Chiến Binh"
+    icon: SNOWBALL
+    price: 5000
+    currency: MONEY
+    catchable: true
+    particle: "SNOW_SHOVEL"
+    effects: ["DAMAGE_RESISTANCE:0"]
+    stats:
+      damage: 6.0
+      health: 40.0
+      defense: 2.0
+      speed: 0.25
+      intelligence: 2.0
+
+  dolphin_pet:
+    type: DOLPHIN
+    name: "&bCá Heo Tinh Nghịch"
+    icon: TROPICAL_FISH
+    price: 32
+    currency: ITEM
+    material: COD
+    catchable: true
+    particle: "WATER_SPLASH"
+    effects: ["DOLPHINS_GRACE:0"]
+    stats:
+      damage: 4.0
+      health: 20.0
+      defense: 0.0
+      speed: 0.4
+      intelligence: 15.0
+
+  snowman_pet:
+    type: SNOWMAN
+    name: "&fNgười Tuyết Vui Vẻ"
+    icon: SNOW_BLOCK
+    price: 16
+    currency: ITEM
+    material: SNOW_BLOCK
+    catchable: true
+    particle: "SNOWBALL"
+    effects: []
+    stats:
+      damage: 1.0 # Yếu nhớt
+      health: 10.0
+      defense: 0.0
+      speed: 0.2
+      intelligence: 5.0
+
+  glow_squid_pet:
+    type: GLOW_SQUID
+    name: "&3Mực Tinh Quang"
+    icon: GLOW_INK_SAC
+    price: 2000
+    currency: MONEY
+    catchable: true
+    particle: "GLOW"
+    effects: ["NIGHT_VISION:0"]
+    stats:
+      damage: 2.0
+      health: 15.0
+      defense: 0.0
+      speed: 0.3
+      intelligence: 10.0
+
+  strider_pet:
+    type: STRIDER
+    name: "&cStrider Chân Dài"
+    icon: STRING
+    price: 32
+    currency: ITEM
+    material: WARPED_FUNGUS
+    catchable: true
+    particle: "DRIP_LAVA"
+    effects: ["FIRE_RESISTANCE:0"]
+    stats:
+      damage: 4.0
+      health: 30.0
+      defense: 1.0
+      speed: 0.2
+      intelligence: 3.0
+
+  hoglin_pet:
+    type: HOGLIN
+    name: "&cHoglin Hung Hăng"
+    icon: CRIMSON_FUNGUS
+    price: 6000
+    currency: MONEY
+    catchable: true # Con này hung dữ, phải mua
+    particle: "CRIMSON_SPORE"
+    effects: ["INCREASE_DAMAGE:0"]
+    stats:
+      damage: 10.0
+      health: 40.0
+      defense: 2.0
+      speed: 0.3
+      intelligence: 1.0
+
+  phantom_pet:
+    type: PHANTOM
+    name: "&9Bóng Ma Bầu Trời"
+    icon: PHANTOM_MEMBRANE
+    price: 50
+    currency: POINTS # Pet bay nên bán bằng Points
+    catchable: true
+    particle: "SOUL"
+    effects: ["SLOW_FALLING:0"]
+    stats:
+      damage: 8.0
+      health: 20.0
+      defense: 0.0
+      speed: 0.4
+      intelligence: 5.0
+
+  vex_pet:
+    type: VEX
+    name: "&7Tiểu Quỷ Vex"
+    icon: IRON_SWORD
+    price: 80
+    currency: POINTS
+    catchable: true
+    particle: "ANGRY_VILLAGER"
+    effects: []
+    stats:
+      damage: 12.0 # Dame to
+      health: 15.0 # Máu giấy
+      defense: 0.0
+      speed: 0.4 # Nhanh
+      intelligence: 8.0
+
+  shulker_pet:
+    type: SHULKER
+    name: "&5Hộp Shulker Bí Ẩn"
+    icon: SHULKER_SHELL
+    price: 64
+    currency: ITEM
+    material: SHULKER_SHELL
+    catchable: true
+    particle: "END_ROD"
+    effects: ["DAMAGE_RESISTANCE:1"]
+    stats:
+      damage: 5.0
+      health: 50.0
+      defense: 20.0 # Giáp cực trâu
+      speed: 0.1 # Chậm như rùa
+      intelligence: 5.0
+
+  pillager_pet:
+    type: PILLAGER
+    name: "&8Xạ Thủ Cướp Làng"
+    icon: CROSSBOW
+    price: 4000
+    currency: MONEY
+    catchable: true
+    particle: "SMOKE_NORMAL"
+    effects: []
+    stats:
+      damage: 7.0
+      health: 25.0
+      defense: 1.0
+      speed: 0.25
+      intelligence: 6.0
+
+  drowned_pet:
+    type: DROWNED
+    name: "&bThây Ma Biển Cả"
+    icon: TRIDENT
+    price: 4500
+    currency: MONEY
+    catchable: true
+    particle: "WATER_BUBBLE"
+    effects: ["WATER_BREATHING:0"]
+    stats:
+      damage: 6.0
+      health: 30.0
+      defense: 2.0
+      speed: 0.25
+      intelligence: 3.0
+
+  parrot_pet:
+    type: PARROT
+    name: "&aVẹt Sắc Màu"
+    icon: FEATHER
+    price: 16
+    currency: ITEM
+    material: COOKIE
+    catchable: true
+    particle: "NOTE"
+    effects: ["JUMP:1"]
+    stats:
+      damage: 2.0
+      health: 10.0
+      defense: 0.0
+      speed: 0.4
+      intelligence: 10.0
+
+
+
+capture_system:
+  enabled: true
+  permission_bonus:
+    vip: 10.0 # -> Perm: ipsecuzpet.catch.vip
+    mvp: 20.0 # -> Perm: ipsecuzpet.catch.mvp
+    #...
+
+  items:
+    basic_ball:
+      material: EGG
+      name: "&f⚪ Bóng Cơ Bản"
+      lore:
+        - "&7Tỉ lệ bắt: &f20%"
+        - "&7Chỉ bắt được thú hiền lành."
+      base_chance: 20.0
+
+      # MODE: Chọn 'WHITELIST' (Chỉ cho bắt danh sách dưới)
+      #       hoặc 'BLACKLIST' (Cấm bắt danh sách dưới, còn lại bắt được hết)
+      mode: WHITELIST
+      types:
+        - COW
+        - SHEEP
+        - CHICKEN
+        - PIG
+        - RABBIT
+
+    ultra_ball:
+      material: SNOWBALL
+      name: "&b🔵 Bóng Cao Cấp"
+      lore:
+        - "&7Tỉ lệ bắt: &e50%"
+        - "&7Bắt được mọi thứ trừ Boss!"
+      base_chance: 50.0
+
+      # BLACKLIST: Cấm bắt Boss, còn lại bắt được tuốt
+      mode: BLACKLIST
+      types:
+        - WITHER
+        - ENDER_DRAGON
+        - WARDEN
+
+    master_ball:
+      material: SLIME_BALL
+      name: "&d🟣 Master Ball"
+      lore:
+        - "&7Tỉ lệ bắt: &d100%"
+      base_chance: 100.0
+
+      # Để BLACKLIST mà danh sách trống -> Nghĩa là không cấm con nào -> Bắt all
+      mode: BLACKLIST
+      types: []
