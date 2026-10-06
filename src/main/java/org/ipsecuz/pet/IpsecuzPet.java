@@ -19,6 +19,7 @@ public class IpsecuzPet extends JavaPlugin {
     private EvolutionManager evolutionManager;
     private TradeManager tradeManager;
     private DynamicPetRegistry dynamicPetRegistry;
+    private ItemHookManager itemHookManager;
 
     @Override
     public void onEnable() {
@@ -30,6 +31,9 @@ public class IpsecuzPet extends JavaPlugin {
         // 2. Nạp Currency & Config
         this.currencyManager = new CurrencyManager(this);
         this.configManager = new ConfigManager(this);
+
+        // 2.5 Nạp ItemHookManager (Hỗ trợ ItemsAdder, Oraxen, Nexo)
+        this.itemHookManager = new ItemHookManager(this);
 
         // 3. Nạp ModuleManager (quản lý folder modules/*.yml)
         this.moduleManager = new ModuleManager(this);
@@ -97,4 +101,5 @@ public class IpsecuzPet extends JavaPlugin {
     public EvolutionManager getEvolutionManager() { return evolutionManager; }
     public TradeManager getTradeManager() { return tradeManager; }
     public DynamicPetRegistry getDynamicPetRegistry() { return dynamicPetRegistry; }
+    public ItemHookManager getItemHookManager() { return itemHookManager; }
 }

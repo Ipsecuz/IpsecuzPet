@@ -32,6 +32,31 @@ public class CurrencyManager {
 
     public boolean hasEconomy() { return econ != null; }
     public Economy getEconomy() { return econ; }
+    public PlayerPointsAPI getPointsAPI() { return pointsAPI; }
+
+    public boolean hasMoney(Player p, double amount) {
+        return econ != null && econ.getBalance(p) >= amount;
+    }
+
+    public boolean withdrawMoney(Player p, double amount) {
+        if (econ != null && econ.getBalance(p) >= amount) {
+            econ.withdrawPlayer(p, amount);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean hasPoints(Player p, int amount) {
+        return pointsAPI != null && pointsAPI.look(p.getUniqueId()) >= amount;
+    }
+
+    public boolean withdrawPoints(Player p, int amount) {
+        if (pointsAPI != null && pointsAPI.look(p.getUniqueId()) >= amount) {
+            pointsAPI.take(p.getUniqueId(), amount);
+            return true;
+        }
+        return false;
+    }
 
     public boolean processTransaction(Player p, String petId) {
         String type = plugin.getConfig().getString("pets." + petId + ".currency", "ITEM");
@@ -40,28 +65,24 @@ public class CurrencyManager {
 
         switch (type.toUpperCase()) {
             case "MONEY":
-                if (econ != null && econ.getBalance(p) >= cost) {
-                    econ.withdrawPlayer(p, cost);
+                if (withdrawMoney(p, cost)) {
                     return true;
                 }
                 p.sendMessage(lang.getMessage("pet.buy_fail_money", "%cost%", String.valueOf(cost)));
                 return false;
             case "POINTS":
-                if (pointsAPI != null && pointsAPI.look(p.getUniqueId()) >= cost) {
-                    pointsAPI.take(p.getUniqueId(), (int) cost);
+                if (withdrawPoints(p, (int) cost)) {
                     return true;
                 }
                 p.sendMessage(lang.getMessage("pet.buy_fail_points", "%cost%", String.valueOf((int)cost)));
                 return false;
             default:
                 String matName = plugin.getConfig().getString("pets." + petId + ".material", "DIAMOND");
-                Material mat = Material.getMaterial(matName);
-                if (mat == null) mat = Material.DIAMOND;
-                if (p.getInventory().contains(mat, (int) cost)) {
-                    p.getInventory().removeItem(new ItemStack(mat, (int) cost));
+                if (plugin.getItemHookManager() != null && plugin.getItemHookManager().hasItem(p, matName, (int) cost)) {
+                    plugin.getItemHookManager().takeItem(p, matName, (int) cost);
                     return true;
                 }
-                p.sendMessage(lang.getMessage("pet.buy_fail_items", "%amount%", String.valueOf((int)cost), "%material%", mat.name()));
+                p.sendMessage(lang.getMessage("pet.buy_fail_items", "%amount%", String.valueOf((int)cost), "%material%", matName));
                 return false;
         }
     }
@@ -69,8 +90,8 @@ public class CurrencyManager {
     public String getPriceDisplay(String petId) {
         String type = plugin.getConfig().getString("pets." + petId + ".currency", "ITEM");
         double cost = plugin.getConfig().getDouble("pets." + petId + ".price", 0);
-        if (type.equals("MONEY")) return "$" + cost;
+        if (type.equals("MONEY")) return "$" + (long)cost;
         if (type.equals("POINTS")) return (int)cost + " Points";
-        return (int)cost + " " + plugin.getConfig().getString("pets." + petId + ".material");
+        return (int)cost + " " + plugin.getConfig().getString("pets." + petId + ".material", "DIAMOND");
     }
 }

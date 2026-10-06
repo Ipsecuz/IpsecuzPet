@@ -53,21 +53,54 @@ public class EvolutionManager {
             }
 
             int costMoney = reqSec.getInt("cost_money", 0);
-            if (costMoney > 0 && plugin.getCurrencyManager().hasEconomy()) {
-                if (plugin.getCurrencyManager().getEconomy().getBalance(player) < costMoney) {
-                    player.sendMessage("§cBạn không đủ tiền! Cần: §e" + costMoney + "$");
+            if (costMoney > 0) {
+                if (!plugin.getCurrencyManager().hasMoney(player, costMoney)) {
+                    player.sendMessage("§cBạn không đủ tiền! Cần: §e$" + costMoney);
                     return false;
                 }
-                plugin.getCurrencyManager().getEconomy().withdrawPlayer(player, costMoney);
+            }
+
+            int costPoints = reqSec.getInt("cost_points", 0);
+            if (costPoints > 0) {
+                if (!plugin.getCurrencyManager().hasPoints(player, costPoints)) {
+                    player.sendMessage("§cBạn không đủ Points! Cần: §b" + costPoints + " Points");
+                    return false;
+                }
             }
 
             int costDiamonds = reqSec.getInt("cost_diamonds", 0);
-            if (costDiamonds > 0) {
-                if (!player.getInventory().containsAtLeast(new ItemStack(Material.DIAMOND), costDiamonds)) {
-                    player.sendMessage("§cBạn cần có ít nhất §b" + costDiamonds + " Kim Cương §cđể tiến hóa!");
+            if (costDiamonds > 0 && !plugin.getItemHookManager().hasItem(player, "DIAMOND", costDiamonds)) {
+                player.sendMessage("§cBạn cần có ít nhất §b" + costDiamonds + " Kim Cương §cđể tiến hóa!");
+                return false;
+            }
+
+            int costNetherite = reqSec.getInt("cost_netherite", 0);
+            if (costNetherite > 0 && !plugin.getItemHookManager().hasItem(player, "NETHERITE_INGOT", costNetherite)) {
+                player.sendMessage("§cBạn cần có ít nhất §8" + costNetherite + " Phôi Netherite §cđể tiến hóa!");
+                return false;
+            }
+
+            java.util.List<String> costItems = reqSec.getStringList("cost_items");
+            for (String itemStr : costItems) {
+                String[] parts = itemStr.split(":");
+                String id = parts[0];
+                int amt = parts.length > 1 ? Integer.parseInt(parts[1]) : 1;
+                if (!plugin.getItemHookManager().hasItem(player, id, amt)) {
+                    player.sendMessage("§cBạn thiếu vật phẩm: §e" + amt + "x " + plugin.getItemHookManager().getItemDisplayName(id));
                     return false;
                 }
-                player.getInventory().removeItem(new ItemStack(Material.DIAMOND, costDiamonds));
+            }
+
+            // Trừ chi phí
+            if (costMoney > 0) plugin.getCurrencyManager().withdrawMoney(player, costMoney);
+            if (costPoints > 0) plugin.getCurrencyManager().withdrawPoints(player, costPoints);
+            if (costDiamonds > 0) plugin.getItemHookManager().takeItem(player, "DIAMOND", costDiamonds);
+            if (costNetherite > 0) plugin.getItemHookManager().takeItem(player, "NETHERITE_INGOT", costNetherite);
+            for (String itemStr : costItems) {
+                String[] parts = itemStr.split(":");
+                String id = parts[0];
+                int amt = parts.length > 1 ? Integer.parseInt(parts[1]) : 1;
+                plugin.getItemHookManager().takeItem(player, id, amt);
             }
         }
 

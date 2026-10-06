@@ -1,5 +1,5 @@
 # ==========================================================
-#               MODULE: HỆ THỐNG ẤP TRỨNG PET (HATCHING)
+#               MODULE: HỆ THỐNG ẤP TRỨNG & QUAY GACHA PET
 # ==========================================================
 enabled: true
 
@@ -9,13 +9,25 @@ gui:
   size: 45
   # Cho phép hỗ trợ liên kết với FancyNPCs / Citizens / ZNPCs qua lệnh: /pet hatch
 
-# Danh sách các loại trứng có thể tìm thấy hoặc mua
+# Danh sách các loại trứng có thể tìm thấy, quay thưởng hoặc mua
+# HỖ TRỢ ĐA NỀN TẢNG:
+# - material: EGG, TURTLE_EGG, DRAGON_EGG hoặc custom:
+#   + "itemsadder:custom_egg_item"
+#   + "oraxen:custom_egg_item"
+#   + "nexo:custom_egg_item"
+# - requirements (Điều kiện chi phí để quay Gacha ấp trứng):
+#   + money: Số tiền Vault cần có (ví dụ: 1000)
+#   + points: Số PlayerPoints cần có (ví dụ: 10)
+#   + items: Danh sách vật phẩm cần nộp (Hỗ trợ Vanilla, ItemsAdder, Oraxen, Nexo)
 eggs:
   common_egg:
     name: "&a🥚 Trứng Thường (Common Egg)"
     material: EGG
-    price: 500
-    currency: MONEY
+    requirements:
+      money: 500
+      points: 0
+      items:
+        - "WHEAT:10"
     lore:
       - "&7Độ hiếm: &aPhổ Thông"
       - "&7Chứa đựng linh hồn các loài thú hiền lành."
@@ -36,8 +48,14 @@ eggs:
   rare_egg:
     name: "&b🔮 Trứng Hiếm (Rare Egg)"
     material: TURTLE_EGG
-    price: 3000
-    currency: MONEY
+    requirements:
+      money: 3000
+      points: 10
+      items:
+        - "DIAMOND:2"
+        # - "itemsadder:ruby:1"      # Hỗ trợ vật phẩm từ ItemsAdder
+        # - "oraxen:sapphire:1"     # Hỗ trợ vật phẩm từ Oraxen
+        # - "nexo:amethyst_core:1"  # Hỗ trợ vật phẩm từ Nexo
     lore:
       - "&7Độ hiếm: &bHiếm"
       - "&7Ấp nở những trợ thủ đắc lực."
@@ -58,8 +76,12 @@ eggs:
   legendary_egg:
     name: "&6👑 Trứng Thần Thoại (Legendary Egg)"
     material: DRAGON_EGG
-    price: 150
-    currency: POINTS
+    requirements:
+      money: 10000
+      points: 50
+      items:
+        - "NETHERITE_INGOT:1"
+        - "DIAMOND:5"
     lore:
       - "&7Độ hiếm: &6Thần Thoại"
       - "&7Chứa đựng sức mạnh của các cổ thú tối thượng!"
@@ -90,4 +112,3 @@ drops:
     boss_egg: "legendary_egg"
     monster_chance_percent: 0.5
     monster_egg: "common_egg"
-

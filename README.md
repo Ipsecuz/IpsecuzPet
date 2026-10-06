@@ -435,4 +435,62 @@ Toàn bộ các tính năng lớn đã được tách biệt thành từng file 
 | `/pet trade <player>` | Gửi lời mời giao dịch Pet an toàn | `ipsecuzpet.use` |
 | `/pet trade accept` | Chấp nhận giao dịch Pet | `ipsecuzpet.use` |
 | `/pet giveegg <player> <id> [số lượng]` | Cấp phát trứng Pet cho người chơi | `ipsecuzpet.admin` |
-| `/pet reload` | Nạp lại config chính, ngôn ngữ và toàn bộ `modules/*.yml` | `ipsecuzpet.admin` |
+| `/pet reload` | Nạp lại config chính, ngôn ngữ và toàn bộ `modules/*.yml` | `ipsecuzpet.admin` |
+
+---
+
+### 8. 🌟 Bản Cập Nhật Đột Phá V2.0+ (Gacha Roulette, Pagination, Anti-Theft GUI, Scaling & Multi-Plugin Hooks)
+
+#### 🎰 1. Vòng Quay Gacha Ấp Trứng Sống Động (Gacha Roulette Animation)
+- **Hiệu ứng Vòng Quay Casino/Roulette đỉnh cao:**
+  - Mở GUI 27 ô tự động lăn các biểu tượng Pet từ phải sang trái qua hàng giữa (slots 9–17).
+  - Hai phễu chỉ điểm (Hopper Pointers) ở ô 4 và ô 22 đánh dấu vị trí trúng thưởng (slot 13).
+  - Khung viền kính đổi màu rực rỡ theo từng nhịp quay kèm âm thanh Pling tăng dần cao độ.
+  - Tự động **giảm tốc độ (Deceleration)** khi đến gần ô thắng và khóa lại tại ô trúng thưởng.
+  - Pháo hoa ăn mừng, hiệu ứng hạt Totem và âm thanh Challenge Complete bùng nổ khi trúng giải.
+- **Sửa triệt để lỗi màu Subtitle:**
+  - Khắc phục hoàn toàn lỗi hiển thị mã màu thô `&e` trên màn hình. Sử dụng `LegacyComponentSerializer.legacySection()` của Adventure API để dịch toàn bộ màu vàng, xanh, lục, cam và hex một cách mượt mà.
+- **An toàn 100%:** Dù người chơi có lỡ tay đóng GUI hoặc bị ngắt kết nối trong lúc quay, hệ thống vẫn tự động lưu pet vào `data.yml` và gửi thông báo, không bao giờ bị mất phần thưởng!
+- **Yêu cầu chi phí khi quay (Requirements):**
+  - Hỗ trợ yêu cầu tiền Vault (`money`), điểm PlayerPoints (`points`), và danh sách vật phẩm (`items`).
+
+#### 📄 2. Phân Trang Cửa Hàng Pet (/pet shop Pagination: Trang 1, 2, ... N)
+- Giao diện Shop 54 ô hiện đại, hỗ trợ chia trang mượt mà không giới hạn số lượng Pet.
+- Hiển thị đầy đủ thông tin: Tên Pet, Icon, Trạng thái (Đã sở hữu / Chưa sở hữu), Chỉ số cơ bản (Máu, Dame, Giáp), Giá tiền.
+- Thanh điều hướng đáy sang trọng: `◀ Trang trước`, `Trang X/Y`, `Lò Ấp Trứng 🥚`, `Menu Pet của tôi 🐾`, `Trang sau ▶`.
+
+#### 🔒 3. Bảo Mật Tuyệt Đối & Sửa Triệt Để Bug Trộm Item GUI (Anti-Theft GUI)
+- Triển khai toàn bộ bằng các lớp `InventoryHolder` định danh riêng (`PetMenuHolder`, `ShopMenuHolder`, `PetDetailHolder`, `HatchMenuHolder`, `RouletteHolder`).
+- Lắng nghe và chặn đứng cả `InventoryClickEvent` và `InventoryDragEvent` với độ ưu tiên `EventPriority.HIGHEST`.
+- Chặn mọi hành vi gian lận: Nhấp phím số (Hotbar swap), Kéo thả chuột (Drag), Nhấp nhanh (Shift-Click), lấy item trên con trỏ chuột.
+
+#### 📏 4. Scale Kích Thước Pet & Hỗ Trợ Model Riêng Cho Dạng Con (Baby vs Adult)
+- Sử dụng thuộc tính `Attribute.GENERIC_SCALE` tương thích đa phiên bản qua Reflection:
+  - Dạng bé con (Baby): Thu nhỏ kích thước thực tế về **0.55x**.
+  - Dạng trưởng thành (Adult): Kích thước tiêu chuẩn **1.0x**.
+  - Tự động điều chỉnh kích thước Slime (`setSize(1)` khi là bé con, `setSize(2)` khi lớn).
+- Hỗ trợ khai báo model BetterModel riêng biệt cho 2 dạng:
+  - `model_id`: Model hiển thị khi Pet ở dạng Trưởng thành.
+  - `model_id_baby`: Model hiển thị khi Pet ở dạng Bé con.
+
+#### ⚔️ 5. Điều Kiện Học Kỹ Năng & Nâng Cấp Pet
+- Thú cưng cần thỏa mãn các điều kiện mới có thể học Kỹ Năng Tuyệt Chiêu (`ultimate`):
+  - `req_level`: Cấp độ Pet tối thiểu cần đạt.
+  - `cost_money`: Tiền Vault cần trả.
+  - `cost_points`: Điểm PlayerPoints cần trả.
+  - `cost_items`: Danh sách vật phẩm cần có.
+- Trạng thái kỹ năng được lưu bền vững vào `data.yml` theo từng thú cưng (`unlocked_skills`).
+- Menu Quản lý Thú cưng hiển thị nút `[HỌC KỸ NĂNG]` trực quan kèm chi phí cụ thể nếu chưa học.
+
+#### 🔌 6. Hỗ Trợ Đa Nền Tảng: ItemsAdder, Oraxen, Nexo
+- Tích hợp lớp `ItemHookManager` kết nối tự động qua Java Reflection (không phụ thuộc cứng, server không cài vẫn chạy êm ái).
+- Hỗ trợ đầy đủ cú pháp:
+  - `itemsadder:<item_id>` hoặc `ia:<item_id>`
+  - `oraxen:<item_id>`
+  - `nexo:<item_id>`
+  - Minecraft Vanilla Material (`DIAMOND`, `NETHERITE_INGOT`, v.v.)
+- Áp dụng đồng bộ cho:
+  - Icon hiển thị trong GUI.
+  - Vật phẩm trả phí mua pet trong `/pet shop`.
+  - Vật phẩm nộp để quay gacha trong `/pet hatch`.
+  - Vật phẩm yêu cầu để học kỹ năng và tăng sao tiến hóa.

@@ -6,6 +6,18 @@ enabled: true
 # Cooldown mặc định của Tuyệt Chiêu Kích Hoạt (giây)
 default_ultimate_cooldown: 45
 
+# ==========================================================
+# CẤU TRÚC ĐIỀU KIỆN ĐỂ HỌC KỸ NĂNG (SKILL LEARNING CONDITIONS):
+# - req_level: Cấp độ Pet tối thiểu cần đạt
+# - cost_money: Số tiền Vault cần trả
+# - cost_points: Số PlayerPoints cần trả
+# - cost_items: Danh sách vật phẩm cần trả (Vanilla / ItemsAdder / Oraxen / Nexo)
+#   + Ví dụ: "DIAMOND:5"
+#   + "itemsadder:magic_scroll:1"
+#   + "oraxen:ancient_tome:1"
+#   + "nexo:skill_crystal:1"
+# ==========================================================
+
 skills:
   # Rồng Ender
   ender_dragon_pet:
@@ -17,6 +29,11 @@ skills:
     ultimate:
       name: "&dCầu Lửa Hư Không"
       desc: "&7Phun ra sóng xung kích Hư Không gây sát thương diện rộng xung quanh chủ."
+      req_level: 25
+      cost_money: 15000
+      cost_points: 30
+      cost_items:
+        - "DRAGON_BREATH:2"
       radius: 6.0
       damage: 35.0
       particle: "DRAGON_BREATH"
@@ -30,6 +47,11 @@ skills:
     ultimate:
       name: "&bSóng Âm Diệt Vực"
       desc: "&7Tạo sóng âm đẩy lùi toàn bộ quái vật và làm choáng kẻ địch trong 3 giây."
+      req_level: 20
+      cost_money: 12000
+      cost_points: 25
+      cost_items:
+        - "ECHO_SHARD:4"
       radius: 7.0
       damage: 40.0
       particle: "SONIC_BOOM"
@@ -45,6 +67,11 @@ skills:
     ultimate:
       name: "&aKhúc Hát Thanh Lọc"
       desc: "&7Xóa toàn bộ hiệu ứng xấu cho chủ và ban hiệu ứng Hồi Máu II trong 10 giây."
+      req_level: 10
+      cost_money: 5000
+      cost_points: 10
+      cost_items:
+        - "AMETHYST_SHARD:8"
       sound: "BLOCK_AMETHYST_BLOCK_CHIME"
 
   # Sói
@@ -56,6 +83,11 @@ skills:
     ultimate:
       name: "&4Tiếng Hú Đầu Đàn"
       desc: "&7Gầm vang ban hiệu ứng Sức Mạnh II và Tốc Độ II trong 15 giây."
+      req_level: 15
+      cost_money: 8000
+      cost_points: 0
+      cost_items:
+        - "BONE:32"
       sound: "ENTITY_WOLF_HOWL"
 
   # Golem Sắt
@@ -66,7 +98,11 @@ skills:
     ultimate:
       name: "&6Địa Chấn Dập Nát"
       desc: "&7Đập mạnh xuống đất hất tung kẻ địch xung quanh lên không trung."
+      req_level: 15
+      cost_money: 10000
+      cost_points: 0
+      cost_items:
+        - "IRON_BLOCK:4"
       radius: 5.0
       damage: 20.0
       sound: "ENTITY_IRON_GOLEM_ATTACK"
-

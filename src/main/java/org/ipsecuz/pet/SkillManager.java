@@ -2,19 +2,19 @@ package org.ipsecuz.pet;
 
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.entity.Damageable;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class SkillManager {
@@ -23,6 +23,98 @@ public class SkillManager {
 
     public SkillManager(IpsecuzPet plugin) {
         this.plugin = plugin;
+    }
+
+    public boolean isSkillUnlocked(UUID uuid, String petId, String skillType) {
+        List<String> unlocked = plugin.getConfigManager().getData().getStringList(uuid + ".pets." + petId + ".unlocked_skills");
+        if (unlocked.contains(skillType.toLowerCase())) return true;
+
+        FileConfiguration config = plugin.getModuleManager().getSkillsConfig();
+        ConfigurationSection sec = config.getConfigurationSection("skills." + petId + "." + skillType);
+        if (sec == null) return false;
+
+        // Nếu không yêu cầu level hoặc chi phí thì mặc định mở khóa
+        int reqLvl = sec.getInt("req_level", 0);
+        int costMoney = sec.getInt("cost_money", 0);
+        int costPoints = sec.getInt("cost_points", 0);
+        String costItem = sec.getString("cost_items", null);
+        return (reqLvl <= 1 && costMoney <= 0 && costPoints <= 0 && costItem == null);
+    }
+
+    public boolean unlockSkill(Player player, String petId, String skillType) {
+        if (isSkillUnlocked(player.getUniqueId(), petId, skillType)) {
+            player.sendMessage("§aThú cưng đã học kỹ năng này rồi!");
+            return false;
+        }
+
+        FileConfiguration config = plugin.getModuleManager().getSkillsConfig();
+        ConfigurationSection sec = config.getConfigurationSection("skills." + petId + "." + skillType);
+        if (sec == null) {
+            player.sendMessage("§cKhông tìm thấy thông tin kỹ năng này!");
+            return false;
+        }
+
+        int petLvl = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".level", 1);
+        int reqLvl = sec.getInt("req_level", 1);
+        if (petLvl < reqLvl) {
+            player.sendMessage("§cThú cưng cần đạt cấp độ §eLv." + reqLvl + " §cđể học kỹ năng này! (Hiện tại: Lv." + petLvl + ")");
+            return false;
+        }
+
+        int costMoney = sec.getInt("cost_money", 0);
+        if (costMoney > 0) {
+            if (!plugin.getCurrencyManager().hasMoney(player, costMoney)) {
+                player.sendMessage("§cBạn không đủ tiền! Cần: §e$" + costMoney);
+                return false;
+            }
+        }
+
+        int costPoints = sec.getInt("cost_points", 0);
+        if (costPoints > 0) {
+            if (!plugin.getCurrencyManager().hasPoints(player, costPoints)) {
+                player.sendMessage("§cBạn không đủ Points! Cần: §b" + costPoints + " Points");
+                return false;
+            }
+        }
+
+        List<String> costItems = new ArrayList<>();
+        if (sec.contains("cost_items")) {
+            if (sec.isList("cost_items")) {
+                costItems.addAll(sec.getStringList("cost_items"));
+            } else {
+                costItems.add(sec.getString("cost_items"));
+            }
+        }
+
+        for (String itemStr : costItems) {
+            String[] parts = itemStr.split(":");
+            String id = parts[0];
+            int amt = (parts.length > 1) ? Integer.parseInt(parts[1]) : 1;
+            if (!plugin.getItemHookManager().hasItem(player, id, amt)) {
+                player.sendMessage("§cBạn thiếu vật phẩm: §e" + amt + "x " + plugin.getItemHookManager().getItemDisplayName(id));
+                return false;
+            }
+        }
+
+        // Trừ chi phí
+        if (costMoney > 0) plugin.getCurrencyManager().withdrawMoney(player, costMoney);
+        if (costPoints > 0) plugin.getCurrencyManager().withdrawPoints(player, costPoints);
+        for (String itemStr : costItems) {
+            String[] parts = itemStr.split(":");
+            String id = parts[0];
+            int amt = (parts.length > 1) ? Integer.parseInt(parts[1]) : 1;
+            plugin.getItemHookManager().takeItem(player, id, amt);
+        }
+
+        List<String> unlocked = plugin.getConfigManager().getData().getStringList(player.getUniqueId() + ".pets." + petId + ".unlocked_skills");
+        unlocked.add(skillType.toLowerCase());
+        plugin.getConfigManager().getData().set(player.getUniqueId() + ".pets." + petId + ".unlocked_skills", unlocked);
+        plugin.getConfigManager().saveData();
+
+        String skillName = sec.getString("name", skillType);
+        player.sendMessage("§a§lTHÀNH CÔNG! §fThú cưng đã học được kỹ năng: " + ChatColor.translateAlternateColorCodes('&', skillName));
+        player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+        return true;
     }
 
     public boolean triggerUltimate(Player player) {
@@ -39,6 +131,11 @@ public class SkillManager {
         ConfigurationSection skillSec = config.getConfigurationSection("skills." + petId + ".ultimate");
         if (skillSec == null) {
             player.sendMessage("§cPet này hiện chưa có Tuyệt Chiêu Kích Hoạt!");
+            return false;
+        }
+
+        if (!isSkillUnlocked(player.getUniqueId(), petId, "ultimate")) {
+            player.sendMessage("§cThú cưng chưa học Tuyệt Chiêu này! Hãy mở Bảng Điều Khiển để học.");
             return false;
         }
 
@@ -73,7 +170,6 @@ public class SkillManager {
                 pet.getWorld().spawnParticle(Particle.valueOf(pName), loc.add(0, 1, 0), 40, 1.0, 1.0, 1.0, 0.1);
             } catch (Exception ignored) {}
 
-            // Gây sát thương hoặc hiệu ứng AoE lên quái vật xung quanh
             for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
                 if (nearby instanceof Monster target) {
                     SchedulerUtils.runEntityTask(plugin, target, () -> {
@@ -84,7 +180,6 @@ public class SkillManager {
                 }
             }
 
-            // Hiệu ứng đặc biệt cho một số loài
             if (petId.equals("allay_pet")) {
                 SchedulerUtils.runEntityTask(plugin, player, () -> {
                     for (PotionEffect effect : player.getActivePotionEffects()) {
@@ -103,4 +198,3 @@ public class SkillManager {
         return true;
     }
 }
-

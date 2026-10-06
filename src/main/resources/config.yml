@@ -40,23 +40,61 @@ rpg_system:
       - "REGENERATION:0"
 
 # ==========================================================
-#               DANH SÁCH PET
+#               DANH SÁCH PET & HỖ TRỢ ĐA NỀN TẢNG
 # ==========================================================
-# Lưu ý:
-# - currency: ITEM (Cần 'material'), MONEY (Cần Vault), POINTS (Cần PlayerPoints)
-# - catchable: true (Cho bắt ngoài tự nhiên), false (Chỉ mua trong Shop)
-# - Chỉ có pet nào có khả năng đánh nhau thì mới duel được nhá
-# - Bạn có thể thêm key model cho pet ví dụ: model_id: "red_dragon"
-# - Nếu bạn không để model_id thì xem như mob đó sẽ là vanilla
+# HƯỚNG DẪN CẤU HÌNH CHO ADMIN:
+# 1. MODEL CUSTOM (BetterModel):
+#    - model_id: "ten_model"       -> Model hiển thị ở dạng Trưởng thành (Adult)
+#    - model_id_baby: "ten_model_con" -> Model hiển thị ở dạng Bé con (Baby)
+#    - Nếu không ghi model_id: Plugin sẽ sử dụng mob Minecraft Vanilla thuần túy.
+#    - Hệ thống tự động scale kích thước (0.55x cho baby, 1.0x cho adult qua GENERIC_SCALE).
+#
+# 2. HỖ TRỢ PLUGIN ITEMSADDER / ORAXEN / NEXO:
+#    - Icon Menu: Có thể dùng "STONE", "DIAMOND" hoặc:
+#      + icon: "itemsadder:ruby"
+#      + icon: "oraxen:dragon_heart"
+#      + icon: "nexo:celestial_shard"
+#    - Tiền tệ Mua Bằng Vật Phẩm (currency: ITEM):
+#      + material: "DIAMOND" (Vanilla)
+#      + material: "itemsadder:coin_gold"
+#      + material: "oraxen:silver_ingot"
+#      + material: "nexo:custom_currency"
+#
+# 3. LOẠI TIỀN TỆ (currency):
+#    - MONEY: Dùng tiền kinh tế Vault ($)
+#    - POINTS: Dùng điểm PlayerPoints
+#    - ITEM: Dùng vật phẩm trong rương đồ (Vanilla / ItemsAdder / Oraxen / Nexo)
 # ==========================================================
 pets:
+  # ==========================================================
+  # [MẪU DEMO] PET HỖ TRỢ BETTERMODEL + ITEMSADDER / ORAXEN / NEXO
+  # ==========================================================
+  # custom_phoenix_pet:
+  #   type: ALLAY
+  #   name: "&6Phượng Hoàng Lửa"
+  #   model_id: "furacas"             # Model trưởng thành (tên trong BetterModel)
+  #   model_id_baby: "furacas_pro"    # Model bé con (tùy chọn)
+  #   icon: "itemsadder:phoenix_feather" # Icon từ ItemsAdder hoặc dùng FEATHER
+  #   price: 50
+  #   currency: POINTS
+  #   catchable: false
+  #   particle: "FLAME"
+  #   effects: ["FIRE_RESISTANCE:1", "SPEED:1"]
+  #   stats:
+  #     damage: 15.0
+  #     health: 80.0
+  #     defense: 5.0
+  #     speed: 0.35
+  #     intelligence: 20.0
+
   # ==========================================
   # NHÓM 1: MUA BẰNG VẬT PHẨM (ITEM) - Dành cho Newbie
   # ==========================================
   chicken_pet:
     type: CHICKEN
     name: "&eGà Con Lon Ton"
-    #model_id: "red_dragon"    # ID của model trong BetterModel ("tên file".bbmodel)
+    # model_id: "custom_chicken"      # Bỏ chú thích nếu có model BetterModel
+    # model_id_baby: "chick_model"    # Model dạng nhỏ
     icon: FEATHER
     price: 32
     currency: ITEM

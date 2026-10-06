@@ -78,13 +78,24 @@ public class PetManager {
         pet.setMetadata("pet_owner", new FixedMetadataValue(plugin, player.getUniqueId().toString()));
         pet.setMetadata("IPSECUZ_PET", new FixedMetadataValue(plugin, player.getUniqueId().toString()));
 
-        // Hook Model: Lấy model_id từ config, mặc định là null (không lấy petId để tránh spam warning)
-        String modelId = plugin.getConfig().getString("pets." + petId + ".model_id", null);
+        // Tùy chọn Kích thước: Bé con (Baby) hoặc Trưởng thành (Adult)
+        boolean isBaby = plugin.getConfigManager().isPetBaby(player.getUniqueId(), petId);
+
+        // Hook Model: Hỗ trợ model_id_baby riêng biệt cho dạng con
+        String modelId = null;
+        if (isBaby && plugin.getConfig().contains("pets." + petId + ".model_id_baby")) {
+            modelId = plugin.getConfig().getString("pets." + petId + ".model_id_baby");
+        } else {
+            modelId = plugin.getConfig().getString("pets." + petId + ".model_id", null);
+        }
 
         if (pet instanceof LivingEntity living) {
             living.setRemoveWhenFarAway(false);
             living.setCanPickupItems(false);
             living.setCollidable(false);
+
+            // Scale kích cỡ pet thực tế (0.55 cho bé con, 1.0 cho trưởng thành)
+            applyScale(living, isBaby ? 0.55 : 1.0);
 
             // CHỈ ẩn mob gốc khi có model BetterModel tùy chỉnh hợp lệ
             if (modelId != null && !modelId.trim().isEmpty()) {
@@ -99,8 +110,6 @@ public class PetManager {
             }
         }
 
-        // Tùy chọn Kích thước: Bé con (Baby) hoặc Trưởng thành (Adult)
-        boolean isBaby = plugin.getConfigManager().isPetBaby(player.getUniqueId(), petId);
         if (pet instanceof Ageable ageable) {
             if (isBaby) {
                 ageable.setBaby();
@@ -384,5 +393,19 @@ public class PetManager {
         }
         plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".exp", currentExp);
         plugin.getConfigManager().saveData();
+    }
+
+    public static void applyScale(LivingEntity entity, double scale) {
+        if (entity == null || !entity.isValid()) return;
+        try {
+            Attribute scaleAttr = Attribute.valueOf("GENERIC_SCALE");
+            if (scaleAttr != null && entity.getAttribute(scaleAttr) != null) {
+                entity.getAttribute(scaleAttr).setBaseValue(scale);
+                return;
+            }
+        } catch (Exception ignored) {}
+        if (entity instanceof Slime slime) {
+            slime.setSize(scale < 0.8 ? 1 : 2);
+        }
     }
 }
