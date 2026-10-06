@@ -336,16 +336,39 @@ public class PetManager {
         int baseExpRequirement = plugin.getConfig().getInt("rpg_system.base_exp_requirement", 50);
         int nextLvlExp = currentLvl * baseExpRequirement;
 
-        // --- LOGIC MỚI: TÍNH HỆ SỐ NHÂN KINH NGHIỆM ---
+        // --- LOGIC MỚI: TÍNH HỆ SỐ NHÂN KINH NGHIỆM (AN TOÀN TUYỆT ĐỐI) ---
         double multiplier = 1.0;
-        if (plugin.getConfig().contains("rpg_system.xp_multiplier_permissions")) {
-            for (Map.Entry<String, Object> entry : plugin.getConfig().getConfigurationSection("rpg_system.xp_multiplier_permissions").getValues(false).entrySet()) {
-                if (p.hasPermission(entry.getKey())) {
-                    double permMultiplier = Double.parseDouble(entry.getValue().toString());
-                    if (permMultiplier > multiplier) {
-                        multiplier = permMultiplier;
-                    }
+
+        // 1. Quét quyền hạn của người chơi trực tiếp (ví dụ: ipsecuzpet.multiplier.1.5, ipsecuzpet.multiplier.2.0)
+        try {
+            for (org.bukkit.permissions.PermissionAttachmentInfo info : p.getEffectivePermissions()) {
+                if (info == null || !info.getValue()) continue;
+                String perm = info.getPermission();
+                if (perm != null && perm.startsWith("ipsecuzpet.multiplier.")) {
+                    try {
+                        double permVal = Double.parseDouble(perm.substring("ipsecuzpet.multiplier.".length()));
+                        if (permVal > multiplier) {
+                            multiplier = permVal;
+                        }
+                    } catch (NumberFormatException ignored) {}
                 }
+            }
+        } catch (Exception ignored) {}
+
+        // 2. Quét cấu hình từ config.yml (hỗ trợ an toàn cả keys có dấu chấm lẫn keys thường, chặn MemorySection)
+        org.bukkit.configuration.ConfigurationSection multSec = plugin.getConfig().getConfigurationSection("rpg_system.xp_multiplier_permissions");
+        if (multSec != null) {
+            for (Map.Entry<String, Object> entry : multSec.getValues(true).entrySet()) {
+                if (entry.getValue() instanceof org.bukkit.configuration.ConfigurationSection) continue;
+                try {
+                    double permMultiplier = Double.parseDouble(entry.getValue().toString());
+                    String key = entry.getKey();
+                    if (p.hasPermission(key) || p.hasPermission("ipsecuzpet.multiplier." + key)) {
+                        if (permMultiplier > multiplier) {
+                            multiplier = permMultiplier;
+                        }
+                    }
+                } catch (Exception ignored) {}
             }
         }
 
