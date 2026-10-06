@@ -278,6 +278,35 @@ if (pet instanceof LivingEntity living) {
 }
 ```
 
+### 2. Lỗi `EntityDeathEvent`: `NumberFormatException: For input string: "MemorySection[...]"`
+
+#### Triệu chứng lỗi (Server Console Log):
+```log
+[ERROR]: Could not pass event EntityDeathEvent to IpsecuzPet
+java.lang.NumberFormatException: For input string: "MemorySection[path='rpg_system.xp_multiplier_permissions.ipsecuzpet', root='YamlConfiguration']"
+        at java.base/jdk.internal.math.FloatingDecimal.parseDouble(FloatingDecimal.java:110)
+        at java.base/java.lang.Double.parseDouble(Double.java:971)
+        at org.ipsecuz.pet.PetManager.givePetExp(PetManager.java:335)
+        at org.ipsecuz.pet.GameListener.onMobKill(GameListener.java:311)
+```
+
+#### Nguyên nhân kỹ thuật:
+- Trong Bukkit/Bungee `YamlConfiguration`, dấu chấm `.` được mặc định quy định làm ký tự phân tách đường dẫn (`path separator`).
+- Khi cấu hình quyền hạn chứa dấu chấm như:
+  ```yaml
+  xp_multiplier_permissions:
+    ipsecuzpet.multiplier.1.5: 1.5
+    ipsecuzpet.multiplier.2.0: 2.0
+  ```
+  Bukkit tự động chuyển đổi thành cấu trúc các nhánh con lồng nhau: `ipsecuzpet` -> `multiplier` -> `1` -> `5: 1.5`.
+- Do hàm cũ duyệt `getValues(false)`, entry đầu tiên trả về key là `"ipsecuzpet"` và value là một đối tượng `MemorySection`. Khi ép kiểu `Double.parseDouble(entry.getValue().toString())`, chuỗi `"MemorySection[path=...]"` không thể parse thành số `Double` và ném ra ngoại lệ `NumberFormatException`.
+
+#### Giải pháp khắc phục triệt để:
+1. **Quét trực tiếp quyền hạn của người chơi (`p.getEffectivePermissions()`):**
+   Tự động phát hiện các quyền dạng `ipsecuzpet.multiplier.<val>` (như `ipsecuzpet.multiplier.1.5` hoặc gán qua LuckPerms) và trích xuất hệ số nhân một cách an toàn.
+2. **Quét cấu hình qua `getValues(true)` với bộ lọc `MemorySection`:**
+   Loại bỏ toàn bộ các đối tượng là instance của `ConfigurationSection`, chỉ đọc các giá trị lá thực tế và bọc trong khối `try/catch` để tránh mọi lỗi định dạng số.
+
 ---
 
 ## 💡 Cập nhật theo Feedback người chơi (Player Feedback Updates)
