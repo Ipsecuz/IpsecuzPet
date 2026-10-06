@@ -26,15 +26,22 @@ public class PetTabCompleter implements TabCompleter {
             commands.add("shop");
             commands.add("help");
             commands.add("despawn");
+            commands.add("baby");
+            commands.add("hatch");
+            commands.add("feed");
+            commands.add("skill");
+            commands.add("star");
+            commands.add("trade");
             commands.add("duel");
             commands.add("accept");
             commands.add("stats");
             commands.add("withdraw");
-            commands.add("rename"); // <--- THÊM DÒNG NÀY
+            commands.add("rename");
 
             if (sender.hasPermission("ipsecuzpet.admin")) {
                 commands.add("give");
                 commands.add("giveball");
+                commands.add("giveegg");
                 commands.add("reload");
             }
 
@@ -75,6 +82,12 @@ public class PetTabCompleter implements TabCompleter {
             // Gợi ý ID bóng
             if (args[0].equalsIgnoreCase("giveball") && sender.hasPermission("ipsecuzpet.admin")) {
                 return new ArrayList<>(plugin.getCaptureManager().getBallIds());
+            }
+            // Gợi ý ID trứng
+            if (args[0].equalsIgnoreCase("giveegg") && sender.hasPermission("ipsecuzpet.admin")) {
+                if (plugin.getModuleManager() != null && plugin.getModuleManager().getHatchingConfig().isConfigurationSection("eggs")) {
+                    return new ArrayList<>(plugin.getModuleManager().getHatchingConfig().getConfigurationSection("eggs").getKeys(false));
+                }
             }
         }
 

@@ -78,29 +78,48 @@ public class PetManager {
         pet.setMetadata("pet_owner", new FixedMetadataValue(plugin, player.getUniqueId().toString()));
         pet.setMetadata("IPSECUZ_PET", new FixedMetadataValue(plugin, player.getUniqueId().toString()));
 
+        // Hook Model: Lấy model_id từ config, mặc định là null (không lấy petId để tránh spam warning)
+        String modelId = plugin.getConfig().getString("pets." + petId + ".model_id", null);
+
         if (pet instanceof LivingEntity living) {
             living.setRemoveWhenFarAway(false);
             living.setCanPickupItems(false);
             living.setCollidable(false);
-            living.setInvisible(true); // Ẩn mob gốc
+
+            // CHỈ ẩn mob gốc khi có model BetterModel tùy chỉnh hợp lệ
+            if (modelId != null && !modelId.trim().isEmpty()) {
+                living.setInvisible(true);
+                modelHandler.spawnModel(player, pet, modelId);
+            } else {
+                living.setInvisible(false);
+            }
+
             if (plugin.getConfig().getBoolean("pets." + petId + ".silent", true)) {
                 living.setSilent(true);
             }
         }
 
-        if (pet instanceof Ageable ageable) ageable.setAdult();
+        // Tùy chọn Kích thước: Bé con (Baby) hoặc Trưởng thành (Adult)
+        boolean isBaby = plugin.getConfigManager().isPetBaby(player.getUniqueId(), petId);
+        if (pet instanceof Ageable ageable) {
+            if (isBaby) {
+                ageable.setBaby();
+                ageable.setAgeLock(true); // Khóa tuổi không cho tự lớn lên
+            } else {
+                ageable.setAdult();
+            }
+        } else if (pet instanceof Zombie zombie) {
+            zombie.setBaby(isBaby);
+        } else if (pet instanceof Piglin piglin) {
+            piglin.setBaby(isBaby);
+        }
+
         if (pet instanceof Tameable tameable) {
             tameable.setOwner(player);
             tameable.setTamed(true);
         }
 
-        updatePetStats(pet, petId, lvl);
-
-        // Hook Model
-        String modelId = plugin.getConfig().getString("pets." + petId + ".model_id", petId);
-        // --- THAY ĐỔI QUAN TRỌNG: TRUYỀN THÊM ĐỐI TƯỢNG PLAYER ---
-        modelHandler.spawnModel(player, pet, modelId);
-        // -----------------------------------------------------------
+        updatePetStats(pet, petId, lvl, player.getUniqueId());
 
         activePets.put(player.getUniqueId(), pet);
         activePetIds.put(player.getUniqueId(), petId);
@@ -136,12 +155,25 @@ public class PetManager {
         modelHandler.removeAll();
     }
 
-    private void updatePetStats(Entity entity, String petId, int level) {
+    public void refreshPetStats(Player player) {
+        if (!hasPet(player.getUniqueId())) return;
+        Entity pet = getPet(player.getUniqueId());
+        String petId = getActivePetId(player.getUniqueId());
+        int lvl = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".level", 1);
+        if (pet != null && pet.isValid()) {
+            updatePetStats(pet, petId, lvl, player.getUniqueId());
+        }
+    }
+
+    private void updatePetStats(Entity entity, String petId, int level, UUID ownerId) {
         if (!(entity instanceof Attributable attrEntity)) return;
 
-        double maxHp = plugin.getConfigManager().getPetStat(petId, level, "health");
+        double starMultiplier = (plugin.getEvolutionManager() != null && ownerId != null)
+                ? plugin.getEvolutionManager().getStarMultiplier(ownerId, petId) : 1.0;
+
+        double maxHp = plugin.getConfigManager().getPetStat(petId, level, "health") * starMultiplier;
         double speed = plugin.getConfigManager().getPetStat(petId, level, "speed");
-        double damage = plugin.getConfigManager().getPetStat(petId, level, "damage");
+        double damage = plugin.getConfigManager().getPetStat(petId, level, "damage") * starMultiplier;
 
         if (maxHp <= 0) maxHp = 20;
 
@@ -161,6 +193,13 @@ public class PetManager {
 
     public void startPetTask() {
         SchedulerUtils.runGlobalTimer(plugin, this::runPetLogic, 1L, 5L);
+    }
+
+    private boolean isFlyingType(EntityType type) {
+        String name = type.name();
+        return name.contains("ALLAY") || name.contains("BAT") || name.contains("BEE")
+                || name.contains("PHANTOM") || name.contains("PARROT") || name.contains("GHAST")
+                || name.contains("ENDER_DRAGON") || name.contains("WITHER") || name.contains("VEX");
     }
 
     private void runPetLogic() {
@@ -187,14 +226,23 @@ public class PetManager {
                 Location petLoc = pet.getLocation();
                 Location ownerLoc = owner.getLocation();
 
+                boolean isFlying = isFlyingType(pet.getType());
                 if (petLoc.distanceSquared(ownerLoc) > 400) {
                     SchedulerUtils.teleportAsync(pet, ownerLoc);
-                }
-                else if (petLoc.distanceSquared(ownerLoc) > 9) {
+                } else if (isFlying) {
+                    // AI bay lượn mượt mà quanh vai/đầu chủ nhân (Folia Safe)
+                    Location targetHover = ownerLoc.clone().add(0, 1.2, 0);
+                    org.bukkit.util.Vector dir = targetHover.toVector().subtract(petLoc.toVector());
+                    double dist = dir.length();
+                    if (dist > 2.0) {
+                        dir.normalize().multiply(Math.min(0.35, dist * 0.08));
+                        pet.setVelocity(dir);
+                    }
+                } else if (petLoc.distanceSquared(ownerLoc) > 9) {
                     if (pet instanceof Mob mob) mob.getPathfinder().moveTo(owner);
                 }
 
-                // --- THAY ĐỔI QUAN TRỌNG: CẬP NHẬT VỊ TRÍ VÀ HOẠT ẢNH ---
+                // Cập nhật vị trí và hoạt ảnh model nếu có
                 modelHandler.updatePosition(pet);
                 modelHandler.updateAnimation(pet);
                 // ------------------------------------------------------------
@@ -291,6 +339,15 @@ public class PetManager {
                 }
             }
         }
+
+        // Thưởng thêm 25% EXP nếu độ vui vẻ Pet >= 80%
+        if (plugin.getFeedingManager() != null) {
+            int happy = plugin.getFeedingManager().getHappiness(p.getUniqueId(), petId);
+            if (happy >= 80) {
+                multiplier *= 1.25;
+            }
+        }
+
         int finalAmount = (int) (amount * multiplier);
         // ----------------------------------------------------
 
@@ -307,7 +364,7 @@ public class PetManager {
 
             Entity pet = activePets.get(p.getUniqueId());
             if (pet != null) {
-                updatePetStats(pet, petId, currentLvl);
+                updatePetStats(pet, petId, currentLvl, p.getUniqueId());
 
                 // Cập nhật tên mới (nếu có tên tùy chỉnh)
                 String defaultName = plugin.getConfig().getString("pets." + petId + ".name", "Pet");

@@ -30,6 +30,9 @@ public class CurrencyManager {
         }
     }
 
+    public boolean hasEconomy() { return econ != null; }
+    public Economy getEconomy() { return econ; }
+
     public boolean processTransaction(Player p, String petId) {
         String type = plugin.getConfig().getString("pets." + petId + ".currency", "ITEM");
         double cost = plugin.getConfig().getDouble("pets." + petId + ".price", 0);

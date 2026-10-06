@@ -1,0 +1,48 @@
+# ==========================================================
+#               MODULE: THỨC ĂN & ĐỘ THÂN THIẾT (FEEDING)
+# ==========================================================
+enabled: true
+
+# Độ no & độ vui vẻ tối đa
+max_happiness: 100
+
+# Mỗi 10 phút giảm 5 điểm thân thiết nếu không cho ăn
+decay_interval_minutes: 10
+decay_amount: 5
+
+# Khi độ vui vẻ >= 80%, nhận được Buff Hạnh Phúc
+bonus_threshold: 80
+bonus_exp_multiplier: 1.25 # Nhận thêm 25% EXP
+bonus_speed_multiplier: 1.15 # Pet chạy nhanh hơn 15%
+
+# Danh sách món ăn được chấp nhận cho Pet
+foods:
+  WHEAT_SEEDS:
+    happiness_add: 10
+    exp_add: 15
+    sound: "ENTITY_GENERIC_EAT"
+  CARROT:
+    happiness_add: 15
+    exp_add: 25
+    sound: "ENTITY_GENERIC_EAT"
+  GOLDEN_CARROT:
+    happiness_add: 35
+    exp_add: 80
+    sound: "ENTITY_PLAYER_BURP"
+  BONE:
+    happiness_add: 20
+    exp_add: 30
+    sound: "ENTITY_GENERIC_EAT"
+  BEEF:
+    happiness_add: 15
+    exp_add: 25
+    sound: "ENTITY_GENERIC_EAT"
+  COOKED_BEEF:
+    happiness_add: 25
+    exp_add: 50
+    sound: "ENTITY_GENERIC_EAT"
+  GOLDEN_APPLE:
+    happiness_add: 50
+    exp_add: 150
+    sound: "ENTITY_PLAYER_BURP"
+

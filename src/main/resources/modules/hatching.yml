@@ -1,0 +1,93 @@
+# ==========================================================
+#               MODULE: HỆ THỐNG ẤP TRỨNG PET (HATCHING)
+# ==========================================================
+enabled: true
+
+# Tiêu đề GUI Ấp trứng
+gui:
+  title: "&#00AAFF✦ Lò Ấp Trứng Thú Cưng ✦"
+  size: 45
+  # Cho phép hỗ trợ liên kết với FancyNPCs / Citizens / ZNPCs qua lệnh: /pet hatch
+
+# Danh sách các loại trứng có thể tìm thấy hoặc mua
+eggs:
+  common_egg:
+    name: "&a🥚 Trứng Thường (Common Egg)"
+    material: EGG
+    price: 500
+    currency: MONEY
+    lore:
+      - "&7Độ hiếm: &aPhổ Thông"
+      - "&7Chứa đựng linh hồn các loài thú hiền lành."
+      - "&f"
+      - "&e✦ Danh sách Pet có thể nở:"
+      - " &7- Gà Con Lon Ton (&a35%&7)"
+      - " &7- Heo Ủn Ỉn (&a30%&7)"
+      - " &7- Bò Sữa (&a20%&7)"
+      - " &7- Cừu Bông (&a15%&7)"
+      - "&f"
+      - "&6▶ Nhấp chuột phải hoặc đặt vào Lò Ấp để mở!"
+    loot_table:
+      chicken_pet: 35
+      pig_pet: 30
+      cow_pet: 20
+      sheep_pet: 15
+
+  rare_egg:
+    name: "&b🔮 Trứng Hiếm (Rare Egg)"
+    material: TURTLE_EGG
+    price: 3000
+    currency: MONEY
+    lore:
+      - "&7Độ hiếm: &bHiếm"
+      - "&7Ấp nở những trợ thủ đắc lực."
+      - "&f"
+      - "&e✦ Danh sách Pet có thể nở:"
+      - " &7- Sói Chiến Binh (&b35%&7)"
+      - " &7- Mèo May Mắn (&b30%&7)"
+      - " &7- Cáo Tuyết (&b20%&7)"
+      - " &7- Golem Sắt Bảo Vệ (&b15%&7)"
+      - "&f"
+      - "&6▶ Nhấp chuột phải hoặc đặt vào Lò Ấp để mở!"
+    loot_table:
+      wolf_pet: 35
+      cat_pet: 30
+      fox_pet: 20
+      iron_golem_pet: 15
+
+  legendary_egg:
+    name: "&6👑 Trứng Thần Thoại (Legendary Egg)"
+    material: DRAGON_EGG
+    price: 150
+    currency: POINTS
+    lore:
+      - "&7Độ hiếm: &6Thần Thoại"
+      - "&7Chứa đựng sức mạnh của các cổ thú tối thượng!"
+      - "&f"
+      - "&e✦ Danh sách Pet có thể nở:"
+      - " &7- Tiểu Tiên Nữ Allay (&640%&7)"
+      - " &7- Kẻ Cai Ngục Warden (&625%&7)"
+      - " &7- Rồng Ender (&620%&7)"
+      - " &7- Chúa Tể Wither (&615%&7)"
+      - "&f"
+      - "&6▶ Nhấp chuột phải hoặc đặt vào Lò Ấp để mở!"
+    loot_table:
+      allay_pet: 40
+      warden_pet: 25
+      ender_dragon_pet: 20
+      wither_pet: 15
+
+# Tỉ lệ rơi trứng khi đào khoáng và đánh quái
+drops:
+  mining:
+    enabled: true
+    chance_percent: 1.5
+    diamond_ore_egg: "rare_egg"
+    ancient_debris_egg: "legendary_egg"
+  mobs:
+    enabled: true
+    boss_chance_percent: 25.0
+    boss_egg: "legendary_egg"
+    monster_chance_percent: 0.5
+    monster_egg: "common_egg"
+

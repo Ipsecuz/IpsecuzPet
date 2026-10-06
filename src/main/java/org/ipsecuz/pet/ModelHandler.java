@@ -25,10 +25,19 @@ public class ModelHandler {
     }
 
     public void spawnModel(Player owner, Entity baseEntity, String modelId) {
+        if (modelId == null || modelId.trim().isEmpty()) {
+            if (baseEntity instanceof LivingEntity living) {
+                living.setInvisible(false);
+            }
+            return;
+        }
+
         try {
             Object modelManager = getModelManagerSmart();
             if (modelManager == null) {
-                // Giữ lại: Lỗi nghiêm trọng, cần biết
+                if (baseEntity instanceof LivingEntity living) {
+                    living.setInvisible(false);
+                }
                 plugin.getLogger().warning(plugin.getLanguage().getMessage("model_handler.manager_not_found"));
                 return;
             }
@@ -38,14 +47,18 @@ public class ModelHandler {
                 Method modelMethod = modelManager.getClass().getMethod("model", String.class);
                 model = modelMethod.invoke(modelManager, modelId);
             } catch (Exception e) {
-                // Giữ lại: Lỗi nghiêm trọng, cần biết
+                if (baseEntity instanceof LivingEntity living) {
+                    living.setInvisible(false);
+                }
                 String errorMsg = plugin.getLanguage().getMessage("model_handler.error_calling_model_method", "%model_id%", modelId);
                 plugin.getLogger().log(Level.SEVERE, errorMsg, e);
                 return;
             }
 
             if (model == null) {
-                // Giữ lại: Cảnh báo quan trọng, cần biết để sửa config
+                if (baseEntity instanceof LivingEntity living) {
+                    living.setInvisible(false); // Mob vanilla luôn hiển thị
+                }
                 plugin.getLogger().warning(plugin.getLanguage().getMessage("model_handler.model_id_not_found", "%model_id%", modelId));
                 try {
                     Method keysMethod = modelManager.getClass().getMethod("modelKeys");

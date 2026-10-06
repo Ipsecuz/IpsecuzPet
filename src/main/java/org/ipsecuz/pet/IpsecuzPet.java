@@ -11,38 +11,63 @@ public class IpsecuzPet extends JavaPlugin {
     private CurrencyManager currencyManager;
     private LanguageManager languageManager;
     private CaptureManager captureManager;
-    private ModelHandler modelHandler; 
+    private ModelHandler modelHandler;
+    private ModuleManager moduleManager;
+    private HatchingManager hatchingManager;
+    private SkillManager skillManager;
+    private FeedingManager feedingManager;
+    private EvolutionManager evolutionManager;
+    private TradeManager tradeManager;
+    private DynamicPetRegistry dynamicPetRegistry;
 
     @Override
     public void onEnable() {
         instance = this;
 
-        // Load Language trước
+        // 1. Nạp Language trước
         this.languageManager = new LanguageManager(this);
 
+        // 2. Nạp Currency & Config
         this.currencyManager = new CurrencyManager(this);
         this.configManager = new ConfigManager(this);
 
-        // Load ModelHandler (Check BetterModel)
+        // 3. Nạp ModuleManager (quản lý folder modules/*.yml)
+        this.moduleManager = new ModuleManager(this);
+
+        // 4. Nạp ModelHandler (BetterModel Support)
         this.modelHandler = new ModelHandler(this);
 
+        // 5. Nạp các hệ thống mở rộng
+        this.hatchingManager = new HatchingManager(this);
+        this.skillManager = new SkillManager(this);
+        this.feedingManager = new FeedingManager(this);
+        this.evolutionManager = new EvolutionManager(this);
+        this.tradeManager = new TradeManager(this);
+
+        // 6. Nạp PetManager & CaptureManager
         this.petManager = new PetManager(this);
         this.captureManager = new CaptureManager(this);
 
+        // 7. Tự động phát hiện phiên bản và đăng ký mob mới (1.20 -> 1.21.x -> 26.x)
+        this.dynamicPetRegistry = new DynamicPetRegistry(this);
+        this.dynamicPetRegistry.detectAndRegisterNewMobs();
 
+        // 8. Đăng ký Commands & TabCompleter
         if (getCommand("ipsecuzpet") != null) {
             getCommand("ipsecuzpet").setExecutor(new PetCommand(this));
             getCommand("ipsecuzpet").setTabCompleter(new PetTabCompleter(this));
         }
 
+        // 9. Đăng ký tất cả Event Listeners (Đầy đủ GameListener, GuiListener, PetListener)
         getServer().getPluginManager().registerEvents(new GameListener(this), this);
         getServer().getPluginManager().registerEvents(new GuiListener(this), this);
+        getServer().getPluginManager().registerEvents(new PetListener(this), this);
 
-        // Chạy AI (Đã support Folia)
+        // 10. Chạy AI Pet Timer (Folia Safe)
         this.petManager.startPetTask();
 
         String platform = SchedulerUtils.isFolia() ? "Folia" : "Paper/Spigot";
-        getLogger().info("IpsecuzPets V1.4.0 (BetterModel Support) running on: " + platform);
+        getLogger().info("§a[IpsecuzPet V2.0] Đã khởi chạy thành công trên nền tảng: §e" + platform);
 
         new UpdateChecker(this, RESOURCE_ID).getVersion(version -> {
             if (this.getDescription().getVersion().equals(version)) {
@@ -65,4 +90,11 @@ public class IpsecuzPet extends JavaPlugin {
     public LanguageManager getLanguage() { return languageManager; }
     public CaptureManager getCaptureManager() { return captureManager; }
     public ModelHandler getModelHandler() { return modelHandler; }
+    public ModuleManager getModuleManager() { return moduleManager; }
+    public HatchingManager getHatchingManager() { return hatchingManager; }
+    public SkillManager getSkillManager() { return skillManager; }
+    public FeedingManager getFeedingManager() { return feedingManager; }
+    public EvolutionManager getEvolutionManager() { return evolutionManager; }
+    public TradeManager getTradeManager() { return tradeManager; }
+    public DynamicPetRegistry getDynamicPetRegistry() { return dynamicPetRegistry; }
 }

@@ -66,6 +66,15 @@ public class ConfigManager {
         dataConfig.set(uuid + ".pets." + petId + ".customName", customName);
         saveData();
     }
+
+    public boolean isPetBaby(UUID uuid, String petId) {
+        return dataConfig.getBoolean(uuid + ".pets." + petId + ".is_baby", false);
+    }
+
+    public void setPetBaby(UUID uuid, String petId, boolean isBaby) {
+        dataConfig.set(uuid + ".pets." + petId + ".is_baby", isBaby);
+        saveData();
+    }
     
 
     public double getPetStat(String petId, int level, String statName) {

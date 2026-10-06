@@ -1,0 +1,72 @@
+# ==========================================================
+#               MODULE: KỸ NĂNG PET (SKILLS & ULTIMATE)
+# ==========================================================
+enabled: true
+
+# Cooldown mặc định của Tuyệt Chiêu Kích Hoạt (giây)
+default_ultimate_cooldown: 45
+
+skills:
+  # Rồng Ender
+  ender_dragon_pet:
+    passive:
+      name: "&5Long Thể Bất Diệt"
+      desc: "&7Giảm 25% sát thương nhận vào từ quái vật và kháng lửa."
+      fire_resistance: true
+      damage_reduction_percent: 25.0
+    ultimate:
+      name: "&dCầu Lửa Hư Không"
+      desc: "&7Phun ra sóng xung kích Hư Không gây sát thương diện rộng xung quanh chủ."
+      radius: 6.0
+      damage: 35.0
+      particle: "DRAGON_BREATH"
+      sound: "ENTITY_ENDER_DRAGON_GROWL"
+
+  # Warden
+  warden_pet:
+    passive:
+      name: "&3Âm Ba Cảm Biến"
+      desc: "&7Phát hiện kẻ địch tàng hình và tăng 10% sát thương đòn đánh của chủ."
+    ultimate:
+      name: "&bSóng Âm Diệt Vực"
+      desc: "&7Tạo sóng âm đẩy lùi toàn bộ quái vật và làm choáng kẻ địch trong 3 giây."
+      radius: 7.0
+      damage: 40.0
+      particle: "SONIC_BOOM"
+      sound: "ENTITY_WARDEN_SONIC_BOOM"
+
+  # Allay
+  allay_pet:
+    passive:
+      name: "&bTiểu Thần Hộ Thể"
+      desc: "&7Tự động hồi 2 máu mỗi 5 giây cho chủ nhân."
+      regen_interval_seconds: 5
+      heal_amount: 2.0
+    ultimate:
+      name: "&aKhúc Hát Thanh Lọc"
+      desc: "&7Xóa toàn bộ hiệu ứng xấu cho chủ và ban hiệu ứng Hồi Máu II trong 10 giây."
+      sound: "BLOCK_AMETHYST_BLOCK_CHIME"
+
+  # Sói
+  wolf_pet:
+    passive:
+      name: "&cBầy Sói Săn Mồi"
+      desc: "&7Đòn đánh của chủ có 20% tỉ lệ chí mạng gây thêm 50% sát thương."
+      crit_chance_percent: 20.0
+    ultimate:
+      name: "&4Tiếng Hú Đầu Đàn"
+      desc: "&7Gầm vang ban hiệu ứng Sức Mạnh II và Tốc Độ II trong 15 giây."
+      sound: "ENTITY_WOLF_HOWL"
+
+  # Golem Sắt
+  iron_golem_pet:
+    passive:
+      name: "&7Khiên Thép Khổng Lồ"
+      desc: "&7Tăng 15% giáp cơ bản cho chủ nhân."
+    ultimate:
+      name: "&6Địa Chấn Dập Nát"
+      desc: "&7Đập mạnh xuống đất hất tung kẻ địch xung quanh lên không trung."
+      radius: 5.0
+      damage: 20.0
+      sound: "ENTITY_IRON_GOLEM_ATTACK"
+

@@ -17,6 +17,10 @@ pet:
   already_owned: "&cBạn đã sở hữu Pet này rồi! Không thể mua thêm."
   catch_impossible: "&cCon thú này quá mạnh! Bạn chỉ có thể mua nó trong Shop."
   rename_success: "&aĐã đổi tên pet thành: &e%new_name%"
+  baby_toggle: "&aĐã chuyển đổi dạng kích thước của Pet thành: &e%form%"
+  feed_success: "&aĐã cho thú cưng ăn thành công! Độ vui vẻ: &e%happiness%%"
+  skill_active: "&6&lKỸ NĂNG! &eThú cưng đã kích hoạt tuyệt chiêu &b%skill%&e!"
+  star_up: "&6&lTIẾN HÓA! &eThú cưng của bạn đã nâng lên &b%stars% ⭐&e!"
 
   # Withdraw
   withdraw_usage: "&cCú pháp: /pet withdraw <tên_id_pet>"

@@ -53,6 +53,19 @@ public class GameListener implements Listener {
         ItemStack item = e.getItem();
         if (item == null || !item.hasItemMeta()) return;
 
+        // 1. Kiểm tra nếu là Trứng Pet (Pet Egg Hatching)
+        if (plugin.getHatchingManager() != null) {
+            String eggId = plugin.getHatchingManager().getEggId(item);
+            if (eggId != null) {
+                e.setCancelled(true);
+                if (e.getAction().toString().contains("RIGHT")) {
+                    plugin.getHatchingManager().processHatch(e.getPlayer(), eggId, item);
+                }
+                return;
+            }
+        }
+
+        // 2. Kiểm tra nếu là Thẻ Pet rút từ /pet withdraw
         NamespacedKey keyId = new NamespacedKey(plugin, "pet_item_id");
         if (item.getItemMeta().getPersistentDataContainer().has(keyId, PersistentDataType.STRING)) {
             e.setCancelled(true);
@@ -97,7 +110,12 @@ public class GameListener implements Listener {
 
         if (e.getRightClicked() instanceof Entity pet && p.isSneaking() && isPet(pet) && getOwnerId(pet).equals(p.getUniqueId())) {
             e.setCancelled(true);
-            plugin.getPetManager().showPetStats(p, pet);
+            String petId = plugin.getPetManager().getActivePetId(p.getUniqueId());
+            if (petId != null) {
+                GuiListener.openPetDetailMenu(p, petId);
+            } else {
+                plugin.getPetManager().showPetStats(p, pet);
+            }
             return;
         }
 

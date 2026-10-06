@@ -1,0 +1,11 @@
+# ==========================================================
+#               MODULE: GIAO DỊCH PET AN TOÀN (TRADE)
+# ==========================================================
+enabled: true
+
+# Thời gian đếm ngược trước khi giao dịch hoàn tất (giây)
+confirm_countdown_seconds: 3
+
+# Tiêu đề giao diện
+gui_title: "&8Giao Dịch Pet: %player1% &8⇄ %player2%"
+

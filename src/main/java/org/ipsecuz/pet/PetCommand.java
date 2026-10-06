@@ -47,6 +47,12 @@ public class PetCommand implements CommandExecutor {
                 p.sendMessage(lang.getMessage("help.cmd_gui"));
                 p.sendMessage(lang.getMessage("help.cmd_shop"));
                 p.sendMessage(lang.getMessage("help.cmd_despawn"));
+                p.sendMessage("§e/pet hatch §7- Mở Lò Ấp Trứng (Hỗ trợ gắn NPC)");
+                p.sendMessage("§e/pet baby §7- Đổi dạng Bé con (Baby) / Trưởng thành");
+                p.sendMessage("§e/pet feed §7- Cho thú cưng ăn tăng Độ Vui Vẻ");
+                p.sendMessage("§e/pet skill §7- Kích hoạt Tuyệt Chiêu Pet");
+                p.sendMessage("§e/pet star §7- Tiến hóa & Tăng sao Pet");
+                p.sendMessage("§e/pet trade <player> §7- Giao dịch Pet với người chơi");
                 p.sendMessage(lang.getMessage("help.cmd_duel"));
                 p.sendMessage(lang.getMessage("help.cmd_accept"));
                 p.sendMessage("§e/pet stats §7- Xem chỉ số Pet");
@@ -55,7 +61,8 @@ public class PetCommand implements CommandExecutor {
                 if (p.hasPermission("ipsecuzpet.admin")) {
                     p.sendMessage("§c/pet give <player> <pet_id> §7- Admin Give Pet");
                     p.sendMessage("§c/pet giveball <player> <ball_id> <amount> §7- Give Ball");
-                    p.sendMessage("§c/pet reload §7- Admin Reload");
+                    p.sendMessage("§c/pet giveegg <player> <egg_id> <amount> §7- Give Egg");
+                    p.sendMessage("§c/pet reload §7- Admin Reload (Configs & Modules)");
                 }
                 p.sendMessage(lang.getMessage("help.footer"));
                 break;
@@ -266,12 +273,99 @@ public class PetCommand implements CommandExecutor {
                 targetP.sendMessage(lang.getMessage("admin.giveball_received"));
                 break;
 
+            case "giveegg":
+                if (!p.hasPermission("ipsecuzpet.admin")) {
+                    p.sendMessage(lang.getMessage("general.no_permission"));
+                    return true;
+                }
+                if (args.length < 3) {
+                    p.sendMessage("§cCú pháp: /pet giveegg <player> <egg_id> [amount]");
+                    return true;
+                }
+                Player targetEggP = Bukkit.getPlayer(args[1]);
+                if (targetEggP == null) {
+                    p.sendMessage(lang.getMessage("duel.invalid_target"));
+                    return true;
+                }
+                String eggId = args[2];
+                int eggAmount = 1;
+                if (args.length >= 4) {
+                    try { eggAmount = Integer.parseInt(args[3]); } catch (NumberFormatException ignored) {}
+                }
+                ItemStack eggItem = plugin.getHatchingManager().createEggItem(eggId, eggAmount);
+                if (eggItem == null) {
+                    p.sendMessage("§cKhông tìm thấy ID trứng: " + eggId + "! Kiểm tra modules/hatching.yml");
+                    return true;
+                }
+                targetEggP.getInventory().addItem(eggItem);
+                p.sendMessage("§aĐã gửi §e" + eggAmount + "x " + eggId + " §acho người chơi §e" + targetEggP.getName() + "§a.");
+                targetEggP.sendMessage("§aBạn vừa nhận được §e" + eggAmount + "x Trứng Thú Cưng §atừ Admin!");
+                break;
+
+            case "baby":
+            case "form":
+                if (!plugin.getPetManager().hasPet(p.getUniqueId())) {
+                    p.sendMessage(lang.getMessage("pet.no_pet"));
+                    return true;
+                }
+                String curActivePet = plugin.getPetManager().getActivePetId(p.getUniqueId());
+                boolean isBaby = plugin.getConfigManager().isPetBaby(p.getUniqueId(), curActivePet);
+                plugin.getConfigManager().setPetBaby(p.getUniqueId(), curActivePet, !isBaby);
+                p.sendMessage("§aĐã đổi dạng kích thước của Pet thành: " + (!isBaby ? "§b👶 Bé con (Baby)" : "§6🦁 Trưởng thành (Adult)"));
+                // Respawn pet để cập nhật hình dáng ngay lập tức
+                plugin.getPetManager().spawnPet(p, curActivePet);
+                break;
+
+            case "hatch":
+            case "incubator":
+                plugin.getHatchingManager().openHatchingGui(p);
+                break;
+
+            case "feed":
+                ItemStack handItem = p.getInventory().getItemInMainHand();
+                plugin.getFeedingManager().feedPet(p, handItem);
+                break;
+
+            case "skill":
+            case "ultimate":
+                plugin.getSkillManager().triggerUltimate(p);
+                break;
+
+            case "star":
+            case "evolve":
+                if (!plugin.getPetManager().hasPet(p.getUniqueId())) {
+                    p.sendMessage(lang.getMessage("pet.no_pet"));
+                    return true;
+                }
+                String starPetId = plugin.getPetManager().getActivePetId(p.getUniqueId());
+                plugin.getEvolutionManager().upgradeStar(p, starPetId);
+                break;
+
+            case "trade":
+                if (args.length < 2) {
+                    p.sendMessage("§cCú pháp: /pet trade <player> hoặc /pet trade accept");
+                    return true;
+                }
+                if (args[1].equalsIgnoreCase("accept")) {
+                    plugin.getTradeManager().acceptTrade(p);
+                } else {
+                    Player tradeTarget = Bukkit.getPlayer(args[1]);
+                    plugin.getTradeManager().sendTradeRequest(p, tradeTarget);
+                }
+                break;
+
             case "reload":
                 if(p.hasPermission("ipsecuzpet.admin")) {
                     plugin.reloadConfig();
                     plugin.getLanguage().loadMessages();
                     plugin.getConfigManager().loadDataFile();
                     plugin.getCaptureManager().loadBalls();
+                    if (plugin.getModuleManager() != null) {
+                        plugin.getModuleManager().loadAllModules();
+                    }
+                    if (plugin.getDynamicPetRegistry() != null) {
+                        plugin.getDynamicPetRegistry().detectAndRegisterNewMobs();
+                    }
                     p.sendMessage(lang.getMessage("general.config_reloaded"));
                 } else {
                     p.sendMessage(lang.getMessage("general.no_permission"));
