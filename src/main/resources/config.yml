@@ -467,6 +467,19 @@ pets:
     icon: DRAGON_EGG
     price: 200
     currency: POINTS
+    requirements:
+      all:
+        - type: ITEM
+          id: DRAGON_EGG
+          amount: 1
+      one_of:
+        - type: POINTS
+          amount: 200
+        - type: MONEY
+          amount: 200000
+        - type: ITEM
+          id: nexo:dragon_soul
+          amount: 5
     rarity: ETERNAL
     catchable: false
     particle: "DRAGON_BREATH"
@@ -484,6 +497,15 @@ pets:
     icon: SCULK_SENSOR
     price: 150
     currency: POINTS
+    requirements:
+      one_of:
+        - type: POINTS
+          amount: 150
+        - type: MONEY
+          amount: 150000
+        - type: ITEM
+          id: ECHO_SHARD
+          amount: 16
     rarity: MYTHIC
     catchable: false
     particle: "SONIC_BOOM"

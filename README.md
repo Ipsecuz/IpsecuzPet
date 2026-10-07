@@ -585,4 +585,54 @@ Toàn bộ các tính năng lớn đã được tách biệt thành từng file 
 
 #### 🎴 9. Bảo Mật Thẻ Pet Rút Ra Rương Đồ (Secure Pet Cards)
 - Thẻ Pet rút ra qua `/pet withdraw` lưu trữ toàn vẹn: `card_uuid`, `schema_version`, `stars`, `trait`, `custom_name`, `unlocked_skills`.
-- Ngăn chặn hoàn toàn việc làm giả thẻ hoặc mất sao/trait khi rút pet ra vật phẩm.
+- Ngăn chặn hoàn toàn việc làm giả thẻ hoặc mất sao/trait khi rút pet ra vật phẩm.
+
+---
+
+### 10. ⚡ Động Cơ Yêu Cầu & Chi Phí Toàn Năng (Universal Requirement Engine)
+
+Từ phiên bản 2.1, IpsecuzPet tích hợp **Universal Requirement Engine** (`org.ipsecuz.pet.requirement`), loại bỏ hoàn toàn các trường chi phí cứng nhắc (`cost_money`, `cost_diamonds`, `cost_points`, v.v.) và chuyển dịch sang mô hình hướng dữ liệu (data-driven) linh hoạt tuyệt đối.
+
+#### 🌟 Điểm Nổi Bật:
+1. **Logic Nhóm Đa Chiều:**
+   - `all:` (Mệnh đề AND) - Tất cả các điều kiện đều bắt buộc phải thỏa mãn.
+   - `one_of:` (Mệnh đề OR) - Người chơi chỉ cần thỏa mãn **1 trong các hình thức chi phí** được liệt kê (ví dụ: trả bằng Tiền Vault, Points HOẶC vật phẩm custom).
+2. **Hỗ Trợ Mọi Loại Tài Nguyên & Điều Kiện:**
+   - `PET_LEVEL`: Cấp độ tối thiểu của thú cưng.
+   - `PET_STAR`: Cấp sao tối thiểu của thú cưng.
+   - `MONEY`: Tiền tệ Vault.
+   - `POINTS`: PlayerPoints.
+   - `ITEM`: Vật phẩm Vanilla hoặc Custom (ItemsAdder `itemsadder:id` / `ia:id`, Oraxen `oraxen:id`, Nexo `nexo:id`) kèm tùy chọn CustomModelData và PDC tags.
+   - `PERMISSION`: Yêu cầu quyền hạn Bukkit của người chơi.
+   - `PET_OWNED` / `PET_NOT_OWNED`: Yêu cầu đã hoặc chưa sở hữu thú cưng chỉ định.
+3. **Giao Dịch 2 Pha Nguyên Tử & Tự Động Hoàn Trả (Atomic 2-Phase Commit & Rollback):**
+   - Đảm bảo kiểm tra toàn bộ điều kiện trước khi trừ bất kỳ tài nguyên nào.
+   - Nếu bất kỳ bước nào thất bại giữa chừng, toàn bộ chi phí đã trừ sẽ được rollback hoàn trả lại ngay lập tức theo thứ tự nghịch đảo, chống mất mát và chống trùng lặp tài nguyên.
+4. **Giao Diện Trực Quan (UX / GUI Checklist):**
+   - Phân tách rõ ràng giữa mục `ĐIỀU KIỆN BẮT BUỘC (ALL)` và `CHỌN 1 HÌNH THỨC (CHOOSE ONE)`.
+   - Hiển thị dấu check `[✔] (Đã chọn)` cho phương thức thanh toán hợp lệ đầu tiên, `[✖]` cho các phương án chưa đủ, và thông báo tổng quát `✔ ĐỦ ĐIỀU KIỆN`.
+5. **Tương Thích Ngược 100% (Backward Compatibility):**
+   - Các cấu hình cũ (`min_level`, `cost_money`, `cost_points`, `cost_diamonds`, `cost_netherite`, `cost_items`, `price`, `currency`) vẫn được parser nhận diện và tự động chuyển đổi thành nhóm yêu cầu chuẩn xác.
+
+#### 📝 Ví Dụ Cấu Hình Chuẩn:
+```yaml
+requirements:
+  star_2:
+    all:
+      - type: PET_LEVEL
+        value: 20
+      - type: ITEM
+        id: DIAMOND
+        amount: 16
+    one_of:
+      - type: MONEY
+        amount: 10000
+      - type: POINTS
+        amount: 100
+      - type: ITEM
+        id: itemsadder:ruby
+        amount: 5
+        display: "&cRuby Quý Hiếm"
+```
+*(Ý nghĩa: Yêu cầu Pet Level ≥ 20 VÀ 16 Kim Cương; kèm theo CHỌN 1 TRONG 3: $10,000 tiền mặt HOẶC 100 Points HOẶC 5 Ruby ItemsAdder).*
+

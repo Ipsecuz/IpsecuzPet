@@ -46,6 +46,14 @@ public class CurrencyManager {
         return false;
     }
 
+    public boolean depositMoney(Player p, double amount) {
+        if (econ != null && amount > 0) {
+            econ.depositPlayer(p, amount);
+            return true;
+        }
+        return false;
+    }
+
     public boolean hasPoints(Player p, int amount) {
         return pointsAPI != null && pointsAPI.look(p.getUniqueId()) >= amount;
     }
@@ -58,7 +66,30 @@ public class CurrencyManager {
         return false;
     }
 
+    public boolean givePoints(Player p, int amount) {
+        if (pointsAPI != null && amount > 0) {
+            pointsAPI.give(p.getUniqueId(), amount);
+            return true;
+        }
+        return false;
+    }
+
+    public void setEconomy(Economy econ) {
+        this.econ = econ;
+    }
+
+    public void setPointsAPI(PlayerPointsAPI pointsAPI) {
+        this.pointsAPI = pointsAPI;
+    }
+
     public boolean processTransaction(Player p, String petId) {
+        org.bukkit.configuration.ConfigurationSection sec = plugin.getConfig().getConfigurationSection("pets." + petId);
+        if (sec != null && (sec.contains("requirements") || sec.contains("all") || sec.contains("one_of"))) {
+            org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(sec);
+            org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(p, petId, 1, 1, plugin);
+            return plugin.getRequirementManager().executeTransaction(group, ctx);
+        }
+
         String type = plugin.getConfig().getString("pets." + petId + ".currency", "ITEM");
         double cost = plugin.getConfig().getDouble("pets." + petId + ".price", 0);
         LanguageManager lang = plugin.getLanguage();
@@ -88,6 +119,18 @@ public class CurrencyManager {
     }
 
     public String getPriceDisplay(String petId) {
+        org.bukkit.configuration.ConfigurationSection sec = plugin.getConfig().getConfigurationSection("pets." + petId);
+        if (sec != null && (sec.contains("requirements") || sec.contains("all") || sec.contains("one_of"))) {
+            org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(sec);
+            org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(null, petId, 1, 1, plugin);
+            org.ipsecuz.pet.requirement.RequirementCheckResult res = plugin.getRequirementManager().evaluate(group, ctx);
+            java.util.List<String> rendered = org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToStrings(res);
+            for (String line : rendered) {
+                if (!line.contains("ĐỦ ĐIỀU KIỆN") && !line.contains("CHƯA ĐỦ ĐIỀU KIỆN") && !line.startsWith("§7----") && !line.contains("BẮT BUỘC") && !line.contains("CHỌN 1")) {
+                    return line.replace("§a[✔] ", "").replace("§c[✖] ", "").trim();
+                }
+            }
+        }
         String type = plugin.getConfig().getString("pets." + petId + ".currency", "ITEM");
         double cost = plugin.getConfig().getDouble("pets." + petId + ".price", 0);
         if (type.equals("MONEY")) return "$" + (long)cost;

@@ -12,22 +12,67 @@ stat_boost_per_star: 0.15
 # Tỉ lệ tăng tốc độ chạy mỗi cấp sao (mặc định 0.0 để giữ thăng bằng vận tốc di chuyển)
 speed_boost_per_star: 0.0
 
-# Yêu cầu để tăng sao
+# ==========================================================
+# HỆ THỐNG YÊU CẦU ĐA NĂNG (UNIVERSAL REQUIREMENT ENGINE)
+# Hỗ trợ:
+# - all: Tất cả điều kiện đều bắt buộc (AND)
+# - one_of: Chỉ cần thỏa mãn 1 trong các hình thức chi phí (OR)
+# - Các loại: PET_LEVEL, PET_STAR, MONEY, POINTS, ITEM (Vanilla, ItemsAdder, Oraxen, Nexo), PERMISSION, PET_OWNED, PET_NOT_OWNED
+# - Tương thích ngược: Vẫn nhận diện các key cũ (min_level, cost_money, cost_diamonds, cost_netherite, cost_items)
+# ==========================================================
 requirements:
   star_2:
-    min_level: 20
-    cost_money: 10000
-    cost_diamonds: 16
+    all:
+      - type: PET_LEVEL
+        value: 20
+      - type: ITEM
+        id: DIAMOND
+        amount: 16
+    one_of:
+      - type: MONEY
+        amount: 10000
+      - type: POINTS
+        amount: 100
+      - type: ITEM
+        id: itemsadder:ruby
+        amount: 5
+        display: "&cRuby Quý Hiếm"
   star_3:
-    min_level: 40
-    cost_money: 30000
-    cost_diamonds: 32
+    all:
+      - type: PET_LEVEL
+        value: 40
+      - type: ITEM
+        id: DIAMOND
+        amount: 32
+    one_of:
+      - type: MONEY
+        amount: 30000
+      - type: POINTS
+        amount: 300
   star_4:
-    min_level: 60
-    cost_money: 75000
-    cost_netherite: 2
+    all:
+      - type: PET_LEVEL
+        value: 60
+      - type: ITEM
+        id: NETHERITE_INGOT
+        amount: 2
+    one_of:
+      - type: MONEY
+        amount: 75000
+      - type: POINTS
+        amount: 750
+      - type: ITEM
+        id: oraxen:ancient_coin
+        amount: 10
   star_5:
-    min_level: 80
-    cost_money: 150000
-    cost_netherite: 4
-
+    all:
+      - type: PET_LEVEL
+        value: 80
+      - type: MONEY
+        amount: 150000
+      - type: ITEM
+        id: NETHERITE_INGOT
+        amount: 4
+      - type: ITEM
+        id: nexo:celestial_core
+        amount: 2

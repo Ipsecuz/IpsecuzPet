@@ -399,12 +399,12 @@ public class GuiListener implements Listener {
                 }
                 skLore.add(Component.text("§c✖ Chưa học kỹ năng này!"));
                 skLore.add(Component.text("§7--- Yêu cầu để học ---"));
-                int reqLvl = (ultSec != null) ? ultSec.getInt("req_level", 1) : 1;
-                int costMoney = (ultSec != null) ? ultSec.getInt("cost_money", 0) : 0;
-                int costPoints = (ultSec != null) ? ultSec.getInt("cost_points", 0) : 0;
-                skLore.add(Component.text("§7- Cấp Pet: " + (lvl >= reqLvl ? "§aLv." : "§cLv.") + reqLvl + " (Hiện: Lv." + lvl + ")"));
-                if (costMoney > 0) skLore.add(Component.text("§7- Tiền: §e$" + costMoney));
-                if (costPoints > 0) skLore.add(Component.text("§7- Points: §b" + costPoints + " P"));
+                if (ultSec != null) {
+                    org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(ultSec);
+                    org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(p, petId, lvl, star, plugin);
+                    org.ipsecuz.pet.requirement.RequirementCheckResult result = plugin.getRequirementManager().evaluate(group, ctx);
+                    skLore.addAll(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(result));
+                }
                 skLore.add(Component.text("§a▶ Nhấp để Học Kỹ Năng ngay!"));
                 skMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "learn_skill:ultimate:" + petId);
             }
@@ -556,48 +556,11 @@ public class GuiListener implements Listener {
                 ConfigurationSection reqSec = config.getConfigurationSection("requirements.star_" + nextStar);
 
                 if (reqSec != null) {
-                    int minLvl = reqSec.getInt("min_level", 20);
-                    boolean lvlOk = lvl >= minLvl;
-                    if (!lvlOk) allMet = false;
-                    chLore.add(Component.text((lvlOk ? "§a[✔] " : "§c[✖] ") + "Cấp độ thú cưng: Lv." + lvl + "/" + minLvl));
-
-                    int costMoney = reqSec.getInt("cost_money", 0);
-                    if (costMoney > 0) {
-                        boolean mOk = plugin.getCurrencyManager().hasMoney(p, costMoney);
-                        if (!mOk) allMet = false;
-                        chLore.add(Component.text((mOk ? "§a[✔] " : "§c[✖] ") + "Tiền xu: $" + costMoney));
-                    }
-
-                    int costPoints = reqSec.getInt("cost_points", 0);
-                    if (costPoints > 0) {
-                        boolean ptOk = plugin.getCurrencyManager().hasPoints(p, costPoints);
-                        if (!ptOk) allMet = false;
-                        chLore.add(Component.text((ptOk ? "§a[✔] " : "§c[✖] ") + "Points: " + costPoints + " P"));
-                    }
-
-                    int costDia = reqSec.getInt("cost_diamonds", 0);
-                    if (costDia > 0) {
-                        boolean dOk = plugin.getItemHookManager().hasItem(p, "DIAMOND", costDia);
-                        if (!dOk) allMet = false;
-                        chLore.add(Component.text((dOk ? "§a[✔] " : "§c[✖] ") + "Kim Cương: " + costDia + " viên"));
-                    }
-
-                    int costNeth = reqSec.getInt("cost_netherite", 0);
-                    if (costNeth > 0) {
-                        boolean nOk = plugin.getItemHookManager().hasItem(p, "NETHERITE_INGOT", costNeth);
-                        if (!nOk) allMet = false;
-                        chLore.add(Component.text((nOk ? "§a[✔] " : "§c[✖] ") + "Phôi Netherite: " + costNeth + " phôi"));
-                    }
-
-                    List<String> costItems = reqSec.getStringList("cost_items");
-                    for (String itemStr : costItems) {
-                        String[] parts = itemStr.split(":");
-                        String id = parts[0];
-                        int amt = parts.length > 1 ? Integer.parseInt(parts[1]) : 1;
-                        boolean itmOk = plugin.getItemHookManager().hasItem(p, id, amt);
-                        if (!itmOk) allMet = false;
-                        chLore.add(Component.text((itmOk ? "§a[✔] " : "§c[✖] ") + plugin.getItemHookManager().getItemDisplayName(id) + " x" + amt));
-                    }
+                    org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(reqSec);
+                    org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(p, petId, lvl, curStar, plugin);
+                    org.ipsecuz.pet.requirement.RequirementCheckResult result = plugin.getRequirementManager().evaluate(group, ctx);
+                    allMet = result.isSatisfied();
+                    chLore.addAll(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(result));
                 } else {
                     chLore.add(Component.text("§a[✔] Miễn phí tiến hóa!"));
                 }
@@ -911,8 +874,16 @@ public class GuiListener implements Listener {
             if (cm.getData().contains(p.getUniqueId() + ".pets." + key)) {
                 lore.add(Component.text("§a✔ ĐÃ SỞ HỮU"));
             } else {
-                lore.add(LegacyComponentSerializer.legacySection().deserialize(
-                        ChatColor.translateAlternateColorCodes('&', lang.getMessage("gui.lore_price", "%cost%", price))));
+                org.bukkit.configuration.ConfigurationSection petSec = plugin.getConfig().getConfigurationSection("pets." + key);
+                if (petSec != null && (petSec.contains("requirements") || petSec.contains("all") || petSec.contains("one_of"))) {
+                    org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(petSec);
+                    org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(p, key, 1, 1, plugin);
+                    org.ipsecuz.pet.requirement.RequirementCheckResult res = plugin.getRequirementManager().evaluate(group, ctx);
+                    lore.addAll(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(res));
+                } else {
+                    lore.add(LegacyComponentSerializer.legacySection().deserialize(
+                            ChatColor.translateAlternateColorCodes('&', lang.getMessage("gui.lore_price", "%cost%", price))));
+                }
                 lore.add(Component.text("§e▶ Nhấp để Mua ngay!"));
             }
 

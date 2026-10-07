@@ -135,3 +135,9 @@ model_handler:
 
   # Misc
   no_inst_method: "&eKhông tìm thấy phương thức inst(), sử dụng instance của plugin."
+
+requirement:
+  not_met: "&cBạn chưa đáp ứng đủ điều kiện: &e%missing%"
+  transaction_failed: "&cThực hiện giao dịch chi phí thất bại! Đã hoàn trả tài nguyên."
+  not_enough: "&cThiếu: &e%missing% &7(Cần: &e%required%&7, hiện có: &e%current%&7)"
+  ready: "&a&l✔ ĐỦ ĐIỀU KIỆN"

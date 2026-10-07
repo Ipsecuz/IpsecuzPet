@@ -102,37 +102,62 @@ public class ItemHookManager {
         return new ItemStack(fallback != null ? fallback : Material.STONE);
     }
 
+    public boolean matchesItem(ItemStack item, String identifier, Integer customModelData, java.util.Map<String, String> pdcStrings) {
+        if (item == null || item.getType() == Material.AIR || identifier == null) return false;
+        String lower = identifier.toLowerCase().trim();
+        boolean match = false;
+        if (lower.startsWith("itemsadder:") || lower.startsWith("ia:")) {
+            String targetId = identifier.substring(identifier.indexOf(":") + 1);
+            match = isItemsAdderItem(item, targetId);
+        } else if (lower.startsWith("oraxen:")) {
+            String targetId = identifier.substring(identifier.indexOf(":") + 1);
+            match = isOraxenItem(item, targetId);
+        } else if (lower.startsWith("nexo:")) {
+            String targetId = identifier.substring(identifier.indexOf(":") + 1);
+            match = isNexoItem(item, targetId);
+        } else {
+            Material mat = Material.getMaterial(identifier.toUpperCase().trim());
+            match = (mat != null && item.getType() == mat);
+        }
+        if (!match) return false;
+
+        if (customModelData != null) {
+            if (!item.hasItemMeta() || !item.getItemMeta().hasCustomModelData() || item.getItemMeta().getCustomModelData() != customModelData) {
+                return false;
+            }
+        }
+
+        if (pdcStrings != null && !pdcStrings.isEmpty()) {
+            if (!item.hasItemMeta()) return false;
+            org.bukkit.persistence.PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
+            for (java.util.Map.Entry<String, String> entry : pdcStrings.entrySet()) {
+                org.bukkit.NamespacedKey key = org.bukkit.NamespacedKey.fromString(entry.getKey(), plugin);
+                if (key == null) {
+                    String[] parts = entry.getKey().split(":");
+                    key = parts.length > 1 ? new org.bukkit.NamespacedKey(parts[0], parts[1]) : new org.bukkit.NamespacedKey(plugin, parts[0]);
+                }
+                if (!pdc.has(key, org.bukkit.persistence.PersistentDataType.STRING)) return false;
+                String val = pdc.get(key, org.bukkit.persistence.PersistentDataType.STRING);
+                if (!entry.getValue().equals(val)) return false;
+            }
+        }
+
+        return true;
+    }
+
     /**
      * Kiểm tra người chơi có đủ số lượng vật phẩm (Vanilla / ItemsAdder / Oraxen / Nexo) không
      */
     public boolean hasItem(Player player, String identifier, int amount) {
+        return hasItem(player, identifier, amount, null, null);
+    }
+
+    public boolean hasItem(Player player, String identifier, int amount, Integer customModelData, java.util.Map<String, String> pdcStrings) {
         if (player == null || identifier == null || amount <= 0) return true;
         int count = 0;
-        String lower = identifier.toLowerCase().trim();
-
         for (ItemStack item : player.getInventory().getContents()) {
-            if (item == null || item.getType() == Material.AIR) continue;
-
-            if (lower.startsWith("itemsadder:") || lower.startsWith("ia:")) {
-                String targetId = identifier.substring(identifier.indexOf(":") + 1);
-                if (isItemsAdderItem(item, targetId)) {
-                    count += item.getAmount();
-                }
-            } else if (lower.startsWith("oraxen:")) {
-                String targetId = identifier.substring(identifier.indexOf(":") + 1);
-                if (isOraxenItem(item, targetId)) {
-                    count += item.getAmount();
-                }
-            } else if (lower.startsWith("nexo:")) {
-                String targetId = identifier.substring(identifier.indexOf(":") + 1);
-                if (isNexoItem(item, targetId)) {
-                    count += item.getAmount();
-                }
-            } else {
-                Material mat = Material.getMaterial(identifier.toUpperCase().trim());
-                if (mat != null && item.getType() == mat) {
-                    count += item.getAmount();
-                }
+            if (matchesItem(item, identifier, customModelData, pdcStrings)) {
+                count += item.getAmount();
             }
             if (count >= amount) return true;
         }
@@ -143,31 +168,16 @@ public class ItemHookManager {
      * Trừ vật phẩm của người chơi (Vanilla / ItemsAdder / Oraxen / Nexo)
      */
     public boolean takeItem(Player player, String identifier, int amount) {
-        if (!hasItem(player, identifier, amount)) return false;
-        int remaining = amount;
-        String lower = identifier.toLowerCase().trim();
+        return takeItem(player, identifier, amount, null, null);
+    }
 
+    public boolean takeItem(Player player, String identifier, int amount, Integer customModelData, java.util.Map<String, String> pdcStrings) {
+        if (!hasItem(player, identifier, amount, customModelData, pdcStrings)) return false;
+        int remaining = amount;
         ItemStack[] contents = player.getInventory().getContents();
         for (int i = 0; i < contents.length; i++) {
             ItemStack item = contents[i];
-            if (item == null || item.getType() == Material.AIR) continue;
-
-            boolean match = false;
-            if (lower.startsWith("itemsadder:") || lower.startsWith("ia:")) {
-                String targetId = identifier.substring(identifier.indexOf(":") + 1);
-                match = isItemsAdderItem(item, targetId);
-            } else if (lower.startsWith("oraxen:")) {
-                String targetId = identifier.substring(identifier.indexOf(":") + 1);
-                match = isOraxenItem(item, targetId);
-            } else if (lower.startsWith("nexo:")) {
-                String targetId = identifier.substring(identifier.indexOf(":") + 1);
-                match = isNexoItem(item, targetId);
-            } else {
-                Material mat = Material.getMaterial(identifier.toUpperCase().trim());
-                match = (mat != null && item.getType() == mat);
-            }
-
-            if (match) {
+            if (matchesItem(item, identifier, customModelData, pdcStrings)) {
                 int stackAmount = item.getAmount();
                 if (stackAmount <= remaining) {
                     remaining -= stackAmount;
@@ -182,6 +192,35 @@ public class ItemHookManager {
         player.getInventory().setContents(contents);
         player.updateInventory();
         return true;
+    }
+
+    public void giveItem(Player player, String identifier, int amount, Integer customModelData, java.util.Map<String, String> pdcStrings) {
+        if (player == null || identifier == null || amount <= 0) return;
+        ItemStack item = getItem(identifier, Material.STONE);
+        if (item.hasItemMeta()) {
+            org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+            if (customModelData != null) {
+                meta.setCustomModelData(customModelData);
+            }
+            if (pdcStrings != null && !pdcStrings.isEmpty()) {
+                for (java.util.Map.Entry<String, String> entry : pdcStrings.entrySet()) {
+                    org.bukkit.NamespacedKey key = org.bukkit.NamespacedKey.fromString(entry.getKey(), plugin);
+                    if (key == null) {
+                        String[] parts = entry.getKey().split(":");
+                        key = parts.length > 1 ? new org.bukkit.NamespacedKey(parts[0], parts[1]) : new org.bukkit.NamespacedKey(plugin, parts[0]);
+                    }
+                    meta.getPersistentDataContainer().set(key, org.bukkit.persistence.PersistentDataType.STRING, entry.getValue());
+                }
+            }
+            item.setItemMeta(meta);
+        }
+        item.setAmount(amount);
+        java.util.Map<Integer, ItemStack> leftover = player.getInventory().addItem(item);
+        if (!leftover.isEmpty() && player.getLocation() != null && player.getWorld() != null) {
+            for (ItemStack rem : leftover.values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), rem);
+            }
+        }
     }
 
     public boolean isItemsAdderItem(ItemStack item, String targetId) {

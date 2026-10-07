@@ -23,6 +23,7 @@ public class IpsecuzPet extends JavaPlugin {
     private PetOwnershipManager ownershipManager;
     private PetShardManager shardManager;
     private PetCodexManager codexManager;
+    private org.ipsecuz.pet.requirement.RequirementManager requirementManager;
 
     @Override
     public void onEnable() {
@@ -42,6 +43,9 @@ public class IpsecuzPet extends JavaPlugin {
 
         // 2.5 Nạp ItemHookManager (Hỗ trợ ItemsAdder, Oraxen, Nexo)
         this.itemHookManager = new ItemHookManager(this);
+
+        // 2.8 Nạp Universal Requirement Engine
+        this.requirementManager = new org.ipsecuz.pet.requirement.RequirementManager(this);
 
         // 3. Nạp ModuleManager (quản lý folder modules/*.yml)
         this.moduleManager = new ModuleManager(this);
@@ -132,4 +136,5 @@ public class IpsecuzPet extends JavaPlugin {
     public PetOwnershipManager getOwnershipManager() { return ownershipManager; }
     public PetShardManager getShardManager() { return shardManager; }
     public PetCodexManager getCodexManager() { return codexManager; }
+    public org.ipsecuz.pet.requirement.RequirementManager getRequirementManager() { return requirementManager; }
 }

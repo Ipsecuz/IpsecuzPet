@@ -37,11 +37,8 @@ public class SkillManager {
         ConfigurationSection sec = config.getConfigurationSection("skills." + petId + "." + skillType);
         if (sec == null) return false;
 
-        int reqLvl = sec.getInt("req_level", 0);
-        int costMoney = sec.getInt("cost_money", 0);
-        int costPoints = sec.getInt("cost_points", 0);
-        List<String> costItems = sec.getStringList("cost_items");
-        return (reqLvl <= 1 && costMoney <= 0 && costPoints <= 0 && costItems.isEmpty());
+        org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(sec);
+        return group.getRequirements().isEmpty();
     }
 
     public boolean unlockSkill(Player player, String petId, String skillType) {
@@ -68,51 +65,12 @@ public class SkillManager {
         }
 
         int petLvl = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".level", 1);
-        int reqLvl = sec.getInt("req_level", 1);
-        if (petLvl < reqLvl) {
-            player.sendMessage("§cThú cưng cần đạt cấp độ §eLv." + reqLvl + " §cđể học kỹ năng này! (Hiện tại: Lv." + petLvl + ")");
+        int star = (plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStar(player.getUniqueId(), petId) : 1;
+
+        org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(sec);
+        org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(player, petId, petLvl, star, plugin);
+        if (!plugin.getRequirementManager().executeTransaction(group, ctx)) {
             return false;
-        }
-
-        int costMoney = sec.getInt("cost_money", 0);
-        if (costMoney > 0 && !plugin.getCurrencyManager().hasMoney(player, costMoney)) {
-            player.sendMessage("§cBạn không đủ tiền! Cần: §e$" + costMoney);
-            return false;
-        }
-
-        int costPoints = sec.getInt("cost_points", 0);
-        if (costPoints > 0 && !plugin.getCurrencyManager().hasPoints(player, costPoints)) {
-            player.sendMessage("§cBạn không đủ Points! Cần: §b" + costPoints + " Points");
-            return false;
-        }
-
-        List<String> costItems = new ArrayList<>();
-        if (sec.contains("cost_items")) {
-            if (sec.isList("cost_items")) {
-                costItems.addAll(sec.getStringList("cost_items"));
-            } else {
-                costItems.add(sec.getString("cost_items"));
-            }
-        }
-
-        for (String itemStr : costItems) {
-            String[] parts = itemStr.split(":");
-            String id = parts[0];
-            int amt = (parts.length > 1) ? Integer.parseInt(parts[1]) : 1;
-            if (!plugin.getItemHookManager().hasItem(player, id, amt)) {
-                player.sendMessage("§cBạn thiếu vật phẩm: §e" + amt + "x " + plugin.getItemHookManager().getItemDisplayName(id));
-                return false;
-            }
-        }
-
-        // Trừ chi phí giao dịch nguyên tử
-        if (costMoney > 0) plugin.getCurrencyManager().withdrawMoney(player, costMoney);
-        if (costPoints > 0) plugin.getCurrencyManager().withdrawPoints(player, costPoints);
-        for (String itemStr : costItems) {
-            String[] parts = itemStr.split(":");
-            String id = parts[0];
-            int amt = (parts.length > 1) ? Integer.parseInt(parts[1]) : 1;
-            plugin.getItemHookManager().takeItem(player, id, amt);
         }
 
         List<String> unlocked = plugin.getConfigManager().getData().getStringList(player.getUniqueId() + ".pets." + petId + ".unlocked_skills");

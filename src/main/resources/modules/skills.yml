@@ -29,11 +29,21 @@ skills:
     ultimate:
       name: "&dCầu Lửa Hư Không"
       desc: "&7Phun ra sóng xung kích Hư Không gây sát thương diện rộng xung quanh chủ."
-      req_level: 25
-      cost_money: 15000
-      cost_points: 30
-      cost_items:
-        - "DRAGON_BREATH:2"
+      requirements:
+        all:
+          - type: PET_LEVEL
+            value: 25
+          - type: ITEM
+            id: DRAGON_BREATH
+            amount: 2
+        one_of:
+          - type: MONEY
+            amount: 15000
+          - type: POINTS
+            amount: 30
+          - type: ITEM
+            id: itemsadder:dragon_core
+            amount: 1
       radius: 6.0
       damage: 35.0
       particle: "DRAGON_BREATH"

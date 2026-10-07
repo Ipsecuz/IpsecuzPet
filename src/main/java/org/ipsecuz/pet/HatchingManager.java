@@ -78,17 +78,18 @@ public class HatchingManager {
             lore.add(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', line)));
         }
 
-        double reqMoney = sec.getDouble("requirements.money", sec.getString("currency", "").equalsIgnoreCase("MONEY") ? sec.getDouble("price", 0) : 0);
-        int reqPoints = sec.getInt("requirements.points", sec.getString("currency", "").equalsIgnoreCase("POINTS") ? sec.getInt("price", 0) : 0);
-        List<String> reqItems = sec.getStringList("requirements.items");
-
-        if (reqMoney > 0 || reqPoints > 0 || !reqItems.isEmpty()) {
-            lore.add(Component.text(" "));
-            lore.add(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&6✦ Chi phí để quay:")));
-            if (reqMoney > 0) lore.add(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', " &7- Tiền: &a$" + (long)reqMoney)));
-            if (reqPoints > 0) lore.add(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', " &7- Points: &b" + reqPoints + " P")));
-            for (String reqItm : reqItems) {
-                lore.add(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', " &7- Vật phẩm: &e" + reqItm)));
+        if (sec.contains("requirements") || sec.contains("all") || sec.contains("one_of") || sec.contains("price") || sec.contains("cost_money")) {
+            org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(sec);
+            if (!group.getRequirements().isEmpty()) {
+                lore.add(Component.text(" "));
+                lore.add(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&6✦ Chi phí để quay:")));
+                org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(null, plugin);
+                org.ipsecuz.pet.requirement.RequirementCheckResult result = plugin.getRequirementManager().evaluate(group, ctx);
+                for (String line : org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToStrings(result)) {
+                    if (!line.contains("ĐỦ ĐIỀU KIỆN") && !line.contains("CHƯA ĐỦ ĐIỀU KIỆN") && !line.startsWith("§7----")) {
+                        lore.add(Component.text(line));
+                    }
+                }
             }
         }
 
@@ -170,60 +171,11 @@ public class HatchingManager {
     }
 
     public boolean checkAndDeductRequirements(Player player, ConfigurationSection eggSec, ItemStack consumedItem) {
-        double reqMoney = 0;
-        if (eggSec.contains("requirements.money")) {
-            reqMoney = eggSec.getDouble("requirements.money");
-        } else if ("MONEY".equalsIgnoreCase(eggSec.getString("currency")) && eggSec.contains("price")) {
-            reqMoney = eggSec.getDouble("price");
-        }
+        org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(eggSec);
+        org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(player, plugin);
 
-        if (reqMoney > 0 && !plugin.getCurrencyManager().hasMoney(player, reqMoney)) {
-            player.sendMessage("§cBạn không đủ tiền để ấp trứng! Cần: §e$" + (long)reqMoney);
+        if (!plugin.getRequirementManager().executeTransaction(group, ctx)) {
             return false;
-        }
-
-        int reqPoints = 0;
-        if (eggSec.contains("requirements.points")) {
-            reqPoints = eggSec.getInt("requirements.points");
-        } else if ("POINTS".equalsIgnoreCase(eggSec.getString("currency")) && eggSec.contains("price")) {
-            reqPoints = eggSec.getInt("price");
-        }
-
-        if (reqPoints > 0 && !plugin.getCurrencyManager().hasPoints(player, reqPoints)) {
-            player.sendMessage("§cBạn không đủ Points để ấp trứng! Cần: §b" + reqPoints + " Points");
-            return false;
-        }
-
-        List<String> reqItems = eggSec.getStringList("requirements.items");
-        if (reqItems.isEmpty() && "ITEM".equalsIgnoreCase(eggSec.getString("currency")) && eggSec.contains("material")) {
-            String mat = eggSec.getString("material", "DIAMOND");
-            int amt = eggSec.getInt("price", 1);
-            reqItems = Collections.singletonList(mat + ":" + amt);
-        }
-
-        for (String itemStr : reqItems) {
-            String[] parts = itemStr.split(":");
-            String id = parts[0];
-            int amt = 1;
-            if (parts.length > 1) {
-                try { amt = Integer.parseInt(parts[1]); } catch (NumberFormatException ignored) {}
-            }
-            if (!plugin.getItemHookManager().hasItem(player, id, amt)) {
-                player.sendMessage("§cBạn không đủ vật phẩm để ấp trứng! Cần: §e" + amt + "x " + plugin.getItemHookManager().getItemDisplayName(id));
-                return false;
-            }
-        }
-
-        if (reqMoney > 0) plugin.getCurrencyManager().withdrawMoney(player, reqMoney);
-        if (reqPoints > 0) plugin.getCurrencyManager().withdrawPoints(player, reqPoints);
-        for (String itemStr : reqItems) {
-            String[] parts = itemStr.split(":");
-            String id = parts[0];
-            int amt = 1;
-            if (parts.length > 1) {
-                try { amt = Integer.parseInt(parts[1]); } catch (NumberFormatException ignored) {}
-            }
-            plugin.getItemHookManager().takeItem(player, id, amt);
         }
 
         if (consumedItem != null) {

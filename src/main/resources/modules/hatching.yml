@@ -77,11 +77,18 @@ eggs:
     name: "&6👑 Trứng Thần Thoại (Legendary Egg)"
     material: DRAGON_EGG
     requirements:
-      money: 10000
-      points: 50
-      items:
-        - "NETHERITE_INGOT:1"
-        - "DIAMOND:5"
+      all:
+        - type: ITEM
+          id: DIAMOND
+          amount: 5
+      one_of:
+        - type: MONEY
+          amount: 10000
+        - type: POINTS
+          amount: 50
+        - type: ITEM
+          id: NETHERITE_INGOT
+          amount: 1
     lore:
       - "&7Độ hiếm: &6Thần Thoại"
       - "&7Chứa đựng sức mạnh của các cổ thú tối thượng!"

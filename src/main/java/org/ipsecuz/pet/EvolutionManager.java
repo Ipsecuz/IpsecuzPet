@@ -75,60 +75,13 @@ public class EvolutionManager {
         int nextStar = curStar + 1;
         FileConfiguration config = plugin.getModuleManager().getEvolutionConfig();
         ConfigurationSection reqSec = config.getConfigurationSection("requirements.star_" + nextStar);
+        int petLvl = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".level", 1);
 
         if (reqSec != null) {
-            int minLvl = reqSec.getInt("min_level", 20);
-            int petLvl = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".level", 1);
-            if (petLvl < minLvl) {
-                player.sendMessage("§cThú cưng cần đạt cấp độ tối thiểu §eLv." + minLvl + " §cđể tăng lên " + nextStar + "⭐! (Hiện tại: Lv." + petLvl + ")");
+            org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(reqSec);
+            org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(player, petId, petLvl, curStar, plugin);
+            if (!plugin.getRequirementManager().executeTransaction(group, ctx)) {
                 return false;
-            }
-
-            int costMoney = reqSec.getInt("cost_money", 0);
-            if (costMoney > 0 && !plugin.getCurrencyManager().hasMoney(player, costMoney)) {
-                player.sendMessage("§cBạn không đủ tiền! Cần: §e$" + costMoney);
-                return false;
-            }
-
-            int costPoints = reqSec.getInt("cost_points", 0);
-            if (costPoints > 0 && !plugin.getCurrencyManager().hasPoints(player, costPoints)) {
-                player.sendMessage("§cBạn không đủ Points! Cần: §b" + costPoints + " Points");
-                return false;
-            }
-
-            int costDiamonds = reqSec.getInt("cost_diamonds", 0);
-            if (costDiamonds > 0 && !plugin.getItemHookManager().hasItem(player, "DIAMOND", costDiamonds)) {
-                player.sendMessage("§cBạn cần có ít nhất §b" + costDiamonds + " Kim Cương §cđể tiến hóa!");
-                return false;
-            }
-
-            int costNetherite = reqSec.getInt("cost_netherite", 0);
-            if (costNetherite > 0 && !plugin.getItemHookManager().hasItem(player, "NETHERITE_INGOT", costNetherite)) {
-                player.sendMessage("§cBạn cần có ít nhất §8" + costNetherite + " Phôi Netherite §cđể tiến hóa!");
-                return false;
-            }
-
-            List<String> costItems = reqSec.getStringList("cost_items");
-            for (String itemStr : costItems) {
-                String[] parts = itemStr.split(":");
-                String id = parts[0];
-                int amt = parts.length > 1 ? Integer.parseInt(parts[1]) : 1;
-                if (!plugin.getItemHookManager().hasItem(player, id, amt)) {
-                    player.sendMessage("§cBạn thiếu vật phẩm: §e" + amt + "x " + plugin.getItemHookManager().getItemDisplayName(id));
-                    return false;
-                }
-            }
-
-            // Giao dịch nguyên tử (Atomic transaction): Trừ toàn bộ chi phí sau khi đã kiểm tra
-            if (costMoney > 0) plugin.getCurrencyManager().withdrawMoney(player, costMoney);
-            if (costPoints > 0) plugin.getCurrencyManager().withdrawPoints(player, costPoints);
-            if (costDiamonds > 0) plugin.getItemHookManager().takeItem(player, "DIAMOND", costDiamonds);
-            if (costNetherite > 0) plugin.getItemHookManager().takeItem(player, "NETHERITE_INGOT", costNetherite);
-            for (String itemStr : costItems) {
-                String[] parts = itemStr.split(":");
-                String id = parts[0];
-                int amt = parts.length > 1 ? Integer.parseInt(parts[1]) : 1;
-                plugin.getItemHookManager().takeItem(player, id, amt);
             }
         }
 
