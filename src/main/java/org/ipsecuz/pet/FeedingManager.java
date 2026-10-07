@@ -1,5 +1,6 @@
 package org.ipsecuz.pet;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -14,8 +15,69 @@ import java.util.UUID;
 public class FeedingManager {
     private final IpsecuzPet plugin;
 
+    public enum HappinessState {
+        ECSTATIC("§aHạnh Phúc (1.25x EXP, +15% Tốc)", 1.25, 1.15),
+        CONTENT("§eBình Thường", 1.0, 1.0),
+        SAD("§6Hơi Buồn (-10% Chỉ số)", 0.9, 0.95),
+        STARVING("§cĐói Lả (-15% Chỉ số)", 0.75, 0.85);
+
+        private final String display;
+        private final double expMult;
+        private final double speedMult;
+
+        HappinessState(String display, double expMult, double speedMult) {
+            this.display = display;
+            this.expMult = expMult;
+            this.speedMult = speedMult;
+        }
+
+        public String getDisplay() { return display; }
+        public double getExpMultiplier() { return expMult; }
+        public double getSpeedMultiplier() { return speedMult; }
+    }
+
     public FeedingManager(IpsecuzPet plugin) {
         this.plugin = plugin;
+    }
+
+    public void startDecayTask() {
+        FileConfiguration cfg = plugin.getModuleManager().getFeedingConfig();
+        int intervalMinutes = cfg.getInt("decay_interval_minutes", 10);
+        long intervalTicks = Math.max(1, intervalMinutes) * 60L * 20L;
+
+        SchedulerUtils.runGlobalTimer(plugin, this::decayHappiness, intervalTicks, intervalTicks);
+    }
+
+    private void decayHappiness() {
+        if (!plugin.getModuleManager().isFeedingEnabled()) return;
+
+        FileConfiguration cfg = plugin.getModuleManager().getFeedingConfig();
+        int decayAmount = cfg.getInt("decay_amount", 5);
+
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (!plugin.getPetManager().hasPet(player.getUniqueId())) continue;
+            String petId = plugin.getPetManager().getActivePetId(player.getUniqueId());
+            if (petId == null) continue;
+
+            int curHappy = getHappiness(player.getUniqueId(), petId);
+            if (curHappy <= 0) continue;
+
+            int newHappy = Math.max(0, curHappy - decayAmount);
+            setHappiness(player.getUniqueId(), petId, newHappy);
+
+            if (curHappy >= 20 && newHappy < 20) {
+                player.sendMessage("§c§l[CẢNH BÁO PET] §eThú cưng của bạn đang cảm thấy đói và mệt mỏi! Hãy cho thú cưng ăn để hồi phục năng lượng (§6/pet feed§e)!");
+                player.playSound(player.getLocation(), Sound.ENTITY_WOLF_WHINE, 1f, 1f);
+                plugin.getPetManager().refreshPetStats(player);
+            }
+        }
+    }
+
+    public HappinessState getHappinessState(int happiness) {
+        if (happiness >= 80) return HappinessState.ECSTATIC;
+        if (happiness >= 50) return HappinessState.CONTENT;
+        if (happiness >= 20) return HappinessState.SAD;
+        return HappinessState.STARVING;
     }
 
     public int getHappiness(UUID uuid, String petId) {
@@ -30,6 +92,11 @@ public class FeedingManager {
     }
 
     public boolean feedPet(Player player, ItemStack foodItem) {
+        if (!plugin.getModuleManager().isFeedingEnabled()) {
+            player.sendMessage("§cTính năng Cho Ăn & Thân Thiết hiện đang bị tắt bởi máy chủ!");
+            return false;
+        }
+
         if (!plugin.getPetManager().hasPet(player.getUniqueId())) {
             player.sendMessage(plugin.getLanguage().getMessage("pet.no_pet"));
             return false;
@@ -45,7 +112,7 @@ public class FeedingManager {
         ConfigurationSection foodSec = config.getConfigurationSection("foods." + matName);
 
         if (foodSec == null) {
-            player.sendMessage("§cThú cưng không thể ăn vật phẩm này!");
+            player.sendMessage("§cThú cưng không thể ăn vật phẩm §e" + matName + "§c!");
             return false;
         }
 
@@ -55,7 +122,7 @@ public class FeedingManager {
         int curHappy = getHappiness(player.getUniqueId(), petId);
         int maxHappy = config.getInt("max_happiness", 100);
         if (curHappy >= maxHappy) {
-            player.sendMessage("§aThú cưng đã no và vô cùng hạnh phúc (100%)!");
+            player.sendMessage("§aThú cưng đã no căng bụng và vô cùng hạnh phúc (" + maxHappy + "/" + maxHappy + ")!");
             return false;
         }
 
@@ -64,21 +131,33 @@ public class FeedingManager {
         String soundName = foodSec.getString("sound", "ENTITY_GENERIC_EAT");
 
         foodItem.setAmount(foodItem.getAmount() - 1);
-        setHappiness(player.getUniqueId(), petId, curHappy + addHappy);
+        int newHappy = Math.min(maxHappy, curHappy + addHappy);
+        setHappiness(player.getUniqueId(), petId, newHappy);
+
+        // Cộng kinh nghiệm từ thức ăn
         plugin.getPetManager().givePetExp(player, addExp);
 
-        int newHappy = getHappiness(player.getUniqueId(), petId);
-        player.sendMessage("§aĐã cho thú cưng ăn §e" + matName + "§a! Độ vui vẻ: §e" + newHappy + "/" + maxHappy + " §a(+§b" + addExp + " EXP§a)");
+        HappinessState state = getHappinessState(newHappy);
+        player.sendMessage("§aĐã cho thú cưng ăn §e" + matName + "§a! Độ vui vẻ: §e" + newHappy + "/" + maxHappy +
+                " §7(" + state.getDisplay() + "§7) §a(+§b" + addExp + " EXP§a)");
+
+        // Làm mới chỉ số pet nếu có thay đổi ngưỡng
+        plugin.getPetManager().refreshPetStats(player);
 
         if (pet != null && pet.isValid()) {
             SchedulerUtils.runEntityTask(plugin, pet, () -> {
                 try {
-                    pet.getWorld().playSound(pet.getLocation(), Sound.valueOf(soundName), 1f, 1f);
+                    pet.getWorld().playSound(pet.getLocation(), Sound.valueOf(soundName), 1.2f, 1f);
+                    if (newHappy >= maxHappy) {
+                        pet.getWorld().playSound(pet.getLocation(), Sound.ENTITY_PLAYER_BURP, 1f, 1.1f);
+                    }
                 } catch (Exception ignored) {}
-                pet.getWorld().spawnParticle(Particle.HEART, pet.getLocation().add(0, pet.getHeight() + 0.3, 0), 5, 0.3, 0.3, 0.3);
+
+                try {
+                    pet.getWorld().spawnParticle(Particle.HEART, pet.getLocation().add(0, pet.getHeight() + 0.3, 0), 6, 0.3, 0.3, 0.3, 0.05);
+                } catch (Exception ignored) {}
             });
         }
         return true;
     }
 }
-

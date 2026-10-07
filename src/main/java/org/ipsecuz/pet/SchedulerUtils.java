@@ -11,7 +11,6 @@ public class SchedulerUtils {
 
     static {
         try {
-            // Check kỹ class của Folia
             Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
             isFolia = true;
         } catch (ClassNotFoundException e) {
@@ -21,7 +20,7 @@ public class SchedulerUtils {
 
     public static boolean isFolia() { return isFolia; }
 
-    // 1. Chạy Task lặp lại (Global) - Dùng cho PetManager
+    // 1. Chạy Task lặp lại (Global)
     public static void runGlobalTimer(Plugin plugin, Runnable task, long delay, long period) {
         if (isFolia) {
             Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, (st) -> task.run(), delay, period);
@@ -32,7 +31,18 @@ public class SchedulerUtils {
         }
     }
 
-    // 2. Chạy Async (Bất đồng bộ) - Dùng cho UpdateChecker
+    // 1.5 Chạy Task Global sau một khoảng thời gian (Delay)
+    public static void runGlobalTaskLater(Plugin plugin, Runnable task, long delay) {
+        if (isFolia) {
+            Bukkit.getGlobalRegionScheduler().runDelayed(plugin, (st) -> task.run(), delay);
+        } else {
+            new BukkitRunnable() {
+                @Override public void run() { task.run(); }
+            }.runTaskLater(plugin, delay);
+        }
+    }
+
+    // 2. Chạy Async (Bất đồng bộ)
     public static void runAsync(Plugin plugin, Runnable task) {
         if (isFolia) {
             Bukkit.getAsyncScheduler().runNow(plugin, (st) -> task.run());

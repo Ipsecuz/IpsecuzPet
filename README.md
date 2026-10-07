@@ -522,4 +522,67 @@ Toàn bộ các tính năng lớn đã được tách biệt thành từng file 
   - Icon hiển thị trong GUI.
   - Vật phẩm trả phí mua pet trong `/pet shop`.
   - Vật phẩm nộp để quay gacha trong `/pet hatch`.
-  - Vật phẩm yêu cầu để học kỹ năng và tăng sao tiến hóa.
+  - Vật phẩm yêu cầu để học kỹ năng và tăng sao tiến hóa.
+
+---
+
+### 9. 🚀 Kiến Trúc Sản Phẩm Hoàn Chỉnh V2.1 (Production-Ready Architecture)
+
+#### 🏛️ 1. Quản Lý Quyền Sở Hữu Tập Trung (PetOwnershipManager)
+- Thống nhất toàn bộ luồng sở hữu qua một cửa kiểm duyệt: Cửa hàng (`/pet shop`), Ấp trứng (`/pet hatch`), Đổi thẻ (`/pet redeem`), Bắt thú (`CaptureManager`), Ghép mảnh (`PetShardManager`) và Lệnh Admin (`/pet give`).
+- Kiểm tra chính xác giới hạn sở hữu tối đa (`max_pets` và permission `ipsecuzpet.maxslots.<N>`), chặn tuyệt đối tình trạng bypass vượt quá slot cho phép.
+
+#### 📈 2. Động Cơ Cấp Độ & EXP Đa Tầng (Multi-Level Progression Engine)
+- Triển khai vòng lặp `while (accumulatedExp >= nextLvlExp && currentLvl < maxLvl)`:
+  - Khi nhận lượng lớn EXP cùng lúc, Pet có thể tăng vọt nhiều cấp (ví dụ: Lv.1 ➔ Lv.4) mà không bị mất EXP dư thừa.
+  - EXP dư được bảo toàn chính xác (`accumulatedExp -= nextLvlExp`).
+  - Chặn triệt để tràn số nguyên (`Integer.MAX_VALUE`).
+  - Khóa chặt tại cấp tối đa (`rpg_system.max_level`, mặc định 100).
+  - Tự động áp dụng bùa lợi quà tặng khi lên cấp (`rpg_system.level_up_rewards`).
+
+#### 🤝 3. Giao Diện Trao Đổi Hai Chiều Thời Gian Thực (Two-Sided Pet Trade GUI)
+- GUI 54 ô chia làm 2 bên độc lập:
+  - Bên trái (3x3 ô: slots 10,11,12, 19,20,21, 28,29,30): Dành cho Người chơi A.
+  - Bên phải (3x3 ô: slots 14,15,16, 23,24,25, 32,33,34): Dành cho Người chơi B.
+  - Vách ngăn kính chia đôi hai nửa.
+  - Nút Khóa độc lập (slot 38 cho A, slot 42 cho B).
+- **Cơ chế An toàn Tuyệt đối:**
+  - Bất kỳ thay đổi vật phẩm nào trên bàn giao dịch đều lập tức **hủy trạng thái khóa của cả 2 bên** để chống lừa đảo tráo đổi item giây cuối.
+  - Khi cả hai cùng bấm Khóa: Đồng hồ đếm ngược 3 giây (3... 2... 1...) kích hoạt kèm âm thanh chuông ngân.
+  - Nếu bất kỳ ai đóng GUI hoặc mất kết nối: Toàn bộ vật phẩm lập tức hoàn trả nguyên vẹn về túi đồ chủ cũ.
+  - Sau 3 giây hoàn tất: Hoán đổi nguyên tử (Atomic Swap), kiểm tra sức chứa túi đồ (tự rơi xuống chân nếu đầy túi).
+
+#### 💎 4. Hệ Thống Độ Hiếm (PetRarity) & Kho Mảnh Ghép (PetShardManager)
+- 8 cấp độ hiếm hoàn chỉnh: `COMMON` (Phổ Thông), `UNCOMMON` (Đặc Biệt), `RARE` (Hiếm), `EPIC` (Sử Thi), `LEGENDARY` (Thần Thoại), `MYTHIC` (Huyền Thoại), `SECRET` (Bí Mật), `ETERNAL` (Vĩnh Cửu).
+- **Trùng Pet trong Lò Ấp:** Thay vì mất trắng, hệ thống tự động quy đổi thành **Mảnh Pet (Shards)** tương ứng với độ hiếm kèm bonus EXP.
+- **Ghép Pet bằng Mảnh:** Thu thập đủ 50 mảnh để ghép thành một Pet mới hoàn chỉnh qua `/pet shards`.
+
+#### 📖 5. Sách Bách Khoa Pet (PetCodexManager)
+- Lệnh `/pet codex`: Mở giao diện theo dõi toàn bộ bộ sưu tập thú cưng đã mở khóa.
+- Hiển thị tỷ lệ phần trăm hoàn thành bộ sưu tập toàn server và chỉ số chi tiết của từng loài.
+
+#### 🧬 6. Hệ Thống Đặc Chất Thú Cưng (PetTrait Engine)
+- Mỗi thú cưng khi nở hoặc bắt được đều nhận ngẫu nhiên một Đặc chất độc bản:
+  - `SAVAGE` (+15% Sát thương)
+  - `GUARDIAN` (+20% Giáp phòng thủ)
+  - `SWIFT` (+15% Tốc độ di chuyển)
+  - `VITAL` (+20% Máu tối đa)
+  - `TITAN` (+15% Máu, +10% Sát thương, +15% Giáp, -5% Tốc)
+  - `SCHOLAR` (+25% Kinh nghiệm EXP nhận được)
+
+#### 🍗 7. Suy Giảm Thân Thiết Định Kỳ & Trạng Thái Cảm Xúc (Feeding Decay)
+- Scheduler tự động kiểm tra mỗi `decay_interval_minutes` (mặc định 10 phút) và giảm `decay_amount` (mặc định 5 điểm) đối với các Pet đang được triệu hồi.
+- 4 trạng thái cảm xúc:
+  - `ECSTATIC` (≥ 80%): Nhận 1.25x EXP và +15% Tốc độ chạy.
+  - `CONTENT` (50–79%): Chỉ số bình thường.
+  - `SAD` (20–49%): -10% chỉ số.
+  - `STARVING` (< 20%): -15% chỉ số, cảnh báo đói bụng tới người chơi.
+
+#### 💾 8. Ghi Đĩa Bất Đồng Bộ Khử Rung (Debounced Async Persistence)
+- `ConfigManager` sử dụng cơ chế Debounce 3 giây cho các tác vụ ghi đĩa định kỳ (`saveData`), tránh nghẽn I/O server.
+- Sử dụng `forceSave()` nguyên tử ngay lập tức cho các giao dịch nhạy cảm (tiến hóa, giao dịch, tắt server).
+- Tự động tạo tệp sao lưu an toàn `data.yml.bak` và hỗ trợ chuyển đổi dữ liệu (`schema_version: 2`).
+
+#### 🎴 9. Bảo Mật Thẻ Pet Rút Ra Rương Đồ (Secure Pet Cards)
+- Thẻ Pet rút ra qua `/pet withdraw` lưu trữ toàn vẹn: `card_uuid`, `schema_version`, `stars`, `trait`, `custom_name`, `unlocked_skills`.
+- Ngăn chặn hoàn toàn việc làm giả thẻ hoặc mất sao/trait khi rút pet ra vật phẩm.

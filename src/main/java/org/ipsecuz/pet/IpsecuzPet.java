@@ -20,6 +20,9 @@ public class IpsecuzPet extends JavaPlugin {
     private TradeManager tradeManager;
     private DynamicPetRegistry dynamicPetRegistry;
     private ItemHookManager itemHookManager;
+    private PetOwnershipManager ownershipManager;
+    private PetShardManager shardManager;
+    private PetCodexManager codexManager;
 
     @Override
     public void onEnable() {
@@ -31,6 +34,11 @@ public class IpsecuzPet extends JavaPlugin {
         // 2. Nạp Currency & Config
         this.currencyManager = new CurrencyManager(this);
         this.configManager = new ConfigManager(this);
+
+        // 2.2 Nạp hệ thống quản lý quyền sở hữu, mảnh pet và codex
+        this.ownershipManager = new PetOwnershipManager(this);
+        this.shardManager = new PetShardManager(this);
+        this.codexManager = new PetCodexManager(this);
 
         // 2.5 Nạp ItemHookManager (Hỗ trợ ItemsAdder, Oraxen, Nexo)
         this.itemHookManager = new ItemHookManager(this);
@@ -70,6 +78,11 @@ public class IpsecuzPet extends JavaPlugin {
         // 10. Chạy AI Pet Timer (Folia Safe)
         this.petManager.startPetTask();
 
+        // 11. Chạy Feeding Decay Timer (nếu module feeding bật)
+        if (this.moduleManager.isFeedingEnabled()) {
+            this.feedingManager.startDecayTask();
+        }
+
         String platform = SchedulerUtils.isFolia() ? "Folia" : "Paper/Spigot";
         getLogger().info("§a[IpsecuzPet V2.0] Đã khởi chạy thành công trên nền tảng: §e" + platform);
 
@@ -84,7 +97,15 @@ public class IpsecuzPet extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (petManager != null) petManager.removeAllPets();
+        if (tradeManager != null) {
+            tradeManager.cancelAllActiveTrades();
+        }
+        if (petManager != null) {
+            petManager.removeAllPets();
+        }
+        if (configManager != null) {
+            configManager.forceSave();
+        }
     }
 
     public static IpsecuzPet getInstance() { return instance; }
@@ -102,4 +123,7 @@ public class IpsecuzPet extends JavaPlugin {
     public TradeManager getTradeManager() { return tradeManager; }
     public DynamicPetRegistry getDynamicPetRegistry() { return dynamicPetRegistry; }
     public ItemHookManager getItemHookManager() { return itemHookManager; }
+    public PetOwnershipManager getOwnershipManager() { return ownershipManager; }
+    public PetShardManager getShardManager() { return shardManager; }
+    public PetCodexManager getCodexManager() { return codexManager; }
 }

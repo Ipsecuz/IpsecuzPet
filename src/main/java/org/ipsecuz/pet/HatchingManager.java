@@ -78,7 +78,6 @@ public class HatchingManager {
             lore.add(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', line)));
         }
 
-        // Thêm thông tin yêu cầu chi phí vào lore nếu có
         double reqMoney = sec.getDouble("requirements.money", sec.getString("currency", "").equalsIgnoreCase("MONEY") ? sec.getDouble("price", 0) : 0);
         int reqPoints = sec.getInt("requirements.points", sec.getString("currency", "").equalsIgnoreCase("POINTS") ? sec.getInt("price", 0) : 0);
         List<String> reqItems = sec.getStringList("requirements.items");
@@ -106,15 +105,19 @@ public class HatchingManager {
     }
 
     public void openHatchingGui(Player player) {
+        if (!plugin.getModuleManager().isHatchingEnabled()) {
+            player.sendMessage("§cTính năng Ấp Trứng & Quay Pet hiện đang bị tắt bởi máy chủ!");
+            return;
+        }
+
         FileConfiguration config = plugin.getModuleManager().getHatchingConfig();
-        String title = config.getString("gui.title", "&1Lò Ấp Trứng Pet");
+        String title = config.getString("gui.title", "&1✦ Lò Ấp Trứng Thú Cưng ✦");
         int size = config.getInt("gui.size", 45);
 
         HatchMenuHolder holder = new HatchMenuHolder();
         Inventory inv = Bukkit.createInventory(holder, size, LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', title)));
         holder.setInventory(inv);
 
-        // Trang trí khung viền
         ItemStack glass = new ItemStack(Material.CYAN_STAINED_GLASS_PANE);
         ItemMeta glassMeta = glass.getItemMeta();
         if (glassMeta != null) {
@@ -127,7 +130,6 @@ public class HatchingManager {
             }
         }
 
-        // Đặt các loại trứng vào GUI
         ConfigurationSection eggsSec = config.getConfigurationSection("eggs");
         if (eggsSec != null) {
             int slot = 20;
@@ -149,7 +151,6 @@ public class HatchingManager {
             }
         }
 
-        // Hướng dẫn ở giữa đáy
         ItemStack info = new ItemStack(Material.BOOK);
         ItemMeta infoMeta = info.getItemMeta();
         if (infoMeta != null) {
@@ -157,8 +158,9 @@ public class HatchingManager {
             List<Component> infoLore = new ArrayList<>();
             infoLore.add(Component.text("§7- Nhấp chuột phải vào quả trứng trên tay"));
             infoLore.add(Component.text("§7  hoặc nhấp trực tiếp vào biểu tượng trên GUI."));
-            infoLore.add(Component.text("§7- Vòng quay Gacha sẽ xuất hiện với hiệu ứng âm thanh!"));
+            infoLore.add(Component.text("§7- Vòng quay Roulette sống động với hiệu ứng âm thanh!"));
             infoLore.add(Component.text("§7- Pet dừng lại ở ô giữa sẽ thuộc về bạn!"));
+            infoLore.add(Component.text("§7- Nếu quay trùng pet: nhận Mảnh Pet & EXP thưởng!"));
             infoMeta.lore(infoLore);
             info.setItemMeta(infoMeta);
         }
@@ -168,7 +170,6 @@ public class HatchingManager {
     }
 
     public boolean checkAndDeductRequirements(Player player, ConfigurationSection eggSec, ItemStack consumedItem) {
-        // 1. Money check
         double reqMoney = 0;
         if (eggSec.contains("requirements.money")) {
             reqMoney = eggSec.getDouble("requirements.money");
@@ -176,14 +177,11 @@ public class HatchingManager {
             reqMoney = eggSec.getDouble("price");
         }
 
-        if (reqMoney > 0) {
-            if (!plugin.getCurrencyManager().hasMoney(player, reqMoney)) {
-                player.sendMessage("§cBạn không đủ tiền để ấp trứng! Cần: §e$" + (long)reqMoney);
-                return false;
-            }
+        if (reqMoney > 0 && !plugin.getCurrencyManager().hasMoney(player, reqMoney)) {
+            player.sendMessage("§cBạn không đủ tiền để ấp trứng! Cần: §e$" + (long)reqMoney);
+            return false;
         }
 
-        // 2. Points check
         int reqPoints = 0;
         if (eggSec.contains("requirements.points")) {
             reqPoints = eggSec.getInt("requirements.points");
@@ -191,14 +189,11 @@ public class HatchingManager {
             reqPoints = eggSec.getInt("price");
         }
 
-        if (reqPoints > 0) {
-            if (!plugin.getCurrencyManager().hasPoints(player, reqPoints)) {
-                player.sendMessage("§cBạn không đủ Points để ấp trứng! Cần: §b" + reqPoints + " Points");
-                return false;
-            }
+        if (reqPoints > 0 && !plugin.getCurrencyManager().hasPoints(player, reqPoints)) {
+            player.sendMessage("§cBạn không đủ Points để ấp trứng! Cần: §b" + reqPoints + " Points");
+            return false;
         }
 
-        // 3. Items check
         List<String> reqItems = eggSec.getStringList("requirements.items");
         if (reqItems.isEmpty() && "ITEM".equalsIgnoreCase(eggSec.getString("currency")) && eggSec.contains("material")) {
             String mat = eggSec.getString("material", "DIAMOND");
@@ -219,7 +214,6 @@ public class HatchingManager {
             }
         }
 
-        // Trừ chi phí
         if (reqMoney > 0) plugin.getCurrencyManager().withdrawMoney(player, reqMoney);
         if (reqPoints > 0) plugin.getCurrencyManager().withdrawPoints(player, reqPoints);
         for (String itemStr : reqItems) {
@@ -240,6 +234,11 @@ public class HatchingManager {
     }
 
     public void processHatch(Player player, String eggId, ItemStack consumedItem) {
+        if (!plugin.getModuleManager().isHatchingEnabled()) {
+            player.sendMessage("§cTính năng Ấp Trứng & Quay Pet hiện đang bị tắt bởi máy chủ!");
+            return;
+        }
+
         FileConfiguration config = plugin.getModuleManager().getHatchingConfig();
         ConfigurationSection eggSec = config.getConfigurationSection("eggs." + eggId);
         if (eggSec == null) {
@@ -247,25 +246,16 @@ public class HatchingManager {
             return;
         }
 
-        // Kiểm tra giới hạn slot pet
-        int limit = plugin.getConfig().getInt("max_pets", 2);
-        List<String> owned = new ArrayList<>();
-        if (plugin.getConfigManager().getData().getConfigurationSection(player.getUniqueId() + ".pets") != null) {
-            owned.addAll(plugin.getConfigManager().getData().getConfigurationSection(player.getUniqueId() + ".pets").getKeys(false));
-        }
-        if (owned.size() >= limit) {
-            player.sendMessage(plugin.getLanguage().getMessage("pet.limit_reached", "%current%", String.valueOf(owned.size()), "%max%", String.valueOf(limit)));
+        if (!plugin.getOwnershipManager().canAcquirePet(player)) {
             player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
             return;
         }
 
-        // Kiểm tra & Trừ chi phí (Money/Points/Items/Egg item)
         if (!checkAndDeductRequirements(player, eggSec, consumedItem)) {
             player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
             return;
         }
 
-        // Bắt đầu vòng quay Roulette sống động
         startGachaRoulette(player, eggId, eggSec);
     }
 
@@ -300,9 +290,6 @@ public class HatchingManager {
         if (selectedWinner == null) selectedWinner = candidatePetIds.get(0);
         final String winningPetId = selectedWinner;
 
-        // Chuẩn bị danh sách item cho roulette
-        // 32 bước quay. Tại bước cuối (step = 32), slot 13 là slot ở vị trí index + 4
-        // Vậy vị trí 32 + 4 = 36 phải là winningPetId!
         int totalSteps = 32;
         int winningIndex = totalSteps + 4;
         List<ItemStack> rollingItems = new ArrayList<>();
@@ -315,17 +302,14 @@ public class HatchingManager {
             }
         }
 
-        // Tạo Inventory Roulette
         RouletteHolder holder = new RouletteHolder(eggId, winningPetId);
         String eggName = eggSec.getString("name", "Trứng Pet");
         Inventory inv = Bukkit.createInventory(holder, 27, LegacyComponentSerializer.legacySection().deserialize(
                 ChatColor.translateAlternateColorCodes('&', "&0✦ Quay: " + eggName)));
         holder.setInventory(inv);
 
-        // Khung viền ban đầu
         updateRouletteBorders(inv, 0);
 
-        // Đặt hàng quay ban đầu
         for (int i = 0; i < 9; i++) {
             inv.setItem(9 + i, rollingItems.get(i));
         }
@@ -333,7 +317,6 @@ public class HatchingManager {
         player.openInventory(inv);
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1f);
 
-        // Chạy animation vòng quay
         scheduleRouletteStep(player, inv, holder, rollingItems, 0, totalSteps, winningPetId);
     }
 
@@ -343,9 +326,12 @@ public class HatchingManager {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             String name = plugin.getConfig().getString("pets." + petId + ".name", petId);
-            meta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', (isWinner ? "&6&l★ " : "&f") + name)));
+            PetRarity rarity = PetRarity.fromPetId(plugin, petId);
+            meta.displayName(LegacyComponentSerializer.legacySection().deserialize(
+                    ChatColor.translateAlternateColorCodes('&', (isWinner ? "&6&l★ " : "&f") + name)));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text("§7Mã Pet: §e" + petId));
+            lore.add(Component.text("§7Độ hiếm: " + rarity.getFormattedName()));
             if (isWinner) {
                 lore.add(Component.text("§a§l✔ PHẦN THƯỞNG CỦA BẠN!"));
             }
@@ -364,7 +350,6 @@ public class HatchingManager {
             glass.setItemMeta(meta);
         }
 
-        // Hàng trên (slots 0-8)
         for (int i = 0; i < 9; i++) {
             if (i == 4) {
                 ItemStack pointer = new ItemStack(Material.HOPPER);
@@ -379,7 +364,6 @@ public class HatchingManager {
             }
         }
 
-        // Hàng dưới (slots 18-26)
         for (int i = 18; i < 27; i++) {
             if (i == 22) {
                 ItemStack pointer = new ItemStack(Material.HOPPER);
@@ -418,20 +402,17 @@ public class HatchingManager {
 
             int step = currentStep + 1;
 
-            // Cập nhật các ô item ở hàng giữa (slots 9 - 17)
             for (int i = 0; i < 9; i++) {
                 inv.setItem(9 + i, items.get(step + i));
             }
             updateRouletteBorders(inv, step);
 
-            // Âm thanh mỗi nhịp quay (cao dần)
             float pitch = 0.8f + ((float) step / totalSteps) * 0.8f;
             player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.6f, pitch);
 
             if (step < totalSteps) {
                 scheduleRouletteStep(player, inv, holder, items, step, totalSteps, winningPetId);
             } else {
-                // ĐÃ DỪNG LẠI TẠI Ô THẮNG (Slot 13)
                 holder.setFinished(true);
                 finishRoulette(player, inv, winningPetId);
             }
@@ -445,21 +426,8 @@ public class HatchingManager {
         inv.setItem(12, winGlass);
         inv.setItem(14, winGlass);
 
-        player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
-        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
-        try {
-            Particle fw = Particle.valueOf("FIREWORKS_SPARK");
-            player.spawnParticle(fw, player.getLocation().add(0, 1.5, 0), 30, 0.5, 0.5, 0.5, 0.1);
-        } catch (Exception ignored) {
-            try {
-                Particle fw = Particle.valueOf("FIREWORK");
-                player.spawnParticle(fw, player.getLocation().add(0, 1.5, 0), 30, 0.5, 0.5, 0.5, 0.1);
-            } catch (Exception ignored2) {}
-        }
-
         completeHatchReward(player, winningPetId, true);
 
-        // Đóng inventory sau 2.5s
         SchedulerUtils.runEntityTaskLater(plugin, player, () -> {
             if (player.getOpenInventory().getTopInventory().getHolder() instanceof RouletteHolder) {
                 player.closeInventory();
@@ -469,31 +437,49 @@ public class HatchingManager {
 
     public void completeHatchReward(Player player, String winningPetId, boolean showTitleAndEffects) {
         String petDisplayName = plugin.getConfig().getString("pets." + winningPetId + ".name", winningPetId);
+        PetRarity rarity = PetRarity.fromPetId(plugin, winningPetId);
 
         if (plugin.getConfigManager().getData().contains(player.getUniqueId() + ".pets." + winningPetId)) {
-            // Đã sở hữu -> Thưởng EXP
-            int expBonus = 200;
-            player.sendMessage(ChatColor.translateAlternateColorCodes('&',
-                    "§eBạn đã sở hữu §f" + petDisplayName + "§e! Trứng chuyển hóa thành §b+" + expBonus + " EXP §echo Pet."));
-            plugin.getPetManager().givePetExp(player, expBonus);
+            // ĐÃ SỞ HỮU TRƯỚC ĐÓ -> CHUYỂN ĐỔI THÀNH MẢNH SHARDS & EXP
+            plugin.getShardManager().convertDuplicateToShards(player, winningPetId);
         } else {
-            // Thêm pet mới
+            // PET MỚI -> TẠO DỮ LIỆU, ROLL TRAIT VÀ LƯU CODEX
             plugin.getConfigManager().createPetDataIfMissing(player.getUniqueId(), winningPetId);
+            PetTrait trait = PetTrait.rollRandomTrait();
+            plugin.getConfigManager().getData().set(player.getUniqueId() + ".pets." + winningPetId + ".trait", trait.name());
+            plugin.getConfigManager().saveData();
+
+            plugin.getCodexManager().discover(player.getUniqueId(), winningPetId);
+
             player.sendMessage(ChatColor.translateAlternateColorCodes('&',
-                    "§a§lChúc mừng! §fBạn vừa ấp nở thành công Pet: " + petDisplayName));
+                    "§a§lCHÚC MỪNG! §fBạn vừa ấp nở thành công Pet: " + petDisplayName +
+                            " §7(Độ hiếm: " + rarity.getFormattedName() + "§7, Đặc chất: " + trait.getFormattedName() + "§7)"));
+
+            // Thông báo toàn server nếu mở được Pet cấp cao
+            if (rarity == PetRarity.LEGENDARY || rarity == PetRarity.MYTHIC || rarity == PetRarity.SECRET || rarity == PetRarity.ETERNAL) {
+                String cleanPetName = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', petDisplayName));
+                Bukkit.broadcast(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&',
+                        "&6&l[IPSECUZ PET] &eNgười chơi &f" + player.getName() + " &evừa ấp nở thành công Pet " +
+                                rarity.getFormattedName() + " &e" + cleanPetName + "&e!")));
+            }
         }
 
         if (showTitleAndEffects) {
+            player.playSound(player.getLocation(), rarity.getRevealSound(), 1.5f, 1f);
+            try {
+                player.getWorld().spawnParticle(rarity.getRevealParticle(), player.getLocation().add(0, 1.5, 0), 40, 0.5, 0.5, 0.5, 0.1);
+            } catch (Exception ignored) {}
+
             Component titleComp = LegacyComponentSerializer.legacySection().deserialize(
                     ChatColor.translateAlternateColorCodes('&', "&6&lẤP TRỨNG THÀNH CÔNG!")
             );
             Component subtitleComp = LegacyComponentSerializer.legacySection().deserialize(
-                    ChatColor.translateAlternateColorCodes('&', "§aBạn nhận được: " + petDisplayName)
+                    ChatColor.translateAlternateColorCodes('&', "&eBạn nhận được: " + petDisplayName)
             );
             Title title = Title.title(
-                    titleComp,
-                    subtitleComp,
-                    Title.Times.times(Duration.ofMillis(200), Duration.ofMillis(3000), Duration.ofMillis(600))
+                titleComp,
+                subtitleComp,
+                Title.Times.times(Duration.ofMillis(200), Duration.ofMillis(3000), Duration.ofMillis(600))
             );
             player.showTitle(title);
         }

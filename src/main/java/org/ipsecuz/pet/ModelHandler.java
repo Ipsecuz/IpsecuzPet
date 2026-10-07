@@ -1,14 +1,13 @@
 package org.ipsecuz.pet;
 
+import kr.toxicity.model.api.BetterModel;
+import kr.toxicity.model.api.data.renderer.ModelRenderer;
+import kr.toxicity.model.api.tracker.EntityTracker;
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.Plugin;
 
-import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,11 +16,18 @@ import java.util.logging.Level;
 public class ModelHandler {
 
     private final IpsecuzPet plugin;
-    private final Map<UUID, Object> activeModels = new ConcurrentHashMap<>();
-    private static Object cachedModelManager = null;
+    private final Map<UUID, EntityTracker> activeTrackers = new ConcurrentHashMap<>();
+    private Boolean betterModelAvailable = null;
 
     public ModelHandler(IpsecuzPet plugin) {
         this.plugin = plugin;
+    }
+
+    public boolean isBetterModelInstalled() {
+        if (betterModelAvailable == null) {
+            betterModelAvailable = Bukkit.getPluginManager().isPluginEnabled("BetterModel");
+        }
+        return betterModelAvailable;
     }
 
     public void spawnModel(Player owner, Entity baseEntity, String modelId) {
@@ -32,207 +38,82 @@ public class ModelHandler {
             return;
         }
 
+        if (!isBetterModelInstalled()) {
+            if (baseEntity instanceof LivingEntity living) {
+                living.setInvisible(false);
+            }
+            return;
+        }
+
         try {
-            Object modelManager = getModelManagerSmart();
-            if (modelManager == null) {
+            ModelRenderer renderer = BetterModel.modelOrNull(modelId);
+            if (renderer == null) {
                 if (baseEntity instanceof LivingEntity living) {
                     living.setInvisible(false);
                 }
-                plugin.getLogger().warning(plugin.getLanguage().getMessage("model_handler.manager_not_found"));
+                plugin.getLogger().warning("§c[IpsecuzPet] Không tìm thấy Model ID: " + modelId +
+                        ". Các Model hiện có: " + BetterModel.modelKeys());
                 return;
             }
 
-            Object model = null;
-            try {
-                Method modelMethod = modelManager.getClass().getMethod("model", String.class);
-                model = modelMethod.invoke(modelManager, modelId);
-            } catch (Exception e) {
-                if (baseEntity instanceof LivingEntity living) {
-                    living.setInvisible(false);
-                }
-                String errorMsg = plugin.getLanguage().getMessage("model_handler.error_calling_model_method", "%model_id%", modelId);
-                plugin.getLogger().log(Level.SEVERE, errorMsg, e);
-                return;
-            }
-
-            if (model == null) {
-                if (baseEntity instanceof LivingEntity living) {
-                    living.setInvisible(false); // Mob vanilla luôn hiển thị
-                }
-                plugin.getLogger().warning(plugin.getLanguage().getMessage("model_handler.model_id_not_found", "%model_id%", modelId));
+            EntityTracker tracker = renderer.create(baseEntity);
+            if (tracker != null) {
+                activeTrackers.put(baseEntity.getUniqueId(), tracker);
                 try {
-                    Method keysMethod = modelManager.getClass().getMethod("modelKeys");
-                    Object keys = keysMethod.invoke(modelManager);
-                    plugin.getLogger().warning(plugin.getLanguage().getMessage("model_handler.available_model_ids", "%keys%", String.valueOf(keys)));
-                } catch(Exception ex) {
-                    String errorMsg = plugin.getLanguage().getMessage("model_handler.error_getting_model_keys");
-                    plugin.getLogger().log(Level.WARNING, errorMsg, ex);
-                }
-                return;
-            }
-
-            // --- LOGIC MỚI: TẠO VÀ SPAWN MODEL ---
-            Object modelInstance = null;
-            try {
-                Method createMethod = model.getClass().getMethod("create", Location.class);
-                modelInstance = createMethod.invoke(model, baseEntity.getLocation());
-
-                if (modelInstance != null) {
-                    activeModels.put(baseEntity.getUniqueId(), modelInstance);
-                    // Ẩn đi: Thông báo thành công, không cần thiết khi đã hoạt động
-                    // plugin.getLogger().info(plugin.getLanguage().getMessage("model_handler.model_spawned_unbound", "%model_id%", modelId));
-
-                    // --- QUAN TRỌNG: SPAWN MODEL CHO CHỦ NHÂN ---
+                    tracker.show(owner);
+                } catch (Exception ex) {
                     try {
-                        Method spawnMethod = modelInstance.getClass().getMethod("spawn", Player.class);
-                        spawnMethod.invoke(modelInstance, owner);
-                        // Ẩn đi: Thông báo thành công, không cần thiết khi đã hoạt động
-                        // plugin.getLogger().info("Đã spawn thành công model '" + modelId + "' cho " + owner.getName());
-                    } catch (NoSuchMethodException e) {
-                        // Ẩn đi: Fallback không cần thiết vì spawn() đã thành công
-                        // plugin.getLogger().warning("Không tìm thấy phương thức spawn(Player). Thử phương thức show(Player)...");
-                        try {
-                            Method showMethod = modelInstance.getClass().getMethod("show", Player.class);
-                            showMethod.invoke(modelInstance, owner);
-                            plugin.getLogger().info("Đã hiển thị thành công model '" + modelId + "' cho " + owner.getName() + " bằng show().");
-                        } catch (Exception ex) {
-                            plugin.getLogger().log(Level.SEVERE, "Lỗi khi gọi phương thức show(Player)", ex);
-                        }
-                    } catch (Exception e) {
-                        // Giữ lại: Lỗi nghiêm trọng, cần biết
-                        plugin.getLogger().log(Level.SEVERE, "Lỗi khi gọi spawn(Player) cho model: " + modelId, e);
-                    }
-                    // ---------------------------------------------------
-                } else {
-                    // Giữ lại: Cảnh báo quan trọng
-                    plugin.getLogger().warning(plugin.getLanguage().getMessage("model_handler.model_returned_null", "%model_id%", modelId));
+                        tracker.animate("idle");
+                    } catch (Exception ignored) {}
                 }
-            } catch (Exception e2) {
-                // Giữ lại: Lỗi nghiêm trọng, cần biết
-                String errorMsg = plugin.getLanguage().getMessage("model_handler.error_calling_create_loc");
-                plugin.getLogger().log(Level.SEVERE, errorMsg, e2);
+            } else {
+                if (baseEntity instanceof LivingEntity living) {
+                    living.setInvisible(false);
+                }
             }
-            // --- KẾT THÚC LOGIC MỚI ---
-        } catch (Exception e) {
-            // Giữ lại: Lỗi nghiêm trọng, cần biết
-            String errorMsg = plugin.getLanguage().getMessage("model_handler.error_spawning_model", "%model_id%", modelId);
-            plugin.getLogger().log(Level.SEVERE, errorMsg, e);
+        } catch (Throwable t) {
+            if (baseEntity instanceof LivingEntity living) {
+                living.setInvisible(false);
+            }
+            plugin.getLogger().log(Level.WARNING, "§c[IpsecuzPet] Không thể spawn BetterModel cho pet: " + modelId, t);
         }
     }
 
     public void updatePosition(Entity pet) {
-        if (!activeModels.containsKey(pet.getUniqueId())) return;
-        Object modelInstance = activeModels.get(pet.getUniqueId());
-        if (modelInstance == null) return;
-
-        try {
-            Location modelLoc = pet.getLocation().add(0, pet.getHeight() / 2, 0);
-            Method locationMethod = modelInstance.getClass().getMethod("location", Location.class);
-            locationMethod.invoke(modelInstance, modelLoc);
-        } catch (Exception e) {
-            // Giữ lại: Cảnh báo quan trọng, có thể là lỗi hiệu năng
-            plugin.getLogger().log(Level.WARNING, "Lỗi khi cập nhật vị trí model cho pet: " + pet.getUniqueId(), e);
-        }
+        // EntityTracker được gắn trực tiếp vào Bukkit Entity nên tự động theo dõi vị trí qua NMS packets.
     }
 
     public void updateAnimation(Entity pet) {
-        if (!(pet instanceof LivingEntity)) return;
-
-        if (!activeModels.containsKey(pet.getUniqueId())) return;
-        Object modelInstance = activeModels.get(pet.getUniqueId());
-        if (modelInstance == null) return;
-
-        boolean isMoving = pet.getVelocity().length() > 0.1;
-        String animName = isMoving ? "walk" : "idle";
+        if (!isBetterModelInstalled()) return;
+        EntityTracker tracker = activeTrackers.get(pet.getUniqueId());
+        if (tracker == null || tracker.isClosed()) return;
 
         try {
-            Method animateMethod = modelInstance.getClass().getMethod("animate", String.class);
-            animateMethod.invoke(modelInstance, animName);
-        } catch (NoSuchMethodException e1) {
-            try {
-                Method playMethod = modelInstance.getClass().getMethod("playAnimation", String.class);
-                playMethod.invoke(modelInstance, animName);
-            } catch (NoSuchMethodException e2) {
-                try {
-                    Method playMethod = modelInstance.getClass().getMethod("play", String.class);
-                    playMethod.invoke(modelInstance, animName);
-                } catch (Exception ignored) {}
-            } catch (Exception ignored) {}
-        } catch (Exception ignored) {}
+            boolean isMoving = pet.getVelocity().length() > 0.08;
+            String animName = isMoving ? "walk" : "idle";
+            tracker.animate(animName);
+        } catch (Throwable ignored) {}
     }
 
     public void removeModel(UUID baseEntityUuid) {
-        if (activeModels.containsKey(baseEntityUuid)) {
-            Object modelInstance = activeModels.get(baseEntityUuid);
-            if (modelInstance != null) {
-                try {
-                    Method despawnMethod = modelInstance.getClass().getMethod("despawn");
-                    despawnMethod.invoke(modelInstance);
-                    // Ẩn đi: Thông báo thành công, không cần thiết khi đã hoạt động
-                    // plugin.getLogger().info("Đã despawn model thành công.");
-                } catch (NoSuchMethodException e) {
-                    try {
-                        Method closeMethod = modelInstance.getClass().getMethod("close");
-                        closeMethod.invoke(modelInstance);
-                        // Ẩn đi: Thông báo thành công, không cần thiết khi đã hoạt động
-                        // plugin.getLogger().info("Đã xóa model thành công bằng close().");
-                    } catch (Exception ex) {
-                        // Giữ lại: Cảnh báo quan trọng
-                        String errorMsg = plugin.getLanguage().getMessage("model_handler.error_calling_remove_method", "%method_name%", "close()");
-                        plugin.getLogger().log(Level.WARNING, errorMsg, ex);
-                    }
-                } catch (Exception e) {
-                    // Giữ lại: Cảnh báo quan trọng
-                    String errorMsg = plugin.getLanguage().getMessage("model_handler.error_calling_remove_method", "%method_name%", "despawn()");
-                    plugin.getLogger().log(Level.WARNING, errorMsg, e);
-                }
-            }
-            activeModels.remove(baseEntityUuid);
+        if (!isBetterModelInstalled()) return;
+        EntityTracker tracker = activeTrackers.remove(baseEntityUuid);
+        if (tracker != null && !tracker.isClosed()) {
+            try {
+                tracker.close();
+            } catch (Throwable ignored) {}
         }
     }
 
     public void removeAll() {
-        for (UUID uuid : new ArrayList<>(activeModels.keySet())) {
-            removeModel(uuid);
-        }
-        activeModels.clear();
-        // Ẩn đi: Thông báo thành công, không cần thiết khi đã hoạt động
-        // plugin.getLogger().info(plugin.getLanguage().getMessage("model_handler.all_models_removed"));
-    }
-
-    private Object getModelManagerSmart() {
-        if (cachedModelManager != null) return cachedModelManager;
-        Plugin bmPlugin = Bukkit.getPluginManager().getPlugin("BetterModel");
-        if (bmPlugin == null) {
-            // Giữ lại: Lỗi nghiêm trọng, cần biết
-            plugin.getLogger().warning(plugin.getLanguage().getMessage("model_handler.plugin_not_found"));
-            return null;
-        }
-
-        Object instance = bmPlugin;
-        try {
-            Method inst = bmPlugin.getClass().getMethod("inst");
-            instance = inst.invoke(null);
-        } catch (Exception ignored) {
-            // Ẩn đi: Thông báo không quan trọng, chỉ là fallback
-            // plugin.getLogger().info(plugin.getLanguage().getMessage("model_handler.no_inst_method"));
-        }
-
-        for (Method m : instance.getClass().getMethods()) {
-            if (m.getName().toLowerCase().contains("manager") && m.getParameterCount() == 0) {
+        if (!isBetterModelInstalled()) return;
+        for (EntityTracker tracker : activeTrackers.values()) {
+            if (tracker != null && !tracker.isClosed()) {
                 try {
-                    Object res = m.invoke(instance);
-                    if (res != null && res.getClass().getName().contains("ModelManager")) {
-                        cachedModelManager = res;
-                        // Ẩn đi: Thông báo thành công, không cần thiết khi đã hoạt động
-                        // plugin.getLogger().info(plugin.getLanguage().getMessage("model_handler.manager_found"));
-                        return res;
-                    }
-                } catch (Exception ignored) {}
+                    tracker.close();
+                } catch (Throwable ignored) {}
             }
         }
-        // Giữ lại: Cảnh báo quan trọng
-        plugin.getLogger().warning(plugin.getLanguage().getMessage("model_handler.model_manager_not_found"));
-        return null;
+        activeTrackers.clear();
     }
 }

@@ -32,6 +32,11 @@ public class ModuleManager {
         loadModule("trade");
     }
 
+    public void reloadAllModules() {
+        loadAllModules();
+        plugin.getLogger().info("§a[IpsecuzPet] Đã nạp lại toàn bộ cấu hình modules!");
+    }
+
     private void loadModule(String name) {
         File file = new File(modulesFolder, name + ".yml");
         if (!file.exists()) {
@@ -59,10 +64,41 @@ public class ModuleManager {
         return cfg != null && cfg.getBoolean("enabled", true);
     }
 
+    public boolean isHatchingEnabled() {
+        return isModuleEnabled("hatching");
+    }
+
+    public boolean isSkillsEnabled() {
+        return isModuleEnabled("skills");
+    }
+
+    public boolean isFeedingEnabled() {
+        return isModuleEnabled("feeding");
+    }
+
+    public boolean isEvolutionEnabled() {
+        return isModuleEnabled("evolution");
+    }
+
+    public boolean isTradeEnabled() {
+        return isModuleEnabled("trade");
+    }
+
+    public boolean isCaptureEnabled() {
+        return plugin.getConfig().getBoolean("capture_system.enabled", true);
+    }
+
+    public boolean isShopEnabled() {
+        return plugin.getConfig().getBoolean("shop.enabled", true);
+    }
+
+    public boolean isCodexEnabled() {
+        return plugin.getConfig().getBoolean("codex.enabled", true);
+    }
+
     public FileConfiguration getHatchingConfig() { return getModuleConfig("hatching"); }
     public FileConfiguration getSkillsConfig() { return getModuleConfig("skills"); }
     public FileConfiguration getFeedingConfig() { return getModuleConfig("feeding"); }
     public FileConfiguration getEvolutionConfig() { return getModuleConfig("evolution"); }
     public FileConfiguration getTradeConfig() { return getModuleConfig("trade"); }
 }
-

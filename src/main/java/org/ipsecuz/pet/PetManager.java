@@ -3,6 +3,7 @@ package org.ipsecuz.pet;
 import org.bukkit.*;
 import org.bukkit.attribute.Attributable;
 import org.bukkit.attribute.Attribute;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.*;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.persistence.PersistentDataType;
@@ -30,7 +31,7 @@ public class PetManager {
         this.plugin = plugin;
         this.petKey = new NamespacedKey(plugin, "ipsecuz_pet_owner");
         this.petIdKey = new NamespacedKey(plugin, "pet_id");
-        this.modelHandler = new ModelHandler(plugin);
+        this.modelHandler = plugin.getModelHandler();
     }
 
     public ModelHandler getModelHandler() {
@@ -97,7 +98,6 @@ public class PetManager {
             // Scale kích cỡ pet thực tế (0.55 cho bé con, 1.0 cho trưởng thành)
             applyScale(living, isBaby ? 0.55 : 1.0);
 
-            // CHỈ ẩn mob gốc khi có model BetterModel tùy chỉnh hợp lệ
             if (modelId != null && !modelId.trim().isEmpty()) {
                 living.setInvisible(true);
                 modelHandler.spawnModel(player, pet, modelId);
@@ -134,7 +134,7 @@ public class PetManager {
         activePetIds.put(player.getUniqueId(), petId);
 
         String msg = plugin.getLanguage().getMessage("pet.spawn");
-        if(msg != null) player.sendMessage(msg.replace("%pet_name%", displayName));
+        if (msg != null) player.sendMessage(msg.replace("%pet_name%", displayName));
         player.playSound(player.getLocation(), Sound.ENTITY_CHICKEN_EGG, 1f, 1f);
     }
 
@@ -142,14 +142,12 @@ public class PetManager {
         if (activePets.containsKey(ownerId)) {
             Entity e = activePets.get(ownerId);
             if (e != null && e.isValid()) {
-                // --- SỬA LỖI FOLIA: CHẠY TRÊN LUỒNG CỦA ENTITY ---
                 SchedulerUtils.runEntityTask(plugin, e, () -> {
                     if (e.isValid()) {
                         modelHandler.removeModel(e.getUniqueId());
                         e.remove();
                     }
                 });
-                // ----------------------------------------------------
             }
             activePets.remove(ownerId);
             activePetIds.remove(ownerId);
@@ -157,7 +155,6 @@ public class PetManager {
     }
 
     public void removeAllPets() {
-        // Tạo một bản sao của keySet để tránh ConcurrentModificationException
         for (UUID uuid : new ArrayList<>(activePets.keySet())) {
             removePet(uuid);
         }
@@ -174,30 +171,85 @@ public class PetManager {
         }
     }
 
-    private void updatePetStats(Entity entity, String petId, int level, UUID ownerId) {
+    public void updatePetStats(Entity entity, String petId, int level, UUID ownerId) {
         if (!(entity instanceof Attributable attrEntity)) return;
 
+        double baseHp = plugin.getConfig().getDouble("pets." + petId + ".stats.health", 20.0);
+        double baseDmg = plugin.getConfig().getDouble("pets." + petId + ".stats.damage", 5.0);
+        double baseDef = plugin.getConfig().getDouble("pets." + petId + ".stats.defense", 0.0);
+        double baseSpd = plugin.getConfig().getDouble("pets." + petId + ".stats.speed", 0.25);
+
+        double growthHp = plugin.getConfig().getDouble("pets." + petId + ".growth.health",
+                plugin.getConfig().getDouble("rpg_system.default_growth.health", 2.0));
+        double growthDmg = plugin.getConfig().getDouble("pets." + petId + ".growth.damage",
+                plugin.getConfig().getDouble("rpg_system.default_growth.damage", 0.5));
+        double growthDef = plugin.getConfig().getDouble("pets." + petId + ".growth.defense",
+                plugin.getConfig().getDouble("rpg_system.default_growth.defense", 0.2));
+        double growthSpd = plugin.getConfig().getDouble("pets." + petId + ".growth.speed",
+                plugin.getConfig().getDouble("rpg_system.default_growth.speed", 0.001));
+
+        int effectiveLevel = Math.max(1, level);
+        double maxHp = baseHp + ((effectiveLevel - 1) * growthHp);
+        double damage = baseDmg + ((effectiveLevel - 1) * growthDmg);
+        double defense = baseDef + ((effectiveLevel - 1) * growthDef);
+        double speed = baseSpd + ((effectiveLevel - 1) * growthSpd);
+
+        // 1. Hệ số Sao (Evolution)
         double starMultiplier = (plugin.getEvolutionManager() != null && ownerId != null)
                 ? plugin.getEvolutionManager().getStarMultiplier(ownerId, petId) : 1.0;
+        maxHp *= starMultiplier;
+        damage *= starMultiplier;
+        defense *= starMultiplier;
 
-        double maxHp = plugin.getConfigManager().getPetStat(petId, level, "health") * starMultiplier;
-        double speed = plugin.getConfigManager().getPetStat(petId, level, "speed");
-        double damage = plugin.getConfigManager().getPetStat(petId, level, "damage") * starMultiplier;
+        // 2. Hệ số Trait
+        if (ownerId != null) {
+            String traitName = plugin.getConfigManager().getData().getString(ownerId + ".pets." + petId + ".trait", "NONE");
+            PetTrait trait = PetTrait.fromString(traitName);
+            maxHp *= trait.getHealthMultiplier();
+            damage *= trait.getDamageMultiplier();
+            defense *= trait.getDefenseMultiplier();
+            speed *= trait.getSpeedMultiplier();
+        }
 
-        if (maxHp <= 0) maxHp = 20;
+        // 3. Hệ số Thân thiết (Happiness)
+        if (plugin.getFeedingManager() != null && ownerId != null) {
+            int happy = plugin.getFeedingManager().getHappiness(ownerId, petId);
+            if (happy >= 80) {
+                speed *= 1.15;
+            } else if (happy < 20) {
+                maxHp *= 0.85;
+                damage *= 0.85;
+                speed *= 0.85;
+                defense *= 0.85;
+            }
+        }
 
-        if (attrEntity.getAttribute(Attribute.GENERIC_MAX_HEALTH) != null)
+        if (maxHp <= 0) maxHp = 20.0;
+
+        if (attrEntity.getAttribute(Attribute.GENERIC_MAX_HEALTH) != null) {
             attrEntity.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(maxHp);
+        }
 
-        if (entity instanceof LivingEntity living) living.setHealth(maxHp);
+        if (entity instanceof LivingEntity living) {
+            if (living.getHealth() > maxHp) {
+                living.setHealth(maxHp);
+            }
+        }
 
-        if (attrEntity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED) != null)
+        if (attrEntity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED) != null) {
             attrEntity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(speed);
+        }
 
-        if (attrEntity.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE) != null)
+        if (attrEntity.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE) != null) {
             attrEntity.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE).setBaseValue(damage);
+        }
+
+        if (attrEntity.getAttribute(Attribute.GENERIC_ARMOR) != null) {
+            attrEntity.getAttribute(Attribute.GENERIC_ARMOR).setBaseValue(defense);
+        }
 
         entity.setMetadata("pet_damage", new FixedMetadataValue(plugin, damage));
+        entity.setMetadata("pet_defense", new FixedMetadataValue(plugin, defense));
     }
 
     public void startPetTask() {
@@ -227,7 +279,6 @@ public class PetManager {
                 continue;
             }
 
-            // Chạy Logic trên từng Entity (Folia Safe)
             SchedulerUtils.runEntityTask(plugin, pet, () -> {
                 if (!pet.isValid() || !owner.isOnline()) return;
 
@@ -239,7 +290,6 @@ public class PetManager {
                 if (petLoc.distanceSquared(ownerLoc) > 400) {
                     SchedulerUtils.teleportAsync(pet, ownerLoc);
                 } else if (isFlying) {
-                    // AI bay lượn mượt mà quanh vai/đầu chủ nhân (Folia Safe)
                     Location targetHover = ownerLoc.clone().add(0, 1.2, 0);
                     org.bukkit.util.Vector dir = targetHover.toVector().subtract(petLoc.toVector());
                     double dist = dir.length();
@@ -251,10 +301,8 @@ public class PetManager {
                     if (pet instanceof Mob mob) mob.getPathfinder().moveTo(owner);
                 }
 
-                // Cập nhật vị trí và hoạt ảnh model nếu có
                 modelHandler.updatePosition(pet);
                 modelHandler.updateAnimation(pet);
-                // ------------------------------------------------------------
 
                 playParticles(pet, petId);
 
@@ -268,17 +316,17 @@ public class PetManager {
     private void applyBuffs(Player p, String petId, UUID uuid) {
         int level = plugin.getConfigManager().getData().getInt(uuid + ".pets." + petId + ".level", 1);
         double intel = plugin.getConfigManager().getPetStat(petId, level, "intelligence");
-        int duration = 60 + ((int)intel * 2);
+        int duration = 60 + ((int) intel * 2);
 
         List<String> effects = plugin.getConfig().getStringList("pets." + petId + ".effects");
-        for(String s : effects) {
+        for (String s : effects) {
             try {
                 String[] parts = s.split(":");
                 PotionEffectType type = PotionEffectType.getByName(parts[0]);
                 if (type != null) {
                     p.addPotionEffect(new PotionEffect(type, duration, Integer.parseInt(parts[1]), false, false, true));
                 }
-            } catch(Exception e){}
+            } catch (Exception ignored) {}
         }
     }
 
@@ -295,7 +343,6 @@ public class PetManager {
     public Entity getPet(UUID uuid) { return activePets.get(uuid); }
     public String getActivePetId(UUID uuid) { return activePetIds.get(uuid); }
 
-    // --- HÀM MỚI: HIỂN THỊ CHỈ SỐ PET ---
     public void showPetStats(Player player, Entity pet) {
         String petId = pet.getPersistentDataContainer().get(petIdKey, PersistentDataType.STRING);
         if (petId == null) return;
@@ -305,9 +352,16 @@ public class PetManager {
         String name = (customName != null) ? customName : defaultName;
 
         ConfigManager cm = plugin.getConfigManager();
-        int lvl = cm.getData().getInt(player.getUniqueId() + ".pets." + petId + ".level");
-        int exp = cm.getData().getInt(player.getUniqueId() + ".pets." + petId + ".exp");
+        int lvl = cm.getData().getInt(player.getUniqueId() + ".pets." + petId + ".level", 1);
+        int exp = cm.getData().getInt(player.getUniqueId() + ".pets." + petId + ".exp", 0);
+        int maxLvl = plugin.getConfig().getInt("rpg_system.max_level", 100);
         int req = lvl * plugin.getConfig().getInt("rpg_system.base_exp_requirement", 50);
+
+        int stars = (plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStar(player.getUniqueId(), petId) : 1;
+        String starDisplay = (plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(stars) : (stars + "⭐");
+        String traitName = cm.getData().getString(player.getUniqueId() + ".pets." + petId + ".trait", "NONE");
+        PetTrait trait = PetTrait.fromString(traitName);
+        PetRarity rarity = PetRarity.fromPetId(plugin, petId);
 
         double dmg = cm.getPetStat(petId, lvl, "damage");
         double hp = cm.getPetStat(petId, lvl, "health");
@@ -317,29 +371,36 @@ public class PetManager {
         LanguageManager lang = plugin.getLanguage();
         player.sendMessage(lang.getMessage("pet.stats_header"));
         player.sendMessage(lang.getMessage("pet.stats_title", "%pet_name%", name));
-        player.sendMessage(lang.getMessage("pet.stats_level", "%level%", String.valueOf(lvl)));
-        player.sendMessage(lang.getMessage("pet.stats_exp", "%exp%", String.valueOf(exp), "%req%", String.valueOf(req)));
+        player.sendMessage("§7Độ hiếm: " + rarity.getFormattedName() + " §7| Sao: " + starDisplay);
+        player.sendMessage("§7Đặc chất (Trait): " + trait.getFormattedName());
+        if (lvl >= maxLvl) {
+            player.sendMessage("§7Cấp độ: §6Lv." + lvl + " §e[TỐI ĐA (MAX)]");
+        } else {
+            player.sendMessage(lang.getMessage("pet.stats_level", "%level%", String.valueOf(lvl)));
+            player.sendMessage(lang.getMessage("pet.stats_exp", "%exp%", String.valueOf(exp), "%req%", String.valueOf(req)));
+        }
         player.sendMessage(lang.getMessage("pet.stats_damage", "%val%", String.format("%.1f", dmg)));
         player.sendMessage(lang.getMessage("pet.stats_health", "%val%", String.format("%.1f", hp)));
         player.sendMessage(lang.getMessage("pet.stats_defense", "%val%", String.format("%.1f", def)));
         player.sendMessage(lang.getMessage("pet.stats_speed", "%val%", String.format("%.3f", spd)));
         player.sendMessage(lang.getMessage("pet.stats_header"));
     }
-    // -----------------------------------------
 
     public void givePetExp(Player p, int amount) {
-        if (!hasPet(p.getUniqueId())) return;
+        if (!hasPet(p.getUniqueId()) || amount <= 0) return;
         String petId = activePetIds.get(p.getUniqueId());
-        int currentExp = plugin.getConfigManager().getData().getInt(p.getUniqueId() + ".pets." + petId + ".exp");
-        int currentLvl = plugin.getConfigManager().getData().getInt(p.getUniqueId() + ".pets." + petId + ".level");
+        int currentExp = plugin.getConfigManager().getData().getInt(p.getUniqueId() + ".pets." + petId + ".exp", 0);
+        int currentLvl = plugin.getConfigManager().getData().getInt(p.getUniqueId() + ".pets." + petId + ".level", 1);
+        int maxLvl = plugin.getConfig().getInt("rpg_system.max_level", 100);
 
-        int baseExpRequirement = plugin.getConfig().getInt("rpg_system.base_exp_requirement", 50);
-        int nextLvlExp = currentLvl * baseExpRequirement;
+        if (currentLvl >= maxLvl) {
+            return;
+        }
 
-        // --- LOGIC MỚI: TÍNH HỆ SỐ NHÂN KINH NGHIỆM (AN TOÀN TUYỆT ĐỐI) ---
+        // --- TÍNH HỆ SỐ NHÂN KINH NGHIỆM AN TOÀN ---
         double multiplier = 1.0;
 
-        // 1. Quét quyền hạn của người chơi trực tiếp (ví dụ: ipsecuzpet.multiplier.1.5, ipsecuzpet.multiplier.2.0)
+        // 1. Quét quyền hạn của người chơi trực tiếp (ví dụ: ipsecuzpet.multiplier.1.5)
         try {
             for (org.bukkit.permissions.PermissionAttachmentInfo info : p.getEffectivePermissions()) {
                 if (info == null || !info.getValue()) continue;
@@ -355,11 +416,11 @@ public class PetManager {
             }
         } catch (Exception ignored) {}
 
-        // 2. Quét cấu hình từ config.yml (hỗ trợ an toàn cả keys có dấu chấm lẫn keys thường, chặn MemorySection)
-        org.bukkit.configuration.ConfigurationSection multSec = plugin.getConfig().getConfigurationSection("rpg_system.xp_multiplier_permissions");
+        // 2. Quét cấu hình từ config.yml
+        ConfigurationSection multSec = plugin.getConfig().getConfigurationSection("rpg_system.xp_multiplier_permissions");
         if (multSec != null) {
             for (Map.Entry<String, Object> entry : multSec.getValues(true).entrySet()) {
-                if (entry.getValue() instanceof org.bukkit.configuration.ConfigurationSection) continue;
+                if (entry.getValue() instanceof ConfigurationSection) continue;
                 try {
                     double permMultiplier = Double.parseDouble(entry.getValue().toString());
                     String key = entry.getKey();
@@ -372,33 +433,79 @@ public class PetManager {
             }
         }
 
-        // Thưởng thêm 25% EXP nếu độ vui vẻ Pet >= 80%
+        // 3. Thưởng / Phạt theo độ vui vẻ (Happiness)
         if (plugin.getFeedingManager() != null) {
             int happy = plugin.getFeedingManager().getHappiness(p.getUniqueId(), petId);
             if (happy >= 80) {
                 multiplier *= 1.25;
+            } else if (happy < 20) {
+                multiplier *= 0.75;
             }
         }
 
-        int finalAmount = (int) (amount * multiplier);
-        // ----------------------------------------------------
+        // 4. Trait SCHOLAR thưởng thêm 25% EXP
+        String traitName = plugin.getConfigManager().getData().getString(p.getUniqueId() + ".pets." + petId + ".trait", "NONE");
+        if ("SCHOLAR".equalsIgnoreCase(traitName)) {
+            multiplier *= 1.25;
+        }
 
-        currentExp += finalAmount;
-        if (currentExp >= nextLvlExp) {
-            currentExp -= nextLvlExp;
-            currentLvl++;
-            plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".level", currentLvl);
+        int finalAmount = Math.max(1, (int) (amount * multiplier));
 
-            String msg = plugin.getLanguage().getMessage("pet.levelup");
-            if(msg != null) p.sendMessage(msg.replace("%level%", String.valueOf(currentLvl)));
+        // --- VÒNG LẶP NÂNG CẤP ĐA TẦNG (MULTI-LEVEL PROGRESSION LOOP) ---
+        long accumulatedExp = (long) currentExp + finalAmount;
+        int baseExpRequirement = plugin.getConfig().getInt("rpg_system.base_exp_requirement", 50);
+        int levelsGained = 0;
 
+        while (currentLvl < maxLvl) {
+            int nextLvlExp = currentLvl * baseExpRequirement;
+            if (accumulatedExp >= nextLvlExp) {
+                accumulatedExp -= nextLvlExp;
+                currentLvl++;
+                levelsGained++;
+            } else {
+                break;
+            }
+        }
+
+        int finalExp = (currentLvl >= maxLvl) ? 0 : (int) Math.min(Integer.MAX_VALUE, accumulatedExp);
+
+        plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".level", currentLvl);
+        plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".exp", finalExp);
+        plugin.getConfigManager().saveData();
+
+        if (levelsGained > 0) {
+            // Âm thanh vinh quang
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+            p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
 
-            Entity pet = activePets.get(p.getUniqueId());
-            if (pet != null) {
-                updatePetStats(pet, petId, currentLvl, p.getUniqueId());
+            // Thông báo lên cấp (Đơn cấp hoặc Đa cấp)
+            if (levelsGained == 1) {
+                String msg = plugin.getLanguage().getMessage("pet.levelup");
+                if (msg != null) p.sendMessage(msg.replace("%level%", String.valueOf(currentLvl)));
+            } else {
+                p.sendMessage("§a§l★ TIẾN HÓA CẤP ĐỘ! §fThú cưng đã tăng vọt §e+" + levelsGained + " Cấp §f(Đạt cấp: §6Lv." + currentLvl + "§f)!");
+            }
 
-                // Cập nhật tên mới (nếu có tên tùy chỉnh)
+            // Phần thưởng bùa lợi (Level up rewards buff)
+            List<String> rewards = plugin.getConfig().getStringList("rpg_system.level_up_rewards.effects");
+            int rewardDurationSec = plugin.getConfig().getInt("rpg_system.level_up_rewards.duration", 120);
+            int ticks = rewardDurationSec * 20;
+            for (String rw : rewards) {
+                try {
+                    String[] parts = rw.split(":");
+                    PotionEffectType pet = PotionEffectType.getByName(parts[0]);
+                    int amp = parts.length > 1 ? Integer.parseInt(parts[1]) : 0;
+                    if (pet != null) {
+                        p.addPotionEffect(new PotionEffect(pet, ticks, amp));
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // Cập nhật thực thể đang triệu hồi
+            Entity petEntity = activePets.get(p.getUniqueId());
+            if (petEntity != null && petEntity.isValid()) {
+                updatePetStats(petEntity, petId, currentLvl, p.getUniqueId());
+
                 String defaultName = plugin.getConfig().getString("pets." + petId + ".name", "Pet");
                 String customName = plugin.getConfigManager().getCustomName(p.getUniqueId(), petId);
                 String name = (customName != null) ? customName : defaultName;
@@ -407,15 +514,13 @@ public class PetManager {
 
                 String displayName = format.replace("%name%", name)
                         .replace("%level%", String.valueOf(currentLvl))
-                        .replace("%player%", p.getName())
+                .replace("%player%", p.getName())
                         .replace("%owner%", p.getName());
 
-                pet.setCustomName(ChatColor.translateAlternateColorCodes('&', displayName));
-                pet.setCustomNameVisible(true);
+                petEntity.setCustomName(ChatColor.translateAlternateColorCodes('&', displayName));
+                petEntity.setCustomNameVisible(true);
             }
         }
-        plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".exp", currentExp);
-        plugin.getConfigManager().saveData();
     }
 
     public static void applyScale(LivingEntity entity, double scale) {

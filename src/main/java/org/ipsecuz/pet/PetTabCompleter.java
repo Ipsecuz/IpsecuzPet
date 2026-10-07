@@ -28,6 +28,8 @@ public class PetTabCompleter implements TabCompleter {
             commands.add("despawn");
             commands.add("baby");
             commands.add("hatch");
+            commands.add("codex");
+            commands.add("shards");
             commands.add("feed");
             commands.add("skill");
             commands.add("star");
@@ -60,7 +62,15 @@ public class PetTabCompleter implements TabCompleter {
                 }
                 return results;
             }
-            // Không gợi ý cho duel/give để game tự gợi ý tên player
+            if (args[0].equalsIgnoreCase("trade")) {
+                results.add("accept");
+                for (Player online : plugin.getServer().getOnlinePlayers()) {
+                    if (!online.getName().equalsIgnoreCase(sender.getName())) {
+                        results.add(online.getName());
+                    }
+                }
+                return results;
+            }
             if (args[0].equalsIgnoreCase("duel") ||
                     (args[0].equalsIgnoreCase("give") && sender.hasPermission("ipsecuzpet.admin")) ||
                     (args[0].equalsIgnoreCase("giveball") && sender.hasPermission("ipsecuzpet.admin"))) {
@@ -79,11 +89,9 @@ public class PetTabCompleter implements TabCompleter {
                 }
                 return results;
             }
-            // Gợi ý ID bóng
             if (args[0].equalsIgnoreCase("giveball") && sender.hasPermission("ipsecuzpet.admin")) {
                 return new ArrayList<>(plugin.getCaptureManager().getBallIds());
             }
-            // Gợi ý ID trứng
             if (args[0].equalsIgnoreCase("giveegg") && sender.hasPermission("ipsecuzpet.admin")) {
                 if (plugin.getModuleManager() != null && plugin.getModuleManager().getHatchingConfig().isConfigurationSection("eggs")) {
                     return new ArrayList<>(plugin.getModuleManager().getHatchingConfig().getConfigurationSection("eggs").getKeys(false));

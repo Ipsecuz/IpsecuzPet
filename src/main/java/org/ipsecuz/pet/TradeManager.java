@@ -5,20 +5,32 @@ import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class TradeManager {
     private final IpsecuzPet plugin;
     private final Map<UUID, UUID> pendingTrades = new ConcurrentHashMap<>();
+    private final Set<TradeSession> activeSessions = ConcurrentHashMap.newKeySet();
 
     public TradeManager(IpsecuzPet plugin) {
         this.plugin = plugin;
     }
 
     public void sendTradeRequest(Player sender, Player target) {
+        if (!plugin.getModuleManager().isTradeEnabled()) {
+            sender.sendMessage("§cTính năng Giao Dịch Pet hiện đang bị tắt bởi máy chủ!");
+            return;
+        }
+
         if (target == null || !target.isOnline() || target.equals(sender)) {
             sender.sendMessage("§cNgười chơi không hợp lệ hoặc đang offline!");
+            return;
+        }
+
+        if (isInTrade(sender) || isInTrade(target)) {
+            sender.sendMessage("§cMột trong hai người chơi hiện đang trong phiên giao dịch khác!");
             return;
         }
 
@@ -29,6 +41,11 @@ public class TradeManager {
     }
 
     public void acceptTrade(Player accepter) {
+        if (!plugin.getModuleManager().isTradeEnabled()) {
+            accepter.sendMessage("§cTính năng Giao Dịch Pet hiện đang bị tắt bởi máy chủ!");
+            return;
+        }
+
         UUID senderId = pendingTrades.remove(accepter.getUniqueId());
         if (senderId == null) {
             accepter.sendMessage("§cBạn không có lời mời giao dịch Pet nào.");
@@ -41,11 +58,38 @@ public class TradeManager {
             return;
         }
 
-        accepter.sendMessage("§aĐã chấp nhận giao dịch Pet với §e" + sender.getName() + "§a!");
-        sender.sendMessage("§e" + accepter.getName() + " §ađã chấp nhận giao dịch Pet!");
-        // Cả 2 người chơi có thể dùng /pet withdraw để đổi thành thẻ pet và giao dịch an toàn
-        accepter.sendMessage("§7[Mẹo] Bạn có thể dùng §e/pet withdraw <pet_id> §7để rút pet thành thẻ an toàn rồi trao đổi.");
-        sender.sendMessage("§7[Mẹo] Bạn có thể dùng §e/pet withdraw <pet_id> §7để rút pet thành thẻ an toàn rồi trao đổi.");
+        if (isInTrade(sender) || isInTrade(accepter)) {
+            accepter.sendMessage("§cMột trong hai người chơi hiện đang trong phiên giao dịch khác!");
+            return;
+        }
+
+        TradeSession session = new TradeSession(plugin, sender, accepter);
+        activeSessions.add(session);
+        session.open();
+    }
+
+    public boolean isInTrade(Player player) {
+        return getSession(player) != null;
+    }
+
+    public TradeSession getSession(Player player) {
+        for (TradeSession session : activeSessions) {
+            if (player.equals(session.getPlayerA()) || player.equals(session.getPlayerB())) {
+                return session;
+            }
+        }
+        return null;
+    }
+
+    public void removeActiveSession(TradeSession session) {
+        activeSessions.remove(session);
+    }
+
+    public void cancelAllActiveTrades() {
+        for (TradeSession session : activeSessions) {
+            session.cancel("Máy chủ khởi động lại hoặc tắt tính năng giao dịch.");
+        }
+        activeSessions.clear();
+        pendingTrades.clear();
     }
 }
-

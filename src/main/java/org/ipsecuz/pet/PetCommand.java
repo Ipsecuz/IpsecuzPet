@@ -18,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 public class PetCommand implements CommandExecutor {
     private final IpsecuzPet plugin;
@@ -48,11 +49,13 @@ public class PetCommand implements CommandExecutor {
                 p.sendMessage(lang.getMessage("help.cmd_shop"));
                 p.sendMessage(lang.getMessage("help.cmd_despawn"));
                 p.sendMessage("§e/pet hatch §7- Mở Lò Ấp Trứng (Hỗ trợ gắn NPC)");
+                p.sendMessage("§e/pet codex §7- Sách Bách Khoa Thu Thập Pet");
+                p.sendMessage("§e/pet shards §7- Kho Mảnh Shards Pet");
                 p.sendMessage("§e/pet baby §7- Đổi dạng Bé con (Baby) / Trưởng thành");
                 p.sendMessage("§e/pet feed §7- Cho thú cưng ăn tăng Độ Vui Vẻ");
                 p.sendMessage("§e/pet skill §7- Kích hoạt Tuyệt Chiêu Pet");
                 p.sendMessage("§e/pet star §7- Tiến hóa & Tăng sao Pet");
-                p.sendMessage("§e/pet trade <player> §7- Giao dịch Pet với người chơi");
+                p.sendMessage("§e/pet trade <player> §7- Giao dịch Pet an toàn");
                 p.sendMessage(lang.getMessage("help.cmd_duel"));
                 p.sendMessage(lang.getMessage("help.cmd_accept"));
                 p.sendMessage("§e/pet stats §7- Xem chỉ số Pet");
@@ -69,6 +72,14 @@ public class PetCommand implements CommandExecutor {
 
             case "shop":
                 GuiListener.openShopMenu(p);
+                break;
+
+            case "codex":
+                GuiListener.openCodexMenu(p);
+                break;
+
+            case "shards":
+                GuiListener.openShardsMenu(p);
                 break;
 
             case "despawn":
@@ -149,30 +160,48 @@ public class PetCommand implements CommandExecutor {
                     return true;
                 }
 
-                int wdLvl = conf.getData().getInt(p.getUniqueId() + ".pets." + wdId + ".level");
-                int wdExp = conf.getData().getInt(p.getUniqueId() + ".pets." + wdId + ".exp");
-                String wdName = plugin.getConfig().getString("pets." + wdId + ".name");
-
-                ItemStack item = new ItemStack(Material.DRAGON_EGG);
-                ItemMeta meta = item.getItemMeta();
-                meta.displayName(Component.text("§6📦 " + wdName.replace("&", "§") + " §e(Lv." + wdLvl + ")"));
-                List<Component> lore = new ArrayList<>();
-                lore.add(Component.text("§7--------------------"));
-                lore.add(Component.text("§7Loại: §f" + wdId));
-                lore.add(Component.text("§7Cấp độ: §a" + wdLvl));
-                lore.add(Component.text("§7EXP: §b" + wdExp));
-                lore.add(Component.text("§7--------------------"));
-                lore.add(Component.text("§e[Chuột phải để Nhận Pet]"));
-                meta.lore(lore);
-                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_id"), PersistentDataType.STRING, wdId);
-                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_lvl"), PersistentDataType.INTEGER, wdLvl);
-                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_exp"), PersistentDataType.INTEGER, wdExp);
-                item.setItemMeta(meta);
-
                 if (p.getInventory().firstEmpty() == -1) {
                     p.sendMessage(lang.getMessage("general.inventory_full"));
                     return true;
                 }
+
+                int wdLvl = conf.getData().getInt(p.getUniqueId() + ".pets." + wdId + ".level", 1);
+                int wdExp = conf.getData().getInt(p.getUniqueId() + ".pets." + wdId + ".exp", 0);
+                int stars = (plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStar(p.getUniqueId(), wdId) : 1;
+                String trait = conf.getData().getString(p.getUniqueId() + ".pets." + wdId + ".trait", "NONE");
+                String customName = conf.getCustomName(p.getUniqueId(), wdId);
+                String wdName = plugin.getConfig().getString("pets." + wdId + ".name", wdId);
+                PetRarity rarity = PetRarity.fromPetId(plugin, wdId);
+
+                ItemStack item = new ItemStack(Material.DRAGON_EGG);
+                ItemMeta meta = item.getItemMeta();
+                meta.displayName(Component.text("§6📦 " + ChatColor.translateAlternateColorCodes('&', wdName) + " §e(Lv." + wdLvl + ")"));
+                List<Component> lore = new ArrayList<>();
+                lore.add(Component.text("§7--------------------"));
+                lore.add(Component.text("§7Độ hiếm: " + rarity.getFormattedName()));
+                lore.add(Component.text("§7Cấp sao: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(stars) : (stars + "⭐"))));
+                lore.add(Component.text("§7Đặc chất: " + PetTrait.fromString(trait).getFormattedName()));
+                lore.add(Component.text("§7Cấp độ: §aLv." + wdLvl + " §7(EXP: §b" + wdExp + "§7)"));
+                if (customName != null && !customName.isEmpty()) {
+                    lore.add(Component.text("§7Biệt danh: §f" + customName));
+                }
+                lore.add(Component.text("§7--------------------"));
+                lore.add(Component.text("§e[Nhấp chuột phải để Triệu Hồi]"));
+                meta.lore(lore);
+
+                // Lưu dữ liệu vào PersistentDataContainer có khóa mã hóa chống gian lận
+                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "card_uuid"), PersistentDataType.STRING, UUID.randomUUID().toString());
+                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "schema_version"), PersistentDataType.INTEGER, 2);
+                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_id"), PersistentDataType.STRING, wdId);
+                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_lvl"), PersistentDataType.INTEGER, wdLvl);
+                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_exp"), PersistentDataType.INTEGER, wdExp);
+                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_stars"), PersistentDataType.INTEGER, stars);
+                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_trait"), PersistentDataType.STRING, trait);
+                if (customName != null && !customName.isEmpty()) {
+                    meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_name"), PersistentDataType.STRING, customName);
+                }
+
+                item.setItemMeta(meta);
                 p.getInventory().addItem(item);
                 conf.deletePetData(p.getUniqueId(), wdId);
                 p.sendMessage(lang.getMessage("pet.withdraw_success", "%pet_name%", wdName));
@@ -237,7 +266,12 @@ public class PetCommand implements CommandExecutor {
                     p.sendMessage(lang.getMessage("admin.already_owned"));
                     return true;
                 }
+                if (!plugin.getOwnershipManager().canAcquirePet(receiver)) {
+                    p.sendMessage("§cNgười chơi " + receiver.getName() + " đã đạt giới hạn số lượng Pet!");
+                    return true;
+                }
                 plugin.getConfigManager().createPetDataIfMissing(receiver.getUniqueId(), petIdToGive);
+                plugin.getCodexManager().discover(receiver.getUniqueId(), petIdToGive);
                 p.sendMessage(lang.getMessage("admin.give_success", "%pet_id%", petIdToGive, "%player%", receiver.getName()));
                 receiver.sendMessage(lang.getMessage("admin.give_received", "%pet_id%", petIdToGive));
                 break;
@@ -312,7 +346,6 @@ public class PetCommand implements CommandExecutor {
                 boolean isBaby = plugin.getConfigManager().isPetBaby(p.getUniqueId(), curActivePet);
                 plugin.getConfigManager().setPetBaby(p.getUniqueId(), curActivePet, !isBaby);
                 p.sendMessage("§aĐã đổi dạng kích thước của Pet thành: " + (!isBaby ? "§b👶 Bé con (Baby)" : "§6🦁 Trưởng thành (Adult)"));
-                // Respawn pet để cập nhật hình dáng ngay lập tức
                 plugin.getPetManager().spawnPet(p, curActivePet);
                 break;
 
@@ -355,13 +388,13 @@ public class PetCommand implements CommandExecutor {
                 break;
 
             case "reload":
-                if(p.hasPermission("ipsecuzpet.admin")) {
+                if (p.hasPermission("ipsecuzpet.admin")) {
                     plugin.reloadConfig();
                     plugin.getLanguage().loadMessages();
                     plugin.getConfigManager().loadDataFile();
                     plugin.getCaptureManager().loadBalls();
                     if (plugin.getModuleManager() != null) {
-                        plugin.getModuleManager().loadAllModules();
+                        plugin.getModuleManager().reloadAllModules();
                     }
                     if (plugin.getDynamicPetRegistry() != null) {
                         plugin.getDynamicPetRegistry().detectAndRegisterNewMobs();

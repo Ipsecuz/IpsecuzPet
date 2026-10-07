@@ -66,6 +66,10 @@ public class CaptureManager {
         return item;
     }
 
+    public ItemStack createBallItem(String ballId, int amount) {
+        return getBallItem(ballId, amount);
+    }
+
     public String getBallIdFromItem(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return null;
         return item.getItemMeta().getPersistentDataContainer().get(ballKey, PersistentDataType.STRING);
