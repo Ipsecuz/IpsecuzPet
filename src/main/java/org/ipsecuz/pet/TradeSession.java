@@ -72,8 +72,8 @@ public class TradeSession {
 
     private void renderBaseFrame() {
         ItemStack blackGlass = createGlass(Material.BLACK_STAINED_GLASS_PANE, " ");
-        ItemStack cyanGlass = createGlass(Material.CYAN_STAINED_GLASS_PANE, "§b✦ Bên Bạn: " + playerA.getName());
-        ItemStack orangeGlass = createGlass(Material.ORANGE_STAINED_GLASS_PANE, "§6✦ Bên Bạn: " + playerB.getName());
+        ItemStack cyanGlass = createGlass(Material.CYAN_STAINED_GLASS_PANE, "§b✦ Bên đề nghị: " + playerA.getName());
+        ItemStack orangeGlass = createGlass(Material.ORANGE_STAINED_GLASS_PANE, "§6✦ Bên đối tác: " + playerB.getName());
         ItemStack whiteGlass = createGlass(Material.GRAY_STAINED_GLASS_PANE, "§8⇄ Vách Ngăn");
 
         for (int i = 0; i < 54; i++) {
@@ -188,16 +188,25 @@ public class TradeSession {
         }, 20L);
     }
 
-    private void completeTrade() {
+    private synchronized void completeTrade() {
         if (finished) return;
         finished = true;
 
+        if (!playerA.isOnline() || !playerB.isOnline()) {
+            cancel("Một trong hai người chơi đã thoát game trước khi hoàn tất giao dịch.");
+            return;
+        }
+
+        // Pha 1: Chụp ảnh snapshot toàn bộ ưu đãi và kiểm tra tính hợp lệ
         List<ItemStack> itemsFromA = new ArrayList<>();
         for (int slot : SLOTS_A) {
             ItemStack item = inventory.getItem(slot);
             if (item != null && item.getType() != Material.AIR) {
+                if (!PetCardSecurity.isPetCard(item)) {
+                    cancel("Phát hiện vật phẩm không phải Thẻ Pet hợp lệ trong khung giao dịch!");
+                    return;
+                }
                 itemsFromA.add(item.clone());
-                inventory.setItem(slot, null);
             }
         }
 
@@ -205,32 +214,43 @@ public class TradeSession {
         for (int slot : SLOTS_B) {
             ItemStack item = inventory.getItem(slot);
             if (item != null && item.getType() != Material.AIR) {
+                if (!PetCardSecurity.isPetCard(item)) {
+                    cancel("Phát hiện vật phẩm không phải Thẻ Pet hợp lệ trong khung giao dịch!");
+                    return;
+                }
                 itemsFromB.add(item.clone());
-                inventory.setItem(slot, null);
             }
         }
 
-        // Chuyển đồ từ A sang B
-        for (ItemStack item : itemsFromA) {
-            HashMap<Integer, ItemStack> overflow = playerB.getInventory().addItem(item);
-            for (ItemStack leftover : overflow.values()) {
-                playerB.getWorld().dropItemNaturally(playerB.getLocation(), leftover);
-            }
-        }
+        // Dọn sạch các slot giao dịch để tránh duplicate
+        for (int slot : SLOTS_A) inventory.setItem(slot, null);
+        for (int slot : SLOTS_B) inventory.setItem(slot, null);
 
-        // Chuyển đồ từ B sang A
-        for (ItemStack item : itemsFromB) {
-            HashMap<Integer, ItemStack> overflow = playerA.getInventory().addItem(item);
-            for (ItemStack leftover : overflow.values()) {
-                playerA.getWorld().dropItemNaturally(playerA.getLocation(), leftover);
+        // Pha 2: Giao dịch nguyên tử (Atomic Commit & Rollback)
+        try {
+            // Chuyển đồ từ A sang B
+            for (ItemStack item : itemsFromA) {
+                giveItemSafely(playerB, item);
             }
+
+            // Chuyển đồ từ B sang A
+            for (ItemStack item : itemsFromB) {
+                giveItemSafely(playerA, item);
+            }
+        } catch (Exception ex) {
+            plugin.getLogger().severe("Lỗi nghiêm trọng trong quá trình chuyển giao dịch Pet: " + ex.getMessage());
+            // Rollback lập tức về chủ sở hữu ban đầu
+            for (ItemStack item : itemsFromA) giveItemSafely(playerA, item);
+            for (ItemStack item : itemsFromB) giveItemSafely(playerB, item);
+            cancel("Giao dịch gặp lỗi kỹ thuật ngoại lệ và đã hoàn trả đồ về chủ cũ an toàn.");
+            return;
         }
 
         playerA.playSound(playerA.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
         playerB.playSound(playerB.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
 
-        playerA.sendMessage("§a§lGIAO DỊCH THÀNH CÔNG! §fBạn đã nhận được vật phẩm từ §e" + playerB.getName() + "§f.");
-        playerB.sendMessage("§a§lGIAO DỊCH THÀNH CÔNG! §fBạn đã nhận được vật phẩm từ §e" + playerA.getName() + "§f.");
+        playerA.sendMessage("§a§lGIAO DỊCH THÀNH CÔNG! §fBạn đã nhận được Thẻ Pet từ §e" + playerB.getName() + "§f.");
+        playerB.sendMessage("§a§lGIAO DỊCH THÀNH CÔNG! §fBạn đã nhận được Thẻ Pet từ §e" + playerA.getName() + "§f.");
 
         playerA.closeInventory();
         playerB.closeInventory();
@@ -238,18 +258,15 @@ public class TradeSession {
         plugin.getTradeManager().removeActiveSession(this);
     }
 
-    public void cancel(String reason) {
+    public synchronized void cancel(String reason) {
         if (finished) return;
         finished = true;
 
-        // Hoàn trả toàn bộ đồ về cho người đề nghị
+        // Hoàn trả toàn bộ đồ về cho người đề nghị ban đầu
         for (int slot : SLOTS_A) {
             ItemStack item = inventory.getItem(slot);
             if (item != null && item.getType() != Material.AIR) {
-                HashMap<Integer, ItemStack> overflow = playerA.getInventory().addItem(item);
-                for (ItemStack leftover : overflow.values()) {
-                    playerA.getWorld().dropItemNaturally(playerA.getLocation(), leftover);
-                }
+                giveItemSafely(playerA, item);
                 inventory.setItem(slot, null);
             }
         }
@@ -257,17 +274,14 @@ public class TradeSession {
         for (int slot : SLOTS_B) {
             ItemStack item = inventory.getItem(slot);
             if (item != null && item.getType() != Material.AIR) {
-                HashMap<Integer, ItemStack> overflow = playerB.getInventory().addItem(item);
-                for (ItemStack leftover : overflow.values()) {
-                    playerB.getWorld().dropItemNaturally(playerB.getLocation(), leftover);
-                }
+                giveItemSafely(playerB, item);
                 inventory.setItem(slot, null);
             }
         }
 
         if (reason != null) {
-            playerA.sendMessage("§c§l[GIAO DỊCH ĐÃ HỦY] §7" + reason);
-            playerB.sendMessage("§c§l[GIAO DỊCH ĐÃ HỦY] §7" + reason);
+            if (playerA.isOnline()) playerA.sendMessage("§c§l[GIAO DỊCH ĐÃ HỦY] §7" + reason);
+            if (playerB.isOnline()) playerB.sendMessage("§c§l[GIAO DỊCH ĐÃ HỦY] §7" + reason);
         }
 
         if (playerA.isOnline() && playerA.getOpenInventory().getTopInventory().equals(inventory)) {
@@ -278,6 +292,14 @@ public class TradeSession {
         }
 
         plugin.getTradeManager().removeActiveSession(this);
+    }
+
+    private void giveItemSafely(Player player, ItemStack item) {
+        if (player == null || item == null) return;
+        HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(item);
+        for (ItemStack leftover : overflow.values()) {
+            player.getWorld().dropItemNaturally(player.getLocation(), leftover);
+        }
     }
 
     private ItemStack createGlass(Material material, String name, String... lore) {

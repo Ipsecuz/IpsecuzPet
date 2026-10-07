@@ -4,7 +4,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class IpsecuzPet extends JavaPlugin {
 
-    private static final int RESOURCE_ID = 130551;
+    public static final int RESOURCE_ID = 130551;
     private static IpsecuzPet instance;
     private ConfigManager configManager;
     private PetManager petManager;
@@ -84,13 +84,13 @@ public class IpsecuzPet extends JavaPlugin {
         }
 
         String platform = SchedulerUtils.isFolia() ? "Folia" : "Paper/Spigot";
-        getLogger().info("§a[IpsecuzPet V2.0] Đã khởi chạy thành công trên nền tảng: §e" + platform);
+        getLogger().info("§a[IpsecuzPet V2.1] Đã khởi chạy thành công trên nền tảng: §e" + platform);
 
         new UpdateChecker(this, RESOURCE_ID).getVersion(version -> {
-            if (this.getDescription().getVersion().equals(version)) {
-                getLogger().info("Plugin have a new version");
+            if (UpdateChecker.isNewerVersion(version, this.getDescription().getVersion())) {
+                getLogger().info("§e[IpsecuzPet] Đã có phiên bản mới: " + version + "! Tải ngay tại: https://www.spigotmc.org/resources/" + RESOURCE_ID);
             } else {
-                getLogger().warning("Download here: https://www.spigotmc.org/resources/" + RESOURCE_ID);
+                getLogger().info("§a[IpsecuzPet] Bạn đang sử dụng phiên bản mới nhất (v" + this.getDescription().getVersion() + ").");
             }
         });
     }
@@ -102,6 +102,12 @@ public class IpsecuzPet extends JavaPlugin {
         }
         if (petManager != null) {
             petManager.removeAllPets();
+        }
+        if (skillManager != null) {
+            skillManager.clearAllCooldowns();
+        }
+        if (captureManager != null) {
+            captureManager.refundAllPending();
         }
         if (configManager != null) {
             configManager.forceSave();

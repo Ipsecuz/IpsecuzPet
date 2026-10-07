@@ -480,12 +480,36 @@ public class GameListener implements Listener {
     public void onPlayerJoin(org.bukkit.event.player.PlayerJoinEvent e) {
         Player p = e.getPlayer();
         if (p.hasPermission("ipsecuzpet.admin")) {
-            new UpdateChecker(plugin, 130551).getVersion(version -> {
-                if (!plugin.getDescription().getVersion().equals(version)) {
-                    p.sendMessage("§8[§6IpsecuzPet§8] §aNew Version: §e" + version);
-                    p.sendMessage("§8[§6IpsecuzPet§8] §7Download Now: §fhttps://www.spigotmc.org/resources/130551");
+            new UpdateChecker(plugin, IpsecuzPet.RESOURCE_ID).getVersion(version -> {
+                if (UpdateChecker.isNewerVersion(version, plugin.getDescription().getVersion())) {
+                    SchedulerUtils.runEntityTask(plugin, p, () -> {
+                        if (p.isOnline()) {
+                            p.sendMessage("§8[§6IpsecuzPet§8] §aPhát hiện phiên bản mới: §e" + version);
+                            p.sendMessage("§8[§6IpsecuzPet§8] §7Tải ngay tại: §fhttps://www.spigotmc.org/resources/" + IpsecuzPet.RESOURCE_ID);
+                        }
+                    });
                 }
             });
+        }
+    }
+
+    @EventHandler
+    public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent e) {
+        Player p = e.getPlayer();
+        java.util.UUID uuid = p.getUniqueId();
+
+        if (plugin.getPetManager() != null) {
+            plugin.getPetManager().removePet(uuid);
+            plugin.getPetManager().clearPlayerDuels(uuid);
+        }
+        if (plugin.getModelHandler() != null) {
+            plugin.getModelHandler().handlePlayerQuit(p);
+        }
+        if (plugin.getCaptureManager() != null) {
+            plugin.getCaptureManager().handlePlayerQuit(uuid);
+        }
+        if (plugin.getSkillManager() != null) {
+            plugin.getSkillManager().clearCooldown(uuid);
         }
     }
 }

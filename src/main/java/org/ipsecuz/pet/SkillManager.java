@@ -175,175 +175,263 @@ public class SkillManager {
         player.sendMessage("§6§lPET SKILL! §e" + ChatColor.translateAlternateColorCodes('&', skillName) + " §ađã được kích hoạt!");
 
         SchedulerUtils.runEntityTask(plugin, pet, () -> {
-            Location loc = pet.getLocation();
-            plugin.getModelHandler().playTransientAnimation(pet, PetAnimationState.SKILL_CAST, 30L, PetAnimationState.IDLE);
+            Location chargeLoc = pet.getLocation();
+            // Giai đoạn 1: SKILL_CHARGE (20 ticks / 1.0 giây chuẩn bị)
+            plugin.getModelHandler().playTransientAnimation(pet, PetAnimationState.SKILL_CHARGE, 20L, PetAnimationState.SKILL_CAST);
+            try {
+                pet.getWorld().playSound(chargeLoc, Sound.BLOCK_BEACON_POWER_SELECT, 1.2f, 1.6f);
+                pet.getWorld().spawnParticle(Particle.PORTAL, chargeLoc.clone().add(0, 0.8, 0), 20, 0.4, 0.4, 0.4, 0.08);
+            } catch (Exception ignored) {}
 
-            // Xử lý hiệu ứng đặc trưng theo bản sắc từng loại Pet (Themed Visual Identity)
-            if ("allay_pet".equals(petId)) {
-                // Khúc Hát Thanh Lọc: Chuỗi chuông thạch anh + Vòng sáng thánh tẩy
-                try {
-                    pet.getWorld().playSound(loc, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.8f, 1.2f);
-                    pet.getWorld().playSound(loc, Sound.BLOCK_AMETHYST_CLUSTER_STEP, 1.5f, 1.5f);
-                    pet.getWorld().spawnParticle(Particle.END_ROD, loc.clone().add(0, 1, 0), 35, 0.8, 0.8, 0.8, 0.05);
-                    pet.getWorld().spawnParticle(Particle.GLOW, loc.clone().add(0, 1, 0), 25, 0.6, 0.6, 0.6, 0.05);
-                } catch (Exception ignored) {}
+            // Giai đoạn 2: SKILL_CAST và bùng nổ hiệu ứng sau khi nạp đủ năng lượng
+            SchedulerUtils.runEntityTaskLater(plugin, pet, () -> {
+                if (!pet.isValid() || !player.isOnline()) return;
+                Location loc = pet.getLocation();
+                plugin.getModelHandler().playTransientAnimation(pet, PetAnimationState.SKILL_CAST, 30L, PetAnimationState.IDLE);
 
-                SchedulerUtils.runEntityTask(plugin, player, () -> {
-                    int cleansed = 0;
-                    for (PotionEffect effect : new ArrayList<>(player.getActivePotionEffects())) {
-                        String name = effect.getType().getName().toUpperCase();
-                        if (HARMFUL_POTION_EFFECTS.contains(name)) {
-                            player.removePotionEffect(effect.getType());
-                            cleansed++;
+                // Xử lý hiệu ứng đặc trưng theo bản sắc từng loại Pet (Themed Visual Identity)
+                if ("allay_pet".equals(petId)) {
+                    // Khúc Hát Thanh Lọc: Chuỗi chuông thạch anh + Vòng sáng thánh tẩy
+                    try {
+                        pet.getWorld().playSound(loc, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.8f, 1.2f);
+                        pet.getWorld().playSound(loc, Sound.BLOCK_AMETHYST_CLUSTER_STEP, 1.5f, 1.5f);
+                        pet.getWorld().spawnParticle(Particle.END_ROD, loc.clone().add(0, 1, 0), 35, 0.8, 0.8, 0.8, 0.05);
+                        pet.getWorld().spawnParticle(Particle.GLOW, loc.clone().add(0, 1, 0), 25, 0.6, 0.6, 0.6, 0.05);
+                    } catch (Exception ignored) {}
+
+                    SchedulerUtils.runEntityTask(plugin, player, () -> {
+                        int cleansed = 0;
+                        for (PotionEffect effect : new ArrayList<>(player.getActivePotionEffects())) {
+                            String name = effect.getType().getName().toUpperCase();
+                            if (HARMFUL_POTION_EFFECTS.contains(name)) {
+                                player.removePotionEffect(effect.getType());
+                                cleansed++;
+                            }
+                        }
+                        player.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 200, 1));
+                        if (cleansed > 0) {
+                            player.sendMessage("§aKhúc Hát Thanh Lọc đã loại bỏ §e" + cleansed + " §ahiệu ứng tiêu cực!");
+                        }
+                    });
+
+                } else if ("warden_pet".equals(petId)) {
+                    // Sóng Âm Diệt Vực: Nhịp tim tử thần -> Sóng âm rền vang
+                    try {
+                        pet.getWorld().playSound(loc, Sound.ENTITY_WARDEN_HEARTBEAT, 1.5f, 0.8f);
+                        pet.getWorld().playSound(loc, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.8f, 1f);
+                        pet.getWorld().spawnParticle(Particle.SONIC_BOOM, loc.clone().add(0, 1.2, 0), 3, 0.2, 0.2, 0.2, 0.0);
+                        pet.getWorld().spawnParticle(Particle.SCULK_SOUL, loc.clone().add(0, 1, 0), 40, 1.2, 0.6, 1.2, 0.08);
+                    } catch (Exception ignored) {}
+
+                    for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
+                        if (nearby instanceof Monster target) {
+                            SchedulerUtils.runEntityTask(plugin, target, () -> {
+                                if (target.isValid()) {
+                                    Vector push = target.getLocation().toVector().subtract(loc.toVector()).normalize().multiply(1.8).setY(0.4);
+                                    target.setVelocity(push);
+                                    try {
+                                        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 60, 255));
+                                        target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 60, 1));
+                                    } catch (Exception ignored) {}
+                                    target.damage(damage, player);
+                                }
+                            });
                         }
                     }
-                    player.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 200, 1));
-                    if (cleansed > 0) {
-                        player.sendMessage("§aKhúc Hát Thanh Lọc đã loại bỏ §e" + cleansed + " §ahiệu ứng tiêu cực!");
-                    }
-                });
 
-            } else if ("warden_pet".equals(petId)) {
-                // Sóng Âm Diệt Vực: Nhịp tim tử thần -> Sóng âm rền vang
-                try {
-                    pet.getWorld().playSound(loc, Sound.ENTITY_WARDEN_HEARTBEAT, 1.5f, 0.8f);
-                    pet.getWorld().playSound(loc, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.8f, 1f);
-                    pet.getWorld().spawnParticle(Particle.SONIC_BOOM, loc.clone().add(0, 1.2, 0), 3, 0.2, 0.2, 0.2, 0.0);
-                    pet.getWorld().spawnParticle(Particle.SCULK_SOUL, loc.clone().add(0, 1, 0), 40, 1.2, 0.6, 1.2, 0.08);
-                } catch (Exception ignored) {}
-
-                for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
-                    if (nearby instanceof Monster target) {
-                        SchedulerUtils.runEntityTask(plugin, target, () -> {
-                            if (target.isValid()) {
-                                Vector push = target.getLocation().toVector().subtract(loc.toVector()).normalize().multiply(1.8).setY(0.4);
-                                target.setVelocity(push);
-                                try {
-                                    target.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 60, 255));
-                                    target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 60, 1));
-                                } catch (Exception ignored) {}
-                                target.damage(damage, player);
-                            }
-                        });
-                    }
-                }
-
-            } else if ("iron_golem_pet".equals(petId)) {
-                // Địa Chấn Dập Nát: Tiếng đe rèn đập nát + Vụ nổ chấn động hất tung
-                try {
-                    pet.getWorld().playSound(loc, Sound.ENTITY_IRON_GOLEM_ATTACK, 1.6f, 0.8f);
-                    pet.getWorld().playSound(loc, Sound.BLOCK_ANVIL_LAND, 1.4f, 0.9f);
-                    pet.getWorld().spawnParticle(Particle.EXPLOSION_LARGE, loc, 3, 0.5, 0.1, 0.5, 0.0);
-                    pet.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, loc.clone().add(0, 0.2, 0), 30, 1.5, 0.2, 1.5, 0.05);
-                } catch (Exception ignored) {}
-
-                for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
-                    if (nearby instanceof Monster target) {
-                        SchedulerUtils.runEntityTask(plugin, target, () -> {
-                            if (target.isValid()) {
-                                target.setVelocity(new Vector(0, 1.25, 0));
-                                target.damage(damage, player);
-                            }
-                        });
-                    }
-                }
-
-            } else if ("ender_dragon_pet".equals(petId)) {
-                // Cầu Lửa Hư Không: Tiếng rống rồng + Làn khói rồng tím hư không
-                try {
-                    pet.getWorld().playSound(loc, Sound.ENTITY_ENDER_DRAGON_GROWL, 1.8f, 1f);
-                    pet.getWorld().playSound(loc, Sound.ENTITY_ENDER_DRAGON_SHOOT, 1.5f, 0.8f);
-                    pet.getWorld().spawnParticle(Particle.DRAGON_BREATH, loc.clone().add(0, 1, 0), 50, 1.2, 0.5, 1.2, 0.1);
-                    pet.getWorld().spawnParticle(Particle.PORTAL, loc.clone().add(0, 1, 0), 40, 1.0, 0.8, 1.0, 0.2);
-                } catch (Exception ignored) {}
-
-                for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
-                    if (nearby instanceof Monster target) {
-                        SchedulerUtils.runEntityTask(plugin, target, () -> {
-                            if (target.isValid()) {
-                                Vector push = target.getLocation().toVector().subtract(loc.toVector()).normalize().multiply(1.3).setY(0.35);
-                                target.setVelocity(push);
-                                target.damage(damage, player);
-                            }
-                        });
-                    }
-                }
-
-            } else if ("wolf_pet".equals(petId)) {
-                // Tiếng Hú Đầu Đàn: Tiếng hú lãnh địa + Bão lửa linh hồn
-                try {
-                    pet.getWorld().playSound(loc, Sound.ENTITY_WOLF_HOWL, 1.8f, 1f);
-                    pet.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, loc.clone().add(0, 1, 0), 30, 0.8, 0.5, 0.8, 0.05);
-                } catch (Exception ignored) {}
-
-                SchedulerUtils.runEntityTask(plugin, player, () -> {
-                    player.addPotionEffect(new PotionEffect(PotionEffectType.INCREASE_DAMAGE, 300, 1));
-                    player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 300, 1));
+                } else if ("iron_golem_pet".equals(petId)) {
+                    // Địa Chấn Dập Nát: Tiếng đe rèn đập nát + Vụ nổ chấn động hất tung
                     try {
-                        player.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, player.getLocation().add(0, 1, 0), 20, 0.5, 0.5, 0.5, 0.05);
+                        pet.getWorld().playSound(loc, Sound.ENTITY_IRON_GOLEM_ATTACK, 1.6f, 0.8f);
+                        pet.getWorld().playSound(loc, Sound.BLOCK_ANVIL_LAND, 1.4f, 0.9f);
+                        pet.getWorld().spawnParticle(Particle.EXPLOSION_LARGE, loc, 3, 0.5, 0.1, 0.5, 0.0);
+                        pet.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, loc.clone().add(0, 0.2, 0), 30, 1.5, 0.2, 1.5, 0.05);
                     } catch (Exception ignored) {}
-                });
 
-            } else {
-                // Mặc định: Gây sát thương các quái vật xung quanh kèm hiệu ứng hạt độ hiếm
-                PetRarity rarity = PetRarity.fromPetId(plugin, petId);
-                try {
-                    pet.getWorld().playSound(loc, Sound.valueOf(sName), 1.5f, 1f);
-                    pet.getWorld().spawnParticle(rarity.getRevealParticle(), loc.clone().add(0, 1, 0), 35, 1.0, 1.0, 1.0, 0.1);
-                } catch (Exception ignored) {}
+                    for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
+                        if (nearby instanceof Monster target) {
+                            SchedulerUtils.runEntityTask(plugin, target, () -> {
+                                if (target.isValid()) {
+                                    target.setVelocity(new Vector(0, 1.25, 0));
+                                    target.damage(damage, player);
+                                }
+                            });
+                        }
+                    }
 
-                for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
-                    if (nearby instanceof Monster target) {
-                        SchedulerUtils.runEntityTask(plugin, target, () -> {
-                            if (target.isValid()) {
-                                target.damage(damage, player);
-                            }
-                        });
+                } else if ("ender_dragon_pet".equals(petId)) {
+                    // Cầu Lửa Hư Không: Tiếng rống rồng + Làn khói rồng tím hư không
+                    try {
+                        pet.getWorld().playSound(loc, Sound.ENTITY_ENDER_DRAGON_GROWL, 1.8f, 1f);
+                        pet.getWorld().playSound(loc, Sound.ENTITY_ENDER_DRAGON_SHOOT, 1.5f, 0.8f);
+                        pet.getWorld().spawnParticle(Particle.DRAGON_BREATH, loc.clone().add(0, 1, 0), 50, 1.2, 0.5, 1.2, 0.1);
+                        pet.getWorld().spawnParticle(Particle.PORTAL, loc.clone().add(0, 1, 0), 40, 1.0, 0.8, 1.0, 0.2);
+                    } catch (Exception ignored) {}
+
+                    for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
+                        if (nearby instanceof Monster target) {
+                            SchedulerUtils.runEntityTask(plugin, target, () -> {
+                                if (target.isValid()) {
+                                    Vector push = target.getLocation().toVector().subtract(loc.toVector()).normalize().multiply(1.3).setY(0.35);
+                                    target.setVelocity(push);
+                                    target.damage(damage, player);
+                                }
+                            });
+                        }
+                    }
+
+                } else if ("wolf_pet".equals(petId)) {
+                    // Tiếng Hú Đầu Đàn: Tiếng hú lãnh địa + Bão lửa linh hồn
+                    try {
+                        pet.getWorld().playSound(loc, Sound.ENTITY_WOLF_HOWL, 1.8f, 1f);
+                        pet.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, loc.clone().add(0, 1, 0), 30, 0.8, 0.5, 0.8, 0.05);
+                    } catch (Exception ignored) {}
+
+                    SchedulerUtils.runEntityTask(plugin, player, () -> {
+                        player.addPotionEffect(new PotionEffect(PotionEffectType.INCREASE_DAMAGE, 300, 1));
+                        player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 300, 1));
+                        try {
+                            player.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, player.getLocation().add(0, 1, 0), 20, 0.5, 0.5, 0.5, 0.05);
+                        } catch (Exception ignored) {}
+                    });
+
+                } else {
+                    // Mặc định: Gây sát thương các quái vật xung quanh kèm hiệu ứng hạt độ hiếm
+                    PetRarity rarity = PetRarity.fromPetId(plugin, petId);
+                    try {
+                        pet.getWorld().playSound(loc, Sound.valueOf(sName), 1.5f, 1f);
+                        pet.getWorld().spawnParticle(rarity.getRevealParticle(), loc.clone().add(0, 1, 0), 35, 1.0, 1.0, 1.0, 0.1);
+                    } catch (Exception ignored) {}
+
+                    for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
+                        if (nearby instanceof Monster target) {
+                            SchedulerUtils.runEntityTask(plugin, target, () -> {
+                                if (target.isValid()) {
+                                    target.damage(damage, player);
+                                }
+                            });
+                        }
                     }
                 }
-            }
+            }, 20L);
         });
 
         return true;
     }
 
     // --- HỆ THỐNG NỘI TẠI (PASSIVES) ---
+    private final Map<UUID, Long> lastPassiveTick = new ConcurrentHashMap<>();
+
+    public void handlePetTick(Player owner, Entity pet, String petId) {
+        if (!plugin.getModuleManager().isSkillsEnabled() || owner == null || pet == null || petId == null) return;
+        long now = System.currentTimeMillis();
+
+        if ("allay_pet".equals(petId)) {
+            FileConfiguration config = plugin.getModuleManager().getSkillsConfig();
+            int intervalSec = config.getInt("skills.allay_pet.passive.regen_interval_seconds", 5);
+            double healAmt = config.getDouble("skills.allay_pet.passive.heal_amount", 2.0);
+            long last = lastPassiveTick.getOrDefault(owner.getUniqueId(), 0L);
+            if (now - last >= intervalSec * 1000L) {
+                lastPassiveTick.put(owner.getUniqueId(), now);
+                SchedulerUtils.runEntityTask(plugin, owner, () -> {
+                    if (owner.isOnline()) {
+                        double maxHp = 20.0;
+                        org.bukkit.attribute.AttributeInstance attr = owner.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH);
+                        if (attr != null) maxHp = attr.getValue();
+                        if (owner.getHealth() < maxHp) {
+                            owner.setHealth(Math.min(maxHp, owner.getHealth() + healAmt));
+                            try {
+                                owner.getWorld().spawnParticle(Particle.HEART, owner.getLocation().add(0, 1.2, 0), 2, 0.3, 0.3, 0.3, 0.0);
+                                owner.getWorld().playSound(owner.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.7f, 1.5f);
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                });
+            }
+        } else if ("warden_pet".equals(petId)) {
+            FileConfiguration config = plugin.getModuleManager().getSkillsConfig();
+            int intervalSec = config.getInt("skills.warden_pet.passive.detect_interval_seconds", 3);
+            double radius = config.getDouble("skills.warden_pet.passive.detect_invisible_radius", 10.0);
+            long last = lastPassiveTick.getOrDefault(owner.getUniqueId(), 0L);
+            if (now - last >= intervalSec * 1000L) {
+                lastPassiveTick.put(owner.getUniqueId(), now);
+                SchedulerUtils.runEntityTask(plugin, pet, () -> {
+                    if (!pet.isValid()) return;
+                    boolean foundInvisible = false;
+                    for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
+                        if (nearby.equals(owner) || nearby.equals(pet)) continue;
+                        if (nearby instanceof org.bukkit.entity.LivingEntity living) {
+                            if (living.isInvisible() || living.hasPotionEffect(PotionEffectType.INVISIBILITY)) {
+                                living.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 80, 0, false, false, true));
+                                foundInvisible = true;
+                            }
+                        }
+                    }
+                    if (foundInvisible) {
+                        try {
+                            pet.getWorld().spawnParticle(Particle.SCULK_SOUL, pet.getLocation().add(0, 1, 0), 10, 0.5, 0.5, 0.5, 0.05);
+                            pet.getWorld().playSound(pet.getLocation(), Sound.ENTITY_WARDEN_HEARTBEAT, 0.8f, 1.2f);
+                        } catch (Exception ignored) {}
+                    }
+                });
+            }
+        }
+    }
+
     public double getDamageReductionPercent(Player player) {
         if (!plugin.getModuleManager().isSkillsEnabled()) return 0.0;
         if (!plugin.getPetManager().hasPet(player.getUniqueId())) return 0.0;
         String petId = plugin.getPetManager().getActivePetId(player.getUniqueId());
+        if (petId == null) return 0.0;
+        FileConfiguration config = plugin.getModuleManager().getSkillsConfig();
         if ("ender_dragon_pet".equals(petId)) {
-            return plugin.getModuleManager().getSkillsConfig().getDouble("skills.ender_dragon_pet.passive.damage_reduction_percent", 25.0);
+            return config.getDouble("skills.ender_dragon_pet.passive.damage_reduction_percent", 25.0);
         } else if ("iron_golem_pet".equals(petId)) {
-            return 15.0; // Khiên thép khổng lồ
+            return config.getDouble("skills.iron_golem_pet.passive.damage_reduction_percent", 15.0);
         }
-        return 0.0;
+        return config.getDouble("skills." + petId + ".passive.damage_reduction_percent", 0.0);
     }
 
     public boolean hasFireImmunity(Player player) {
         if (!plugin.getModuleManager().isSkillsEnabled()) return false;
         if (!plugin.getPetManager().hasPet(player.getUniqueId())) return false;
         String petId = plugin.getPetManager().getActivePetId(player.getUniqueId());
-        return "ender_dragon_pet".equals(petId);
+        if (petId == null) return false;
+        FileConfiguration config = plugin.getModuleManager().getSkillsConfig();
+        return config.getBoolean("skills." + petId + ".passive.fire_resistance", "ender_dragon_pet".equals(petId));
     }
 
     public double getCritChancePercent(Player player) {
         if (!plugin.getModuleManager().isSkillsEnabled()) return 0.0;
         if (!plugin.getPetManager().hasPet(player.getUniqueId())) return 0.0;
         String petId = plugin.getPetManager().getActivePetId(player.getUniqueId());
+        if (petId == null) return 0.0;
+        FileConfiguration config = plugin.getModuleManager().getSkillsConfig();
         if ("wolf_pet".equals(petId)) {
-            return plugin.getModuleManager().getSkillsConfig().getDouble("skills.wolf_pet.passive.crit_chance_percent", 20.0);
+            return config.getDouble("skills.wolf_pet.passive.crit_chance_percent", 20.0);
         }
-        return 0.0;
+        return config.getDouble("skills." + petId + ".passive.crit_chance_percent", 0.0);
     }
 
     public double getBonusDamagePercent(Player player) {
         if (!plugin.getModuleManager().isSkillsEnabled()) return 0.0;
         if (!plugin.getPetManager().hasPet(player.getUniqueId())) return 0.0;
         String petId = plugin.getPetManager().getActivePetId(player.getUniqueId());
+        if (petId == null) return 0.0;
+        FileConfiguration config = plugin.getModuleManager().getSkillsConfig();
         if ("warden_pet".equals(petId)) {
-            return 10.0; // Âm ba cảm biến: +10% sát thương
+            return config.getDouble("skills.warden_pet.passive.bonus_damage_percent", 10.0);
         }
-        return 0.0;
+        return config.getDouble("skills." + petId + ".passive.bonus_damage_percent", 0.0);
+    }
+
+    public void clearCooldown(UUID uuid) {
+        cooldowns.remove(uuid);
+        lastPassiveTick.remove(uuid);
+    }
+
+    public void clearAllCooldowns() {
+        cooldowns.clear();
+        lastPassiveTick.clear();
     }
 }

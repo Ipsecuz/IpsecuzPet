@@ -246,26 +246,13 @@ public class HatchingManager {
             return;
         }
 
-        if (!plugin.getOwnershipManager().canAcquirePet(player)) {
-            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
-            return;
-        }
-
-        if (!checkAndDeductRequirements(player, eggSec, consumedItem)) {
-            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
-            return;
-        }
-
-        startGachaRoulette(player, eggId, eggSec);
-    }
-
-    private void startGachaRoulette(Player player, String eggId, ConfigurationSection eggSec) {
         ConfigurationSection lootTable = eggSec.getConfigurationSection("loot_table");
         if (lootTable == null || lootTable.getKeys(false).isEmpty()) {
             player.sendMessage("§cTrứng này chưa được thiết lập danh sách pet có thể nở!");
             return;
         }
 
+        // 1. Thu thập tỷ lệ loot table
         int totalWeight = 0;
         Map<String, Integer> weights = new HashMap<>();
         List<String> candidatePetIds = new ArrayList<>();
@@ -276,7 +263,11 @@ public class HatchingManager {
             candidatePetIds.add(pId);
         }
 
-        if (totalWeight <= 0) return;
+        if (totalWeight <= 0 || candidatePetIds.isEmpty()) {
+            player.sendMessage("§cTrứng này chưa có tỉ lệ rớt hợp lệ!");
+            return;
+        }
+
         int randomWeight = ThreadLocalRandom.current().nextInt(totalWeight);
         String selectedWinner = null;
         int count = 0;
@@ -289,6 +280,26 @@ public class HatchingManager {
         }
         if (selectedWinner == null) selectedWinner = candidatePetIds.get(0);
         final String winningPetId = selectedWinner;
+
+        // 2. Kiểm tra Duplicate và Max Pet Limit trước khi trừ tiền
+        boolean isDuplicate = plugin.getConfigManager().getData().contains(player.getUniqueId() + ".pets." + winningPetId);
+        if (!isDuplicate && !plugin.getOwnershipManager().canAcquirePet(player)) {
+            player.sendMessage("§cBạn đã đạt giới hạn tối đa số pet có thể sở hữu! Nâng cấp VIP hoặc chuyển pet thành thẻ để tiếp tục.");
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+            return;
+        }
+
+        // 3. Khấu trừ chi phí giao dịch sau khi mọi điều kiện hợp lệ
+        if (!checkAndDeductRequirements(player, eggSec, consumedItem)) {
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+            return;
+        }
+
+        // 4. Bắt đầu vòng quay Roulette
+        startGachaRoulette(player, eggId, eggSec, candidatePetIds, winningPetId);
+    }
+
+    private void startGachaRoulette(Player player, String eggId, ConfigurationSection eggSec, List<String> candidatePetIds, String winningPetId) {
 
         int totalSteps = 36;
         int winningIndex = totalSteps + 4;
@@ -422,18 +433,24 @@ public class HatchingManager {
 
             int step = currentStep + 1;
 
-            for (int i = 0; i < 9; i++) {
-                inv.setItem(9 + i, items.get(step + i));
+            boolean isGuiOpen = player.getOpenInventory().getTopInventory().getHolder() instanceof RouletteHolder;
+            if (isGuiOpen) {
+                for (int i = 0; i < 9; i++) {
+                    inv.setItem(9 + i, items.get(step + i));
+                }
+                updateRouletteBorders(inv, step);
+                player.playSound(player.getLocation(), finalTickSound, 0.7f, finalPitch);
             }
-            updateRouletteBorders(inv, step);
-
-            player.playSound(player.getLocation(), finalTickSound, 0.7f, finalPitch);
 
             if (step < totalSteps) {
                 scheduleRouletteStep(player, inv, holder, items, step, totalSteps, winningPetId);
             } else {
                 holder.setFinished(true);
-                finishRoulette(player, inv, winningPetId);
+                if (isGuiOpen) {
+                    finishRoulette(player, inv, winningPetId);
+                } else {
+                    completeHatchReward(player, winningPetId, true);
+                }
             }
         }, delayTicks);
     }

@@ -44,6 +44,9 @@ skills:
     passive:
       name: "&3Âm Ba Cảm Biến"
       desc: "&7Phát hiện kẻ địch tàng hình và tăng 10% sát thương đòn đánh của chủ."
+      bonus_damage_percent: 10.0
+      detect_invisible_radius: 10.0
+      detect_interval_seconds: 3
     ultimate:
       name: "&bSóng Âm Diệt Vực"
       desc: "&7Tạo sóng âm đẩy lùi toàn bộ quái vật và làm choáng kẻ địch trong 3 giây."
@@ -95,6 +98,7 @@ skills:
     passive:
       name: "&7Khiên Thép Khổng Lồ"
       desc: "&7Tăng 15% giáp cơ bản cho chủ nhân."
+      damage_reduction_percent: 15.0
     ultimate:
       name: "&6Địa Chấn Dập Nát"
       desc: "&7Đập mạnh xuống đất hất tung kẻ địch xung quanh lên không trung."

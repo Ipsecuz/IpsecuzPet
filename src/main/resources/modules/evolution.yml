@@ -6,8 +6,11 @@ enabled: true
 # Số sao tối đa
 max_stars: 5
 
-# Tỉ lệ tăng chỉ số mỗi cấp sao (ví dụ: mỗi sao tăng 15% tổng chỉ số máu, sát thương, giáp)
+# Tỉ lệ tăng chỉ số mỗi cấp sao cho Máu, Sát thương, Giáp (0.15 = +15%)
 stat_boost_per_star: 0.15
+
+# Tỉ lệ tăng tốc độ chạy mỗi cấp sao (mặc định 0.0 để giữ thăng bằng vận tốc di chuyển)
+speed_boost_per_star: 0.0
 
 # Yêu cầu để tăng sao
 requirements:

@@ -144,21 +144,34 @@ public class PetManager {
 
     public void removePet(UUID ownerId) {
         if (activePets.containsKey(ownerId)) {
-            Entity e = activePets.get(ownerId);
-            if (e != null && e.isValid()) {
+            Entity e = activePets.remove(ownerId);
+            activePetIds.remove(ownerId);
+            if (plugin.getSkillManager() != null) {
+                plugin.getSkillManager().clearCooldown(ownerId);
+            }
+            if (e != null) {
+                // Item 25: Dọn dẹp model tracker vô điều kiện trước
+                modelHandler.removeModel(e.getUniqueId());
+
                 SchedulerUtils.runEntityTask(plugin, e, () -> {
+                    // Item 24: Dọn dẹp yên cưỡi ArmorStand an toàn
+                    for (Entity passenger : new ArrayList<>(e.getPassengers())) {
+                        if (passenger != null) {
+                            passenger.eject();
+                            if (passenger.getPersistentDataContainer().has(new NamespacedKey(plugin, "pet_seat"), PersistentDataType.STRING)) {
+                                passenger.remove();
+                            }
+                        }
+                    }
                     if (e.isValid()) {
                         try {
                             e.getWorld().spawnParticle(Particle.CLOUD, e.getLocation().add(0, 0.5, 0), 15, 0.3, 0.3, 0.3, 0.05);
                             e.getWorld().playSound(e.getLocation(), Sound.ENTITY_CHICKEN_EGG, 1f, 1.4f);
                         } catch (Exception ignored) {}
-                        modelHandler.removeModel(e.getUniqueId());
                         e.remove();
                     }
                 });
             }
-            activePets.remove(ownerId);
-            activePetIds.remove(ownerId);
         }
     }
 
@@ -166,7 +179,12 @@ public class PetManager {
         for (UUID uuid : new ArrayList<>(activePets.keySet())) {
             removePet(uuid);
         }
+        activePets.clear();
+        activePetIds.clear();
         modelHandler.removeAll();
+        if (plugin.getSkillManager() != null) {
+            plugin.getSkillManager().clearAllCooldowns();
+        }
     }
 
     public void refreshPetStats(Player player) {
@@ -182,55 +200,11 @@ public class PetManager {
     public void updatePetStats(Entity entity, String petId, int level, UUID ownerId) {
         if (!(entity instanceof Attributable attrEntity)) return;
 
-        double baseHp = plugin.getConfig().getDouble("pets." + petId + ".stats.health", 20.0);
-        double baseDmg = plugin.getConfig().getDouble("pets." + petId + ".stats.damage", 5.0);
-        double baseDef = plugin.getConfig().getDouble("pets." + petId + ".stats.defense", 0.0);
-        double baseSpd = plugin.getConfig().getDouble("pets." + petId + ".stats.speed", 0.25);
-
-        double growthHp = plugin.getConfig().getDouble("pets." + petId + ".growth.health",
-                plugin.getConfig().getDouble("rpg_system.default_growth.health", 2.0));
-        double growthDmg = plugin.getConfig().getDouble("pets." + petId + ".growth.damage",
-                plugin.getConfig().getDouble("rpg_system.default_growth.damage", 0.5));
-        double growthDef = plugin.getConfig().getDouble("pets." + petId + ".growth.defense",
-                plugin.getConfig().getDouble("rpg_system.default_growth.defense", 0.2));
-        double growthSpd = plugin.getConfig().getDouble("pets." + petId + ".growth.speed",
-                plugin.getConfig().getDouble("rpg_system.default_growth.speed", 0.001));
-
-        int effectiveLevel = Math.max(1, level);
-        double maxHp = baseHp + ((effectiveLevel - 1) * growthHp);
-        double damage = baseDmg + ((effectiveLevel - 1) * growthDmg);
-        double defense = baseDef + ((effectiveLevel - 1) * growthDef);
-        double speed = baseSpd + ((effectiveLevel - 1) * growthSpd);
-
-        // 1. Hệ số Sao (Evolution)
-        double starMultiplier = (plugin.getEvolutionManager() != null && ownerId != null)
-                ? plugin.getEvolutionManager().getStarMultiplier(ownerId, petId) : 1.0;
-        maxHp *= starMultiplier;
-        damage *= starMultiplier;
-        defense *= starMultiplier;
-
-        // 2. Hệ số Trait
-        if (ownerId != null) {
-            String traitName = plugin.getConfigManager().getData().getString(ownerId + ".pets." + petId + ".trait", "NONE");
-            PetTrait trait = PetTrait.fromString(traitName);
-            maxHp *= trait.getHealthMultiplier();
-            damage *= trait.getDamageMultiplier();
-            defense *= trait.getDefenseMultiplier();
-            speed *= trait.getSpeedMultiplier();
-        }
-
-        // 3. Hệ số Thân thiết (Happiness)
-        if (plugin.getFeedingManager() != null && ownerId != null) {
-            int happy = plugin.getFeedingManager().getHappiness(ownerId, petId);
-            if (happy >= 80) {
-                speed *= 1.15;
-            } else if (happy < 20) {
-                maxHp *= 0.85;
-                damage *= 0.85;
-                speed *= 0.85;
-                defense *= 0.85;
-            }
-        }
+        // Sử dụng PetStatEngine chuẩn xác duy nhất cho toàn plugin
+        double maxHp = PetStatEngine.calculateEffectiveStat(plugin, ownerId, petId, level, "health");
+        double damage = PetStatEngine.calculateEffectiveStat(plugin, ownerId, petId, level, "damage");
+        double defense = PetStatEngine.calculateEffectiveStat(plugin, ownerId, petId, level, "defense");
+        double speed = PetStatEngine.calculateEffectiveStat(plugin, ownerId, petId, level, "speed");
 
         if (maxHp <= 0) maxHp = 20.0;
 
@@ -290,6 +264,12 @@ public class PetManager {
             SchedulerUtils.runEntityTask(plugin, pet, () -> {
                 if (!pet.isValid() || !owner.isOnline()) return;
 
+                // Folia & Cross-world check: nếu khác thế giới, teleport sang
+                if (!pet.getWorld().equals(owner.getWorld())) {
+                    SchedulerUtils.teleportAsync(pet, owner.getLocation());
+                    return;
+                }
+
                 String petId = activePetIds.get(ownerId);
                 Location petLoc = pet.getLocation();
                 Location ownerLoc = owner.getLocation();
@@ -340,11 +320,13 @@ public class PetManager {
                 }
 
                 modelHandler.updatePosition(pet);
+                modelHandler.updateMultiplayerVisibility(pet);
+                plugin.getSkillManager().handlePetTick(owner, pet, petId);
 
                 playParticles(pet, petId);
 
                 if (System.currentTimeMillis() % 2000 < 250) {
-                    applyBuffs(owner, petId, ownerId);
+                    SchedulerUtils.runEntityTask(plugin, owner, () -> applyBuffs(owner, petId, ownerId));
                 }
             });
         }
@@ -352,7 +334,7 @@ public class PetManager {
 
     private void applyBuffs(Player p, String petId, UUID uuid) {
         int level = plugin.getConfigManager().getData().getInt(uuid + ".pets." + petId + ".level", 1);
-        double intel = plugin.getConfigManager().getPetStat(petId, level, "intelligence");
+        double intel = PetStatEngine.calculateEffectiveStat(plugin, uuid, petId, level, "intelligence");
         int duration = 60 + ((int) intel * 2);
 
         List<String> effects = plugin.getConfig().getStringList("pets." + petId + ".effects");
@@ -400,10 +382,10 @@ public class PetManager {
         PetTrait trait = PetTrait.fromString(traitName);
         PetRarity rarity = PetRarity.fromPetId(plugin, petId);
 
-        double dmg = cm.getPetStat(petId, lvl, "damage");
-        double hp = cm.getPetStat(petId, lvl, "health");
-        double def = cm.getPetStat(petId, lvl, "defense");
-        double spd = cm.getPetStat(petId, lvl, "speed");
+        double dmg = PetStatEngine.calculateEffectiveStat(plugin, player.getUniqueId(), petId, lvl, "damage");
+        double hp = PetStatEngine.calculateEffectiveStat(plugin, player.getUniqueId(), petId, lvl, "health");
+        double def = PetStatEngine.calculateEffectiveStat(plugin, player.getUniqueId(), petId, lvl, "defense");
+        double spd = PetStatEngine.calculateEffectiveStat(plugin, player.getUniqueId(), petId, lvl, "speed");
 
         LanguageManager lang = plugin.getLanguage();
         player.sendMessage(lang.getMessage("pet.stats_header"));
@@ -421,6 +403,95 @@ public class PetManager {
         player.sendMessage(lang.getMessage("pet.stats_defense", "%val%", String.format("%.1f", def)));
         player.sendMessage(lang.getMessage("pet.stats_speed", "%val%", String.format("%.3f", spd)));
         player.sendMessage(lang.getMessage("pet.stats_header"));
+    }
+
+    // --- QUẢN LÝ VÒNG ĐỜI THÁCH ĐẤU (DUEL LIFECYCLE - ITEM 27) ---
+    public static class DuelInvite {
+        private final UUID sender;
+        private final UUID target;
+        private final long expireAt;
+
+        public DuelInvite(UUID sender, UUID target, long timeoutMs) {
+            this.sender = sender;
+            this.target = target;
+            this.expireAt = System.currentTimeMillis() + timeoutMs;
+        }
+
+        public UUID getSender() { return sender; }
+        public UUID getTarget() { return target; }
+        public boolean isExpired() { return System.currentTimeMillis() > expireAt; }
+    }
+
+    private final Map<UUID, DuelInvite> incomingDuelRequests = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> outgoingDuelTimestamps = new ConcurrentHashMap<>();
+
+    public boolean sendDuelInvite(Player sender, Player target) {
+        if (sender == null || target == null || sender.equals(target)) return false;
+        if (activeDuels.containsKey(sender.getUniqueId()) || activeDuels.containsKey(target.getUniqueId())) {
+            return false;
+        }
+        DuelInvite existing = incomingDuelRequests.get(target.getUniqueId());
+        if (existing != null && !existing.isExpired() && existing.getSender().equals(sender.getUniqueId())) {
+            return false;
+        }
+        incomingDuelRequests.put(target.getUniqueId(), new DuelInvite(sender.getUniqueId(), target.getUniqueId(), 60000L));
+        outgoingDuelTimestamps.put(sender.getUniqueId(), System.currentTimeMillis());
+        return true;
+    }
+
+    public UUID acceptDuelInvite(Player target) {
+        if (target == null) return null;
+        DuelInvite invite = incomingDuelRequests.remove(target.getUniqueId());
+        if (invite == null || invite.isExpired()) {
+            return null;
+        }
+        UUID senderId = invite.getSender();
+        Player sender = Bukkit.getPlayer(senderId);
+        if (sender == null || !sender.isOnline()) {
+            return null;
+        }
+        activeDuels.put(senderId, target.getUniqueId());
+        activeDuels.put(target.getUniqueId(), senderId);
+        outgoingDuelTimestamps.remove(senderId);
+        return senderId;
+    }
+
+    public UUID denyDuelInvite(Player target) {
+        if (target == null) return null;
+        DuelInvite invite = incomingDuelRequests.remove(target.getUniqueId());
+        if (invite == null || invite.isExpired()) {
+            return null;
+        }
+        outgoingDuelTimestamps.remove(invite.getSender());
+        return invite.getSender();
+    }
+
+    public boolean cancelOutgoingDuel(Player sender) {
+        if (sender == null) return false;
+        boolean removed = false;
+        for (Map.Entry<UUID, DuelInvite> entry : new ArrayList<>(incomingDuelRequests.entrySet())) {
+            if (entry.getValue().getSender().equals(sender.getUniqueId())) {
+                incomingDuelRequests.remove(entry.getKey());
+                removed = true;
+            }
+        }
+        outgoingDuelTimestamps.remove(sender.getUniqueId());
+        return removed;
+    }
+
+    public void clearPlayerDuels(UUID uuid) {
+        if (uuid == null) return;
+        incomingDuelRequests.remove(uuid);
+        outgoingDuelTimestamps.remove(uuid);
+        for (Map.Entry<UUID, DuelInvite> entry : new ArrayList<>(incomingDuelRequests.entrySet())) {
+            if (entry.getValue().getSender().equals(uuid)) {
+                incomingDuelRequests.remove(entry.getKey());
+            }
+        }
+        UUID opponent = activeDuels.remove(uuid);
+        if (opponent != null) {
+            activeDuels.remove(opponent);
+        }
     }
 
     public void givePetExp(Player p, int amount) {

@@ -68,7 +68,8 @@ public class DynamicPetRegistry {
         config.set(path + ".icon", guessIcon(type).name());
         config.set(path + ".price", 50);
         config.set(path + ".currency", "MONEY");
-        config.set(path + ".catchable", true);
+        config.set(path + ".rarity", "COMMON");
+        config.set(path + ".catchable", false);
         config.set(path + ".particle", "VILLAGER_HAPPY");
         config.set(path + ".effects", Collections.singletonList("SPEED:0"));
         config.set(path + ".stats.damage", 5.0);

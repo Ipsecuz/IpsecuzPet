@@ -320,10 +320,10 @@ public class GuiListener implements Listener {
             lore.add(Component.text("§7Cấp độ: §aLv." + lvl + " §7(EXP: §b" + exp + "/" + reqExp + "§7)"));
             lore.add(Component.text("§7Độ vui vẻ: §e" + happy + "%"));
             lore.add(Component.text("§7--------------------"));
-            double dmg = cm.getPetStat(petId, lvl, "damage");
-            double hp = cm.getPetStat(petId, lvl, "health");
-            double def = cm.getPetStat(petId, lvl, "defense");
-            double spd = cm.getPetStat(petId, lvl, "speed");
+            double dmg = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "damage");
+            double hp = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "health");
+            double def = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "defense");
+            double spd = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "speed");
             lore.add(Component.text("§7Máu tối đa: §a" + String.format("%.1f", hp) + " ❤"));
             lore.add(Component.text("§7Sát thương: §c" + String.format("%.1f", dmg) + " ⚔"));
             lore.add(Component.text("§7Giáp phòng thủ: §9" + String.format("%.1f", def) + " 🛡"));
@@ -498,10 +498,19 @@ public class GuiListener implements Listener {
 
         // Slot 13: Thẻ So Sánh Chỉ Số (Current vs Next Star Preview)
         int lvl = cm.getData().getInt(p.getUniqueId() + ".pets." + petId + ".level", 1);
-        double hp = cm.getPetStat(petId, lvl, "health");
-        double dmg = cm.getPetStat(petId, lvl, "damage");
-        double def = cm.getPetStat(petId, lvl, "defense");
-        double spd = cm.getPetStat(petId, lvl, "speed");
+        int happy = cm.getData().getInt(p.getUniqueId() + ".pets." + petId + ".happiness", 100);
+        String traitStr = cm.getData().getString(p.getUniqueId() + ".pets." + petId + ".trait");
+        PetTrait trait = PetTrait.fromString(traitStr);
+
+        double curHp = PetStatEngine.calculateStatPreview(plugin, petId, lvl, curStar, trait, happy, "health");
+        double curDmg = PetStatEngine.calculateStatPreview(plugin, petId, lvl, curStar, trait, happy, "damage");
+        double curDef = PetStatEngine.calculateStatPreview(plugin, petId, lvl, curStar, trait, happy, "defense");
+        double curSpd = PetStatEngine.calculateStatPreview(plugin, petId, lvl, curStar, trait, happy, "speed");
+
+        double nextHp = PetStatEngine.calculateStatPreview(plugin, petId, lvl, nextStar, trait, happy, "health");
+        double nextDmg = PetStatEngine.calculateStatPreview(plugin, petId, lvl, nextStar, trait, happy, "damage");
+        double nextDef = PetStatEngine.calculateStatPreview(plugin, petId, lvl, nextStar, trait, happy, "defense");
+        double nextSpd = PetStatEngine.calculateStatPreview(plugin, petId, lvl, nextStar, trait, happy, "speed");
 
         ItemStack preview = new ItemStack(Material.NETHER_STAR);
         ItemMeta prevMeta = preview.getItemMeta();
@@ -511,10 +520,17 @@ public class GuiListener implements Listener {
             pLore.add(Component.text("§7Cấp sao: " + evo.getStarDisplay(curStar) + " §e➔ " + evo.getStarDisplay(nextStar)));
             pLore.add(Component.text("§8§m------------------------"));
             if (curStar < maxStar) {
-                pLore.add(Component.text("§7Máu: §a" + String.format("%.1f", hp) + " ❤ §e➔ §a" + String.format("%.1f", hp * 1.15) + " ❤ §a(+15%)"));
-                pLore.add(Component.text("§7Sát thương: §c" + String.format("%.1f", dmg) + " ⚔ §e➔ §c" + String.format("%.1f", dmg * 1.15) + " ⚔ §a(+15%)"));
-                pLore.add(Component.text("§7Giáp: §9" + String.format("%.1f", def) + " 🛡 §e➔ §9" + String.format("%.1f", def * 1.15) + " 🛡 §a(+15%)"));
-                pLore.add(Component.text("§7Tốc độ: §f" + String.format("%.3f", spd) + " §e➔ §f" + String.format("%.3f", spd * 1.05) + " §a(+5%)"));
+                double hpDiff = ((nextHp / curHp) - 1.0) * 100.0;
+                double dmgDiff = ((nextDmg / curDmg) - 1.0) * 100.0;
+                double defDiff = ((nextDef / Math.max(0.1, curDef)) - 1.0) * 100.0;
+                pLore.add(Component.text("§7Máu: §a" + String.format("%.1f", curHp) + " ❤ §e➔ §a" + String.format("%.1f", nextHp) + " ❤ " + (hpDiff > 0 ? "§a(+" + Math.round(hpDiff) + "%)" : "")));
+                pLore.add(Component.text("§7Sát thương: §c" + String.format("%.1f", curDmg) + " ⚔ §e➔ §c" + String.format("%.1f", nextDmg) + " ⚔ " + (dmgDiff > 0 ? "§a(+" + Math.round(dmgDiff) + "%)" : "")));
+                pLore.add(Component.text("§7Giáp: §9" + String.format("%.1f", curDef) + " 🛡 §e➔ §9" + String.format("%.1f", nextDef) + " 🛡 " + (defDiff > 0 ? "§a(+" + Math.round(defDiff) + "%)" : "")));
+                if (nextSpd > curSpd) {
+                    pLore.add(Component.text("§7Tốc độ: §f" + String.format("%.3f", curSpd) + " §e➔ §f" + String.format("%.3f", nextSpd)));
+                } else {
+                    pLore.add(Component.text("§7Tốc độ: §f" + String.format("%.3f", curSpd) + " §7(Không đổi)"));
+                }
             } else {
                 pLore.add(Component.text("§6§l✔ ĐÃ ĐẠT CẤP SAO TỐI ĐA!"));
             }
@@ -970,7 +986,32 @@ public class GuiListener implements Listener {
     public void onDrag(InventoryDragEvent e) {
         if (isPluginMenu(e.getView().getTopInventory())) {
             if (e.getView().getTopInventory().getHolder() instanceof TradeSession.TradeHolder holder) {
-                holder.getSession().resetLocks();
+                if (!(e.getWhoClicked() instanceof Player p)) {
+                    e.setCancelled(true);
+                    return;
+                }
+                TradeSession session = holder.getSession();
+                boolean affectsTop = false;
+                for (int slot : e.getRawSlots()) {
+                    if (slot < 54) {
+                        affectsTop = true;
+                        boolean allowed = p.equals(session.getPlayerA()) ? TradeSession.SLOTS_A.contains(slot) :
+                                          p.equals(session.getPlayerB()) && TradeSession.SLOTS_B.contains(slot);
+                        if (!allowed) {
+                            e.setCancelled(true);
+                            return;
+                        }
+                    }
+                }
+                if (affectsTop) {
+                    ItemStack dragged = e.getOldCursor();
+                    if (!PetCardSecurity.isPetCard(dragged)) {
+                        e.setCancelled(true);
+                        p.sendMessage("§cChỉ có thể đặt Thẻ Pet vào khung giao dịch!");
+                        return;
+                    }
+                }
+                session.resetLocks();
             } else {
                 e.setCancelled(true);
             }
@@ -980,10 +1021,8 @@ public class GuiListener implements Listener {
     @EventHandler
     public void onClose(InventoryCloseEvent e) {
         if (e.getInventory().getHolder() instanceof HatchingManager.RouletteHolder holder) {
-            if (!holder.isFinished() && e.getPlayer() instanceof Player player) {
-                holder.setFinished(true);
-                plugin.getHatchingManager().completeHatchReward(player, holder.getWinningPetId(), false);
-            }
+            // FIX: Do not instantly grant reward when player closes GUI!
+            // Background scheduler will finish naturally and safely deliver reward.
         } else if (e.getInventory().getHolder() instanceof TradeSession.TradeHolder holder) {
             TradeSession session = holder.getSession();
             if (!session.isFinished()) {
@@ -1004,8 +1043,14 @@ public class GuiListener implements Listener {
             TradeSession session = holder.getSession();
             int rawSlot = e.getRawSlot();
 
+            // Chặn các click đặc biệt có thể bypass (Number key swap, Swap hand, Double click)
+            if (e.getClick() == ClickType.NUMBER_KEY || e.getClick() == ClickType.SWAP_OFFHAND || e.getClick() == ClickType.DOUBLE_CLICK) {
+                e.setCancelled(true);
+                return;
+            }
+
             if (rawSlot >= 0 && rawSlot < 54) {
-                // Click trong khung giao dịch
+                // Click trong khung giao dịch phía trên
                 if (rawSlot == 38 && p.equals(session.getPlayerA())) {
                     e.setCancelled(true);
                     session.toggleLock(p);
@@ -1019,21 +1064,62 @@ public class GuiListener implements Listener {
                 boolean isPlayerASlot = TradeSession.SLOTS_A.contains(rawSlot);
                 boolean isPlayerBSlot = TradeSession.SLOTS_B.contains(rawSlot);
 
-                if (p.equals(session.getPlayerA()) && isPlayerASlot) {
-                    session.resetLocks();
-                    return; // Cho phép tương tác
-                } else if (p.equals(session.getPlayerB()) && isPlayerBSlot) {
-                    session.resetLocks();
-                    return; // Cho phép tương tác
-                } else {
+                boolean canTouch = (p.equals(session.getPlayerA()) && isPlayerASlot) ||
+                                   (p.equals(session.getPlayerB()) && isPlayerBSlot);
+
+                if (!canTouch) {
                     e.setCancelled(true);
                     return;
                 }
-            } else {
-                // Click trong rương cá nhân khi mở Trade GUI
-                if (e.isShiftClick()) {
-                    session.resetLocks();
+
+                // Nếu đang đặt item vào slot của mình (cursor không rỗng)
+                ItemStack cursor = e.getCursor();
+                if (cursor != null && cursor.getType() != Material.AIR) {
+                    if (!PetCardSecurity.isPetCard(cursor)) {
+                        e.setCancelled(true);
+                        p.sendMessage("§cChỉ có thể đặt Thẻ Pet hợp lệ vào khung giao dịch!");
+                        p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                        return;
+                    }
                 }
+
+                session.resetLocks();
+                return; // Cho phép tương tác bình thường trong slot của chính mình
+            } else {
+                // Click trong rương cá nhân của người chơi khi mở Trade GUI (rawSlot >= 54)
+                if (e.isShiftClick()) {
+                    e.setCancelled(true); // Chặn shift-click mặc định để tránh chèn nhầm ô hệ thống
+                    ItemStack clicked = e.getCurrentItem();
+                    if (clicked != null && clicked.getType() != Material.AIR) {
+                        if (!PetCardSecurity.isPetCard(clicked)) {
+                            p.sendMessage("§cChỉ có thể đưa Thẻ Pet vào khung giao dịch!");
+                            p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                            return;
+                        }
+
+                        // Tìm ô trống hợp lệ trong khu vực của người chơi
+                        Set<Integer> targetSlots = p.equals(session.getPlayerA()) ? TradeSession.SLOTS_A : TradeSession.SLOTS_B;
+                        Integer emptySlot = null;
+                        for (int slot : targetSlots) {
+                            ItemStack existing = topInv.getItem(slot);
+                            if (existing == null || existing.getType() == Material.AIR) {
+                                emptySlot = slot;
+                                break;
+                            }
+                        }
+
+                        if (emptySlot != null) {
+                            topInv.setItem(emptySlot, clicked.clone());
+                            e.setCurrentItem(null);
+                            session.resetLocks();
+                            p.playSound(p.getLocation(), Sound.ITEM_ARMOR_EQUIP_LEATHER, 1f, 1.2f);
+                        } else {
+                            p.sendMessage("§cKhung đề nghị giao dịch của bạn đã đầy!");
+                        }
+                    }
+                    return;
+                }
+                // Click bình thường trong rương cá nhân: cho phép sắp xếp đồ
                 return;
             }
         }
@@ -1057,9 +1143,9 @@ public class GuiListener implements Listener {
                 if (action != null) {
                     if (action.startsWith("do_evolve:")) {
                         String petId = action.substring("do_evolve:".length());
-                        if (plugin.getEvolutionManager().upgradeStar(p, petId)) {
-                            openEvolutionMenu(p, petId);
-                        }
+                        ItemStack confirmIcon = topInv.getItem(13);
+                        if (confirmIcon == null) confirmIcon = new ItemStack(Material.NETHER_STAR);
+                        openConfirmDialog(p, "&0Xác Nhận Tiến Hóa Pet", confirmIcon.clone(), "confirm_evolve:" + petId);
                     } else if (action.startsWith("back:")) {
                         String petId = action.substring("back:".length());
                         openPetDetailMenu(p, petId);
@@ -1111,6 +1197,13 @@ public class GuiListener implements Listener {
                         String petId = payload.substring("confirm_withdraw:".length());
                         p.closeInventory();
                         p.performCommand("pet withdraw " + petId);
+                    } else if (payload != null && payload.startsWith("confirm_evolve:")) {
+                        String petId = payload.substring("confirm_evolve:".length());
+                        if (plugin.getEvolutionManager().upgradeStar(p, petId)) {
+                            openEvolutionMenu(p, petId);
+                        } else {
+                            p.closeInventory();
+                        }
                     }
                 }
             }

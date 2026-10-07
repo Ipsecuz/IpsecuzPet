@@ -1,5 +1,5 @@
 name: IpsecuzPet
-version: 2.0
+version: 2.1
 main: org.ipsecuz.pet.IpsecuzPet
 api-version: 1.19
 folia-supported: true
@@ -26,6 +26,34 @@ permissions:
     description: Cho phép người chơi dùng các lệnh cơ bản (menu, duel, shop, hatch, help)
     default: true
 
+  ipsecuzpet.rename:
+    description: Cho phép người chơi đổi tên thú cưng của mình
+    default: true
+
+  ipsecuzpet.withdraw:
+    description: Cho phép rút thú cưng thành Thẻ Pet vật phẩm an toàn
+    default: true
+
+  ipsecuzpet.trade:
+    description: Cho phép giao dịch thú cưng qua sàn Trade GUI hai chiều
+    default: true
+
+  ipsecuzpet.ride:
+    description: Cho phép cưỡi thú cưng
+    default: true
+
+  ipsecuzpet.hatch:
+    description: Cho phép mở Lò Ấp Trứng và quay Gacha Roulette
+    default: true
+
+  ipsecuzpet.multiplier.1.5:
+    description: Tăng 1.5x kinh nghiệm nhận được cho thú cưng
+    default: false
+
+  ipsecuzpet.multiplier.2.0:
+    description: Tăng 2.0x kinh nghiệm nhận được cho thú cưng
+    default: false
+
   ipsecuzpet.admin:
-    description: Quyền Admin
+    description: Quyền Quản trị viên (toàn quyền)
     default: op

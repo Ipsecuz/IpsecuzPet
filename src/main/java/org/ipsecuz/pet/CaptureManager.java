@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -12,16 +13,83 @@ import org.bukkit.persistence.PersistentDataType;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
-
 public class CaptureManager {
     private final IpsecuzPet plugin;
     private final Map<String, BallData> balls = new HashMap<>();
     private final NamespacedKey ballKey;
+    private final Map<UUID, PendingCapture> pendingCaptures = new java.util.concurrent.ConcurrentHashMap<>();
 
     public CaptureManager(IpsecuzPet plugin) {
         this.plugin = plugin;
         this.ballKey = new NamespacedKey(plugin, "capture_ball_id");
         loadBalls();
+    }
+
+    public static class PendingCapture {
+        private final UUID playerUuid;
+        private final String ballId;
+        private final UUID targetEntityUuid;
+        private final String petId;
+        private final long timestamp;
+
+        public PendingCapture(UUID playerUuid, String ballId, UUID targetEntityUuid, String petId) {
+            this.playerUuid = playerUuid;
+            this.ballId = ballId;
+            this.targetEntityUuid = targetEntityUuid;
+            this.petId = petId;
+            this.timestamp = System.currentTimeMillis();
+        }
+
+        public UUID getPlayerUuid() { return playerUuid; }
+        public String getBallId() { return ballId; }
+        public UUID getTargetEntityUuid() { return targetEntityUuid; }
+        public String getPetId() { return petId; }
+        public long getTimestamp() { return timestamp; }
+    }
+
+    public boolean isCaptureEnabled() {
+        return plugin.getConfig().getBoolean("capture_system.enabled", true);
+    }
+
+    public void startCapture(Player player, String ballId, Entity target, String petId) {
+        if (player == null || ballId == null) return;
+        pendingCaptures.put(player.getUniqueId(), new PendingCapture(player.getUniqueId(), ballId, target != null ? target.getUniqueId() : null, petId));
+    }
+
+    public PendingCapture finishCapture(UUID playerUuid) {
+        if (playerUuid == null) return null;
+        return pendingCaptures.remove(playerUuid);
+    }
+
+    public void refundBall(Player player, String ballId) {
+        if (player == null || ballId == null) return;
+        ItemStack refund = createBallItem(ballId, 1);
+        if (refund != null) {
+            HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(refund);
+            for (ItemStack left : overflow.values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), left);
+            }
+        }
+    }
+
+    public void handlePlayerQuit(UUID playerUuid) {
+        PendingCapture session = finishCapture(playerUuid);
+        if (session != null) {
+            Player p = org.bukkit.Bukkit.getPlayer(playerUuid);
+            if (p != null) {
+                refundBall(p, session.getBallId());
+            }
+        }
+    }
+
+    public void refundAllPending() {
+        for (PendingCapture session : pendingCaptures.values()) {
+            Player p = org.bukkit.Bukkit.getPlayer(session.getPlayerUuid());
+            if (p != null && p.isOnline()) {
+                refundBall(p, session.getBallId());
+            }
+        }
+        pendingCaptures.clear();
     }
 
     public void loadBalls() {

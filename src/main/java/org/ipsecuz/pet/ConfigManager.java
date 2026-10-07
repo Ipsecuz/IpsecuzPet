@@ -56,7 +56,7 @@ public class ConfigManager {
     }
 
     /**
-     * Lưu dữ liệu thông minh với cơ chế Debounce (tránh nghẽn I/O khi gọi liên tục)
+     * Lưu dữ liệu thông minh với cơ chế Debounce và Snapshot an toàn luồng (Folia-safe thread snapshot)
      */
     public void saveData() {
         isDirty.set(true);
@@ -65,17 +65,21 @@ public class ConfigManager {
             saveScheduled = true;
         }
 
-        // Lên lịch lưu sau 60 ticks (3 giây)
+        // Lên lịch lưu sau 2.5 giây
         SchedulerUtils.runAsync(plugin, () -> {
             try {
-                Thread.sleep(3000L);
+                Thread.sleep(2500L);
             } catch (InterruptedException ignored) {}
 
+            String snapshotContent = null;
             synchronized (saveLock) {
                 saveScheduled = false;
-                if (isDirty.getAndSet(false)) {
-                    performDiskWrite();
+                if (isDirty.getAndSet(false) && dataConfig != null) {
+                    snapshotContent = dataConfig.saveToString();
                 }
+            }
+            if (snapshotContent != null) {
+                performDiskWrite(snapshotContent);
             }
         });
     }
@@ -84,21 +88,27 @@ public class ConfigManager {
      * Buộc lưu ngay lập tức xuống đĩa cứng (dùng cho các giao dịch quan trọng và khi tắt server)
      */
     public void forceSave() {
+        String snapshotContent = null;
         synchronized (saveLock) {
             isDirty.set(false);
-            performDiskWrite();
+            if (dataConfig != null) {
+                snapshotContent = dataConfig.saveToString();
+            }
+        }
+        if (snapshotContent != null) {
+            performDiskWrite(snapshotContent);
         }
     }
 
-    private void performDiskWrite() {
-        if (dataConfig == null || dataFile == null) return;
+    private void performDiskWrite(String content) {
+        if (content == null || dataFile == null) return;
         try {
             // Tạo bản sao lưu an toàn trước khi ghi
             if (dataFile.exists() && dataFile.length() > 0) {
                 File backupFile = new File(dataFile.getParentFile(), "data.yml.bak");
                 Files.copy(dataFile.toPath(), backupFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
-            dataConfig.save(dataFile);
+            Files.writeString(dataFile.toPath(), content, java.nio.charset.StandardCharsets.UTF_8);
         } catch (IOException e) {
             plugin.getLogger().severe("Lỗi nghiêm trọng khi ghi file data.yml: " + e.getMessage());
         }
@@ -134,42 +144,62 @@ public class ConfigManager {
 
     public boolean isPetDead(UUID uuid, String petId) {
         if (uuid == null || petId == null) return false;
-        return "DEAD".equalsIgnoreCase(dataConfig.getString(uuid + ".pets." + petId + ".status", "ALIVE"));
+        synchronized (saveLock) {
+            return "DEAD".equalsIgnoreCase(dataConfig.getString(uuid + ".pets." + petId + ".status", "ALIVE"));
+        }
     }
 
     public void setPetStatus(UUID uuid, String petId, String status) {
         if (uuid == null || petId == null) return;
-        dataConfig.set(uuid + ".pets." + petId + ".status", status);
-        saveData();
+        synchronized (saveLock) {
+            dataConfig.set(uuid + ".pets." + petId + ".status", status);
+            saveData();
+        }
     }
 
     public String getCustomName(UUID uuid, String petId) {
         if (uuid == null || petId == null) return null;
-        return dataConfig.getString(uuid + ".pets." + petId + ".customName", null);
+        synchronized (saveLock) {
+            String path = uuid + ".pets." + petId;
+            if (dataConfig.contains(path + ".custom_name")) {
+                return dataConfig.getString(path + ".custom_name");
+            }
+            // Hỗ trợ migration từ key cũ customName
+            return dataConfig.getString(path + ".customName", null);
+        }
     }
 
     public void setCustomName(UUID uuid, String petId, String customName) {
         if (uuid == null || petId == null) return;
-        dataConfig.set(uuid + ".pets." + petId + ".customName", customName);
-        saveData();
+        synchronized (saveLock) {
+            String path = uuid + ".pets." + petId;
+            dataConfig.set(path + ".custom_name", customName);
+            dataConfig.set(path + ".customName", null);
+            saveData();
+        }
     }
 
     public boolean isPetBaby(UUID uuid, String petId) {
         if (uuid == null || petId == null) return false;
-        return dataConfig.getBoolean(uuid + ".pets." + petId + ".is_baby", false);
+        synchronized (saveLock) {
+            return dataConfig.getBoolean(uuid + ".pets." + petId + ".is_baby", false);
+        }
     }
 
     public void setPetBaby(UUID uuid, String petId, boolean isBaby) {
         if (uuid == null || petId == null) return;
-        dataConfig.set(uuid + ".pets." + petId + ".is_baby", isBaby);
-        saveData();
+        synchronized (saveLock) {
+            dataConfig.set(uuid + ".pets." + petId + ".is_baby", isBaby);
+            saveData();
+        }
     }
 
     public double getPetStat(String petId, int level, String statName) {
-        if (petId == null || statName == null) return 0.0;
-        double base = plugin.getConfig().getDouble("pets." + petId + ".stats." + statName, 0.0);
-        double growth = plugin.getConfig().getDouble("rpg_system.default_growth." + statName, 0.0);
-        return base + (Math.max(1, level) * growth);
+        return PetStatEngine.getBaseStatAtLevel(plugin, petId, level, statName);
+    }
+
+    public double getEffectivePetStat(UUID uuid, String petId, int level, String statName) {
+        return PetStatEngine.calculateEffectiveStat(plugin, uuid, petId, level, statName);
     }
 
     public int getReviveProgress(UUID uuid) {

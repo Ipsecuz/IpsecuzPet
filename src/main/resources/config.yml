@@ -450,7 +450,8 @@ pets:
     icon: NETHER_STAR
     price: 100
     currency: POINTS
-    catchable: true
+    rarity: MYTHIC
+    catchable: false
     particle: "SMOKE_LARGE"
     effects: ["INCREASE_DAMAGE:1"]
     stats:
@@ -466,7 +467,8 @@ pets:
     icon: DRAGON_EGG
     price: 200
     currency: POINTS
-    catchable: true
+    rarity: ETERNAL
+    catchable: false
     particle: "DRAGON_BREATH"
     effects: ["INCREASE_DAMAGE:1", "NIGHT_VISION:0", "SPEED:1"]
     stats:
@@ -482,7 +484,8 @@ pets:
     icon: SCULK_SENSOR
     price: 150
     currency: POINTS
-    catchable: true
+    rarity: MYTHIC
+    catchable: false
     particle: "SONIC_BOOM"
     effects: ["INCREASE_DAMAGE:1", "DAMAGE_RESISTANCE:1"]
     stats:

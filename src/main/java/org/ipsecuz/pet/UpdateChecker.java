@@ -31,4 +31,29 @@ public class UpdateChecker {
             }
         });
     }
+
+    public static boolean isNewerVersion(String remote, String current) {
+        if (remote == null || current == null) return false;
+        String cleanRemote = remote.trim().replaceAll("^[vV]", "");
+        String cleanCurrent = current.trim().replaceAll("^[vV]", "");
+        String[] rParts = cleanRemote.split("[-_]");
+        String[] cParts = cleanCurrent.split("[-_]");
+        String[] rNums = rParts[0].split("\\.");
+        String[] cNums = cParts[0].split("\\.");
+
+        int max = Math.max(rNums.length, cNums.length);
+        for (int i = 0; i < max; i++) {
+            int r = 0;
+            int c = 0;
+            if (i < rNums.length) {
+                try { r = Integer.parseInt(rNums[i].replaceAll("[^0-9]", "")); } catch (Exception ignored) {}
+            }
+            if (i < cNums.length) {
+                try { c = Integer.parseInt(cNums[i].replaceAll("[^0-9]", "")); } catch (Exception ignored) {}
+            }
+            if (r > c) return true;
+            if (r < c) return false;
+        }
+        return false;
+    }
 }

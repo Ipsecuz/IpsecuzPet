@@ -18,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
@@ -179,37 +180,9 @@ public class PetCommand implements CommandExecutor {
                 String trait = conf.getData().getString(p.getUniqueId() + ".pets." + wdId + ".trait", "NONE");
                 String customName = conf.getCustomName(p.getUniqueId(), wdId);
                 String wdName = plugin.getConfig().getString("pets." + wdId + ".name", wdId);
-                PetRarity rarity = PetRarity.fromPetId(plugin, wdId);
+                List<String> unlockedSkills = conf.getData().getStringList(p.getUniqueId() + ".pets." + wdId + ".unlocked_skills");
 
-                ItemStack item = new ItemStack(Material.DRAGON_EGG);
-                ItemMeta meta = item.getItemMeta();
-                meta.displayName(Component.text("§6📦 " + ChatColor.translateAlternateColorCodes('&', wdName) + " §e(Lv." + wdLvl + ")"));
-                List<Component> lore = new ArrayList<>();
-                lore.add(Component.text("§7--------------------"));
-                lore.add(Component.text("§7Độ hiếm: " + rarity.getFormattedName()));
-                lore.add(Component.text("§7Cấp sao: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(stars) : (stars + "⭐"))));
-                lore.add(Component.text("§7Đặc chất: " + PetTrait.fromString(trait).getFormattedName()));
-                lore.add(Component.text("§7Cấp độ: §aLv." + wdLvl + " §7(EXP: §b" + wdExp + "§7)"));
-                if (customName != null && !customName.isEmpty()) {
-                    lore.add(Component.text("§7Biệt danh: §f" + customName));
-                }
-                lore.add(Component.text("§7--------------------"));
-                lore.add(Component.text("§e[Nhấp chuột phải để Triệu Hồi]"));
-                meta.lore(lore);
-
-                // Lưu dữ liệu vào PersistentDataContainer có khóa mã hóa chống gian lận
-                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "card_uuid"), PersistentDataType.STRING, UUID.randomUUID().toString());
-                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "schema_version"), PersistentDataType.INTEGER, 2);
-                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_id"), PersistentDataType.STRING, wdId);
-                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_lvl"), PersistentDataType.INTEGER, wdLvl);
-                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_exp"), PersistentDataType.INTEGER, wdExp);
-                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_stars"), PersistentDataType.INTEGER, stars);
-                meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_trait"), PersistentDataType.STRING, trait);
-                if (customName != null && !customName.isEmpty()) {
-                    meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_item_name"), PersistentDataType.STRING, customName);
-                }
-
-                item.setItemMeta(meta);
+                ItemStack item = PetCardSecurity.createPetCard(plugin, wdId, wdLvl, wdExp, stars, trait, customName, unlockedSkills);
                 p.getInventory().addItem(item);
                 conf.deletePetData(p.getUniqueId(), wdId);
                 p.sendMessage(lang.getMessage("pet.withdraw_success", "%pet_name%", wdName));
@@ -229,25 +202,47 @@ public class PetCommand implements CommandExecutor {
                     p.sendMessage(lang.getMessage("duel.already_dueling"));
                     return true;
                 }
-                plugin.getPetManager().duelRequests.put(p.getUniqueId(), target.getUniqueId());
+                if (!plugin.getPetManager().sendDuelInvite(p, target)) {
+                    p.sendMessage("§cKhông thể gửi lời mời thách đấu (đã có lời mời đang chờ hoặc đối thủ đang bận)!");
+                    return true;
+                }
                 p.sendMessage(lang.getMessage("duel.invite_sent", "%target%", target.getName()));
                 target.sendMessage(lang.getMessage("duel.invite_received", "%player%", p.getName()));
+                target.sendMessage("§7Dùng §a/pet accept §7để chấp nhận hoặc §c/pet deny §7để từ chối (Thời hạn 60s).");
                 break;
 
             case "accept":
-                if (plugin.getPetManager().duelRequests.containsValue(p.getUniqueId())) {
-                    plugin.getPetManager().duelRequests.forEach((k, v) -> {
-                        if (v.equals(p.getUniqueId())) {
-                            plugin.getPetManager().activeDuels.put(k, v);
-                            plugin.getPetManager().activeDuels.put(v, k);
-                            p.sendMessage(lang.getMessage("duel.accepted"));
-                            Player opp = Bukkit.getPlayer(k);
-                            if (opp != null) opp.sendMessage(lang.getMessage("duel.opponent_accepted"));
-                        }
-                    });
-                    plugin.getPetManager().duelRequests.values().remove(p.getUniqueId());
+                UUID duelPartner = plugin.getPetManager().acceptDuelInvite(p);
+                if (duelPartner != null) {
+                    p.sendMessage(lang.getMessage("duel.accepted"));
+                    Player opp = Bukkit.getPlayer(duelPartner);
+                    if (opp != null && opp.isOnline()) {
+                        opp.sendMessage(lang.getMessage("duel.opponent_accepted"));
+                    }
                 } else {
                     p.sendMessage(lang.getMessage("duel.no_invite"));
+                }
+                break;
+
+            case "deny":
+                UUID deniedSender = plugin.getPetManager().denyDuelInvite(p);
+                if (deniedSender != null) {
+                    p.sendMessage("§eBạn đã từ chối lời mời thách đấu!");
+                    Player opp = Bukkit.getPlayer(deniedSender);
+                    if (opp != null && opp.isOnline()) {
+                        opp.sendMessage("§c" + p.getName() + " đã từ chối lời mời thách đấu của bạn.");
+                    }
+                } else {
+                    p.sendMessage("§cBạn không có lời mời thách đấu nào đang chờ!");
+                }
+                break;
+
+            case "cancelduel":
+            case "duelcancel":
+                if (plugin.getPetManager().cancelOutgoingDuel(p)) {
+                    p.sendMessage("§eĐã hủy lời mời thách đấu đang chờ!");
+                } else {
+                    p.sendMessage("§cBạn không có lời mời thách đấu nào đang chờ phản hồi.");
                 }
                 break;
 
@@ -279,6 +274,9 @@ public class PetCommand implements CommandExecutor {
                     return true;
                 }
                 plugin.getConfigManager().createPetDataIfMissing(receiver.getUniqueId(), petIdToGive);
+                PetTrait giveTrait = PetTrait.rollRandomTrait();
+                plugin.getConfigManager().getData().set(receiver.getUniqueId() + ".pets." + petIdToGive + ".trait", giveTrait.name());
+                plugin.getConfigManager().saveData();
                 plugin.getCodexManager().discover(receiver.getUniqueId(), petIdToGive);
                 p.sendMessage(lang.getMessage("admin.give_success", "%pet_id%", petIdToGive, "%player%", receiver.getName()));
                 receiver.sendMessage(lang.getMessage("admin.give_received", "%pet_id%", petIdToGive));
@@ -301,16 +299,36 @@ public class PetCommand implements CommandExecutor {
                 String ballId = args[2];
                 int amount = 1;
                 if (args.length >= 4) {
-                    try { amount = Integer.parseInt(args[3]); } catch (NumberFormatException e) { amount = 1; }
+                    try {
+                        amount = Integer.parseInt(args[3]);
+                    } catch (NumberFormatException e) {
+                        p.sendMessage("§cSố lượng phải là một con số nguyên hợp lệ!");
+                        return true;
+                    }
+                }
+                if (amount <= 0 || amount > 2304) {
+                    p.sendMessage("§cSố lượng không hợp lệ! Vui lòng nhập từ 1 đến 2304.");
+                    return true;
                 }
 
-                ItemStack ballItem = plugin.getCaptureManager().getBallItem(ballId, amount);
-                if (ballItem == null) {
+                if (!plugin.getCaptureManager().getBallIds().contains(ballId)) {
                     p.sendMessage(lang.getMessage("admin.invalid_ball_id"));
                     return true;
                 }
 
-                targetP.getInventory().addItem(ballItem);
+                int remainingBalls = amount;
+                while (remainingBalls > 0) {
+                    int batch = Math.min(remainingBalls, 64);
+                    ItemStack ballItem = plugin.getCaptureManager().getBallItem(ballId, batch);
+                    if (ballItem != null) {
+                        HashMap<Integer, ItemStack> overflow = targetP.getInventory().addItem(ballItem);
+                        for (ItemStack left : overflow.values()) {
+                            targetP.getWorld().dropItemNaturally(targetP.getLocation(), left);
+                        }
+                    }
+                    remainingBalls -= batch;
+                }
+
                 p.sendMessage(lang.getMessage("admin.giveball_success", "%amount%", String.valueOf(amount), "%ball_id%", ballId, "%player%", targetP.getName()));
                 targetP.sendMessage(lang.getMessage("admin.giveball_received"));
                 break;
@@ -332,14 +350,36 @@ public class PetCommand implements CommandExecutor {
                 String eggId = args[2];
                 int eggAmount = 1;
                 if (args.length >= 4) {
-                    try { eggAmount = Integer.parseInt(args[3]); } catch (NumberFormatException ignored) {}
+                    try {
+                        eggAmount = Integer.parseInt(args[3]);
+                    } catch (NumberFormatException e) {
+                        p.sendMessage("§cSố lượng phải là một con số nguyên hợp lệ!");
+                        return true;
+                    }
                 }
-                ItemStack eggItem = plugin.getHatchingManager().createEggItem(eggId, eggAmount);
-                if (eggItem == null) {
+                if (eggAmount <= 0 || eggAmount > 2304) {
+                    p.sendMessage("§cSố lượng không hợp lệ! Vui lòng nhập từ 1 đến 2304.");
+                    return true;
+                }
+
+                if (plugin.getModuleManager() == null || !plugin.getModuleManager().getHatchingConfig().contains("eggs." + eggId)) {
                     p.sendMessage("§cKhông tìm thấy ID trứng: " + eggId + "! Kiểm tra modules/hatching.yml");
                     return true;
                 }
-                targetEggP.getInventory().addItem(eggItem);
+
+                int remainingEggs = eggAmount;
+                while (remainingEggs > 0) {
+                    int batch = Math.min(remainingEggs, 64);
+                    ItemStack eggItem = plugin.getHatchingManager().createEggItem(eggId, batch);
+                    if (eggItem != null) {
+                        HashMap<Integer, ItemStack> overflow = targetEggP.getInventory().addItem(eggItem);
+                        for (ItemStack left : overflow.values()) {
+                            targetEggP.getWorld().dropItemNaturally(targetEggP.getLocation(), left);
+                        }
+                    }
+                    remainingEggs -= batch;
+                }
+
                 p.sendMessage("§aĐã gửi §e" + eggAmount + "x " + eggId + " §acho người chơi §e" + targetEggP.getName() + "§a.");
                 targetEggP.sendMessage("§aBạn vừa nhận được §e" + eggAmount + "x Trứng Thú Cưng §atừ Admin!");
                 break;

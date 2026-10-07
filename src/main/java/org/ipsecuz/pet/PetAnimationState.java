@@ -50,3 +50,4 @@ public enum PetAnimationState {
         return fallbacks;
     }
 }
+

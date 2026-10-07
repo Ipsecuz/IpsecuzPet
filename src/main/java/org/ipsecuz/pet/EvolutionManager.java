@@ -45,8 +45,12 @@ public class EvolutionManager {
 
     public double getStarMultiplier(UUID uuid, String petId) {
         int stars = getStar(uuid, petId);
-        double boostPerStar = plugin.getModuleManager().getEvolutionConfig().getDouble("stat_boost_per_star", 0.15);
-        return 1.0 + ((stars - 1) * boostPerStar);
+        return PetStatEngine.getStarMultiplierForStat(plugin, stars, "damage");
+    }
+
+    public double getStarMultiplier(UUID uuid, String petId, String statName) {
+        int stars = getStar(uuid, petId);
+        return PetStatEngine.getStarMultiplierForStat(plugin, stars, statName);
     }
 
     public boolean upgradeStar(Player player, String petId) {

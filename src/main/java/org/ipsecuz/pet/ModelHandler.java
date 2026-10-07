@@ -87,6 +87,46 @@ public class ModelHandler {
     }
 
     /**
+     * Theo dõi tầm nhìn đa người chơi (Multiplayer Visibility Tracking):
+     * Tự động hiển thị model cho người chơi trong phạm vi 48 blocks và ẩn khi ra xa.
+     */
+    public void updateMultiplayerVisibility(Entity pet) {
+        if (!isBetterModelInstalled() || pet == null) return;
+        EntityTracker tracker = activeTrackers.get(pet.getUniqueId());
+        if (tracker == null || tracker.isClosed()) return;
+
+        try {
+            org.bukkit.Location petLoc = pet.getLocation();
+            double maxDistSq = 48.0 * 48.0;
+
+            for (Player p : pet.getWorld().getPlayers()) {
+                if (!p.isOnline()) continue;
+                double distSq = p.getLocation().distanceSquared(petLoc);
+                if (distSq <= maxDistSq) {
+                    if (tracker.isHide(p)) {
+                        tracker.show(p);
+                    }
+                } else {
+                    if (!tracker.isHide(p)) {
+                        tracker.hide(p);
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    public void handlePlayerQuit(Player player) {
+        if (!isBetterModelInstalled() || player == null) return;
+        for (EntityTracker tracker : activeTrackers.values()) {
+            if (tracker != null && !tracker.isClosed()) {
+                try {
+                    tracker.remove(player);
+                } catch (Throwable ignored) {}
+            }
+        }
+    }
+
+    /**
      * Chuyển trạng thái hoạt ảnh bền vững (Locomotion, Idle, v.v.).
      * Không khởi động lại hoạt ảnh nếu trạng thái không đổi, và không ghi đè hoạt ảnh tạm thời (transient).
      */
