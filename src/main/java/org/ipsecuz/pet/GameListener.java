@@ -325,6 +325,18 @@ public class GameListener implements Listener {
                 cause == EntityDamageEvent.DamageCause.HOT_FLOOR) {
                 if (plugin.getSkillManager().hasFireImmunity(p)) {
                     e.setCancelled(true);
+                    return;
+                }
+            }
+
+            // Phản ứng lo lắng/đau đớn của Pet khi chủ nhân bị trọng thương (< 30% HP)
+            if (!e.isCancelled() && (p.getHealth() - e.getFinalDamage() <= 6.0)) {
+                Entity pet = plugin.getPetManager().getPet(p.getUniqueId());
+                if (pet != null && pet.isValid()) {
+                    plugin.getModelHandler().playTransientAnimation(pet, PetAnimationState.HURT, 25L, PetAnimationState.IDLE);
+                    try {
+                        pet.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, pet.getLocation().add(0, 0.8, 0), 4, 0.2, 0.2, 0.2, 0.05);
+                    } catch (Exception ignored) {}
                 }
             }
         }
@@ -364,6 +376,15 @@ public class GameListener implements Listener {
             if (plugin.getPetManager().hasPet(p.getUniqueId())) {
                 int exp = plugin.getConfig().getInt("rpg_system.exp_per_kill", 10);
                 plugin.getPetManager().givePetExp(p, exp);
+
+                // Phản ứng chúc mừng của Pet khi chủ tiêu diệt quái vật
+                Entity pet = plugin.getPetManager().getPet(p.getUniqueId());
+                if (pet != null && pet.isValid()) {
+                    plugin.getModelHandler().playTransientAnimation(pet, PetAnimationState.CELEBRATE, 35L, PetAnimationState.IDLE);
+                    try {
+                        pet.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, pet.getLocation().add(0, 0.8, 0), 8, 0.3, 0.3, 0.3, 0.05);
+                    } catch (Exception ignored) {}
+                }
             }
 
             // TỈ LỆ RƠI TRỨNG TỪ QUÁI VẬT & BOSS (HATCHING DROPS)

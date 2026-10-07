@@ -48,3 +48,4 @@ public class PetCodexManager {
         return petsSec != null ? petsSec.getKeys(false).size() : 0;
     }
 }
+

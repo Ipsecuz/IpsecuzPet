@@ -34,3 +34,4 @@ public class PetRarityTest {
         assertEquals(PetRarity.ETERNAL, PetRarity.fromString("Eternal"));
     }
 }
+

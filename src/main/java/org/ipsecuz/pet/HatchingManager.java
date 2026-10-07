@@ -290,7 +290,7 @@ public class HatchingManager {
         if (selectedWinner == null) selectedWinner = candidatePetIds.get(0);
         final String winningPetId = selectedWinner;
 
-        int totalSteps = 32;
+        int totalSteps = 36;
         int winningIndex = totalSteps + 4;
         List<ItemStack> rollingItems = new ArrayList<>();
         for (int i = 0; i < winningIndex + 10; i++) {
@@ -380,16 +380,36 @@ public class HatchingManager {
     }
 
     private void scheduleRouletteStep(Player player, Inventory inv, RouletteHolder holder, List<ItemStack> items, int currentStep, int totalSteps, String winningPetId) {
+        // 5 Giai đoạn giảm tốc độ tự nhiên (Natural Deceleration Curve)
         long delayTicks;
-        if (currentStep < 20) {
+        Sound tickSound = Sound.BLOCK_NOTE_BLOCK_PLING;
+        float pitch;
+
+        if (currentStep < 16) {
+            // Pha 1: Cuộn cực nhanh, quay số hồi hộp
             delayTicks = 2L;
-        } else if (currentStep < 26) {
+            pitch = 0.9f;
+        } else if (currentStep < 24) {
+            // Pha 2: Chậm dần đều
             delayTicks = 3L;
-        } else if (currentStep < 30) {
+            pitch = 1.1f;
+        } else if (currentStep < 29) {
+            // Pha 3: Bắt đầu lộ diện các ô kề bên
             delayTicks = 5L;
+            pitch = 1.25f;
+        } else if (currentStep < 33) {
+            // Pha 4: Chậm từng nhịp rõ rệt
+            delayTicks = 8L;
+            pitch = 1.4f;
         } else {
-            delayTicks = 7L;
+            // Pha 5: Đỉnh điểm nghẹt thở ngay trước ô chiến thắng
+            delayTicks = 12L;
+            tickSound = Sound.BLOCK_NOTE_BLOCK_BELL;
+            pitch = 1.6f;
         }
+
+        final Sound finalTickSound = tickSound;
+        final float finalPitch = pitch;
 
         SchedulerUtils.runEntityTaskLater(plugin, player, () -> {
             if (!player.isOnline()) {
@@ -407,8 +427,7 @@ public class HatchingManager {
             }
             updateRouletteBorders(inv, step);
 
-            float pitch = 0.8f + ((float) step / totalSteps) * 0.8f;
-            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.6f, pitch);
+            player.playSound(player.getLocation(), finalTickSound, 0.7f, finalPitch);
 
             if (step < totalSteps) {
                 scheduleRouletteStep(player, inv, holder, items, step, totalSteps, winningPetId);
@@ -465,16 +484,57 @@ public class HatchingManager {
         }
 
         if (showTitleAndEffects) {
-            player.playSound(player.getLocation(), rarity.getRevealSound(), 1.5f, 1f);
-            try {
-                player.getWorld().spawnParticle(rarity.getRevealParticle(), player.getLocation().add(0, 1.5, 0), 40, 0.5, 0.5, 0.5, 0.1);
-            } catch (Exception ignored) {}
+            String titleText;
+            String subtitleText = "&eNhận được: " + petDisplayName;
+
+            if (rarity == PetRarity.SECRET) {
+                titleText = "&5&l??? HUYỀN BÍ ???";
+                subtitleText = "&d✦ KHO BÁU BÍ MẬT: " + petDisplayName;
+                player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 1.2f, 0.8f);
+                player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1.2f, 1.1f);
+                try {
+                    player.getWorld().spawnParticle(Particle.SQUID_INK, player.getLocation().add(0, 1.2, 0), 50, 0.6, 0.6, 0.6, 0.1);
+                    player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation().add(0, 1.2, 0), 40, 0.8, 0.8, 0.8, 0.15);
+                } catch (Exception ignored) {}
+
+            } else if (rarity == PetRarity.ETERNAL) {
+                titleText = "&4&l⚔ THẦN THOẠI BẤT TỬ ⚔";
+                subtitleText = "&c&l" + petDisplayName;
+                player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1.5f, 1f);
+                player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.5f, 1.2f);
+                try {
+                    player.getWorld().spawnParticle(Particle.TOTEM, player.getLocation().add(0, 1.5, 0), 60, 0.8, 0.8, 0.8, 0.2);
+                    player.getWorld().spawnParticle(Particle.FIREWORKS_SPARK, player.getLocation().add(0, 1.5, 0), 40, 0.6, 0.6, 0.6, 0.1);
+                } catch (Exception ignored) {}
+
+            } else if (rarity == PetRarity.MYTHIC || rarity == PetRarity.LEGENDARY) {
+                titleText = "&6&l★ SIÊU PHẨM XUẤT HIỆN! ★";
+                player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1.2f, 1f);
+                try {
+                    player.getWorld().spawnParticle(Particle.TOTEM, player.getLocation().add(0, 1.5, 0), 40, 0.5, 0.5, 0.5, 0.1);
+                    player.getWorld().spawnParticle(Particle.FIREWORKS_SPARK, player.getLocation().add(0, 1.5, 0), 30, 0.5, 0.5, 0.5, 0.1);
+                } catch (Exception ignored) {}
+
+            } else if (rarity == PetRarity.EPIC || rarity == PetRarity.RARE) {
+                titleText = "&d&l✦ ẤP TRỨNG THÀNH CÔNG! ✦";
+                player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.2f, 1f);
+                try {
+                    player.getWorld().spawnParticle(Particle.FIREWORKS_SPARK, player.getLocation().add(0, 1.5, 0), 30, 0.4, 0.4, 0.4, 0.08);
+                } catch (Exception ignored) {}
+
+            } else {
+                titleText = "&a&lẤP TRỨNG THÀNH CÔNG!";
+                player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.2f, 1f);
+                try {
+                    player.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, player.getLocation().add(0, 1.2, 0), 20, 0.4, 0.4, 0.4, 0.05);
+                } catch (Exception ignored) {}
+            }
 
             Component titleComp = LegacyComponentSerializer.legacySection().deserialize(
-                    ChatColor.translateAlternateColorCodes('&', "&6&lẤP TRỨNG THÀNH CÔNG!")
+                    ChatColor.translateAlternateColorCodes('&', titleText)
             );
             Component subtitleComp = LegacyComponentSerializer.legacySection().deserialize(
-                    ChatColor.translateAlternateColorCodes('&', "&eBạn nhận được: " + petDisplayName)
+                    ChatColor.translateAlternateColorCodes('&', subtitleText)
             );
             Title title = Title.title(
                 titleComp,

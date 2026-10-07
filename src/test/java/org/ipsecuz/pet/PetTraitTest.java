@@ -48,3 +48,4 @@ public class PetTraitTest {
         assertEquals(PetTrait.SCHOLAR, PetTrait.fromString("SCHOLAR"));
     }
 }
+

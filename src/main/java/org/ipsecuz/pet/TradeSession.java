@@ -299,3 +299,4 @@ public class TradeSession {
     public Player getPlayerB() { return playerB; }
     public boolean isFinished() { return finished; }
 }
+

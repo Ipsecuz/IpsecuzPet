@@ -85,3 +85,4 @@ public class PetProgressionTest {
         assertEquals(1.60, multStar5, 0.001);
     }
 }
+

@@ -132,10 +132,14 @@ public class PetManager {
 
         activePets.put(player.getUniqueId(), pet);
         activePetIds.put(player.getUniqueId(), petId);
+        PetRarity rarity = PetRarity.fromPetId(plugin, petId);
+        try {
+            pet.getWorld().spawnParticle(rarity.getRevealParticle(), pet.getLocation().add(0, 0.8, 0), 25, 0.35, 0.35, 0.35, 0.05);
+        } catch (Exception ignored) {}
 
         String msg = plugin.getLanguage().getMessage("pet.spawn");
         if (msg != null) player.sendMessage(msg.replace("%pet_name%", displayName));
-        player.playSound(player.getLocation(), Sound.ENTITY_CHICKEN_EGG, 1f, 1f);
+        player.playSound(player.getLocation(), rarity.getRevealSound(), 1f, 1.1f);
     }
 
     public void removePet(UUID ownerId) {
@@ -144,6 +148,10 @@ public class PetManager {
             if (e != null && e.isValid()) {
                 SchedulerUtils.runEntityTask(plugin, e, () -> {
                     if (e.isValid()) {
+                        try {
+                            e.getWorld().spawnParticle(Particle.CLOUD, e.getLocation().add(0, 0.5, 0), 15, 0.3, 0.3, 0.3, 0.05);
+                            e.getWorld().playSound(e.getLocation(), Sound.ENTITY_CHICKEN_EGG, 1f, 1.4f);
+                        } catch (Exception ignored) {}
                         modelHandler.removeModel(e.getUniqueId());
                         e.remove();
                     }
@@ -287,22 +295,51 @@ public class PetManager {
                 Location ownerLoc = owner.getLocation();
 
                 boolean isFlying = isFlyingType(pet.getType());
-                if (petLoc.distanceSquared(ownerLoc) > 400) {
+                double distSq = petLoc.distanceSquared(ownerLoc);
+
+                if (distSq > 400) {
                     SchedulerUtils.teleportAsync(pet, ownerLoc);
                 } else if (isFlying) {
-                    Location targetHover = ownerLoc.clone().add(0, 1.2, 0);
+                    double bob = Math.sin((System.currentTimeMillis() / 60.0) * 0.15) * 0.15;
+                    Location targetHover = ownerLoc.clone().add(0, 1.3 + bob, 0);
                     org.bukkit.util.Vector dir = targetHover.toVector().subtract(petLoc.toVector());
                     double dist = dir.length();
-                    if (dist > 2.0) {
-                        dir.normalize().multiply(Math.min(0.35, dist * 0.08));
+                    if (dist > 1.8) {
+                        dir.normalize().multiply(Math.min(0.40, dist * 0.1));
                         pet.setVelocity(dir);
+                        modelHandler.playAnimation(pet, dist > 3.0 ? PetAnimationState.FLY : PetAnimationState.FLY_IDLE);
+                    } else {
+                        pet.setVelocity(new org.bukkit.util.Vector(0, Math.cos((System.currentTimeMillis() / 60.0) * 0.15) * 0.02, 0));
+                        modelHandler.playAnimation(pet, PetAnimationState.FLY_IDLE);
                     }
-                } else if (petLoc.distanceSquared(ownerLoc) > 9) {
-                    if (pet instanceof Mob mob) mob.getPathfinder().moveTo(owner);
+                } else {
+                    // Pet mặt đất: Vị trí đội hình bên cạnh/phía sau người chơi (Flank formation)
+                    org.bukkit.util.Vector facing = ownerLoc.getDirection().setY(0);
+                    if (facing.lengthSquared() < 0.001) facing = new org.bukkit.util.Vector(0, 0, 1);
+                    facing.normalize();
+                    org.bukkit.util.Vector right = new org.bukkit.util.Vector(-facing.getZ(), 0, facing.getX());
+                    Location flankTarget = ownerLoc.clone().subtract(facing.clone().multiply(1.5)).add(right.clone().multiply(1.2));
+
+                    double flankDistSq = petLoc.distanceSquared(flankTarget);
+                    if (flankDistSq > 3.0) {
+                        if (pet instanceof Mob mob) {
+                            mob.getPathfinder().moveTo(flankTarget, 1.25);
+                        }
+                    }
+
+                    double speed = pet.getVelocity().setY(0).length();
+                    PetAnimationState state;
+                    if (speed > 0.35) {
+                        state = PetAnimationState.RUN;
+                    } else if (speed > 0.08 || flankDistSq > 4.0) {
+                        state = PetAnimationState.WALK;
+                    } else {
+                        state = PetAnimationState.IDLE;
+                    }
+                    modelHandler.playAnimation(pet, state);
                 }
 
                 modelHandler.updatePosition(pet);
-                modelHandler.updateAnimation(pet);
 
                 playParticles(pet, petId);
 
@@ -478,11 +515,13 @@ public class PetManager {
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
             p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
 
-            // Thông báo lên cấp (Đơn cấp hoặc Đa cấp)
+            // Action Bar phản hồi tức thì
             if (levelsGained == 1) {
+                p.sendActionBar(net.kyori.adventure.text.Component.text("§a§l★ LÊN CẤP! §eĐạt Lv." + currentLvl));
                 String msg = plugin.getLanguage().getMessage("pet.levelup");
                 if (msg != null) p.sendMessage(msg.replace("%level%", String.valueOf(currentLvl)));
             } else {
+                p.sendActionBar(net.kyori.adventure.text.Component.text("§6§l★ +" + levelsGained + " CẤP ĐỘ! §eLv." + (currentLvl - levelsGained) + " ➔ Lv." + currentLvl));
                 p.sendMessage("§a§l★ TIẾN HÓA CẤP ĐỘ! §fThú cưng đã tăng vọt §e+" + levelsGained + " Cấp §f(Đạt cấp: §6Lv." + currentLvl + "§f)!");
             }
 
@@ -519,6 +558,13 @@ public class PetManager {
 
                 petEntity.setCustomName(ChatColor.translateAlternateColorCodes('&', displayName));
                 petEntity.setCustomNameVisible(true);
+
+                boolean isFlying = isFlyingType(petEntity.getType());
+                modelHandler.playTransientAnimation(petEntity, PetAnimationState.CELEBRATE, 45L, isFlying ? PetAnimationState.FLY_IDLE : PetAnimationState.IDLE);
+                try {
+                    petEntity.getWorld().spawnParticle(Particle.TOTEM, petEntity.getLocation().add(0, 1.0, 0), 25, 0.4, 0.4, 0.4, 0.08);
+                    petEntity.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, petEntity.getLocation().add(0, 0.8, 0), 12, 0.3, 0.3, 0.3, 0.05);
+                } catch (Exception ignored) {}
             }
         }
     }

@@ -60,3 +60,4 @@ public enum PetTrait {
         return TITAN;
     }
 }
+

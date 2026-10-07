@@ -138,6 +138,9 @@ public class FeedingManager {
         plugin.getPetManager().givePetExp(player, addExp);
 
         HappinessState state = getHappinessState(newHappy);
+        player.sendActionBar(net.kyori.adventure.text.Component.text(
+                "§d♡ Thân Thiết +" + addHappy + " §8(" + newHappy + "/" + maxHappy + ") §7| §b✦ EXP +" + addExp
+        ));
         player.sendMessage("§aĐã cho thú cưng ăn §e" + matName + "§a! Độ vui vẻ: §e" + newHappy + "/" + maxHappy +
                 " §7(" + state.getDisplay() + "§7) §a(+§b" + addExp + " EXP§a)");
 
@@ -147,6 +150,17 @@ public class FeedingManager {
         if (pet != null && pet.isValid()) {
             SchedulerUtils.runEntityTask(plugin, pet, () -> {
                 try {
+                    org.bukkit.util.Vector faceDir = player.getLocation().toVector().subtract(pet.getLocation().toVector());
+                    if (faceDir.lengthSquared() > 0.001) {
+                        org.bukkit.Location lookLoc = pet.getLocation().clone();
+                        lookLoc.setDirection(faceDir);
+                        pet.teleport(lookLoc);
+                    }
+                } catch (Exception ignored) {}
+
+                plugin.getModelHandler().playTransientAnimation(pet, PetAnimationState.FEED, 30L, PetAnimationState.IDLE);
+
+                try {
                     pet.getWorld().playSound(pet.getLocation(), Sound.valueOf(soundName), 1.2f, 1f);
                     if (newHappy >= maxHappy) {
                         pet.getWorld().playSound(pet.getLocation(), Sound.ENTITY_PLAYER_BURP, 1f, 1.1f);
@@ -154,7 +168,7 @@ public class FeedingManager {
                 } catch (Exception ignored) {}
 
                 try {
-                    pet.getWorld().spawnParticle(Particle.HEART, pet.getLocation().add(0, pet.getHeight() + 0.3, 0), 6, 0.3, 0.3, 0.3, 0.05);
+                    pet.getWorld().spawnParticle(Particle.HEART, pet.getLocation().add(0, pet.getHeight() + 0.3, 0), 8, 0.35, 0.35, 0.35, 0.05);
                 } catch (Exception ignored) {}
             });
         }

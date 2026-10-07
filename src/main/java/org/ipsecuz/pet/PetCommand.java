@@ -5,6 +5,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -118,6 +119,13 @@ public class PetCommand implements CommandExecutor {
                 }
                 String petId = plugin.getPetManager().getActivePetId(p.getUniqueId());
                 String newName = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+
+                String cleanRaw = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', newName));
+                if (cleanRaw.length() < 2 || cleanRaw.length() > 24) {
+                    p.sendMessage("§cTên thú cưng phải có độ dài từ 2 đến 24 ký tự!");
+                    p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                    return true;
+                }
 
                 plugin.getConfigManager().setCustomName(p.getUniqueId(), petId, newName);
 

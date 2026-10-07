@@ -69,3 +69,4 @@ public class PetShardManager {
         player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1f, 1.2f);
     }
 }
+
