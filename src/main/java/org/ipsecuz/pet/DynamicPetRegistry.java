@@ -33,6 +33,14 @@ public class DynamicPetRegistry {
                 }
             }
         }
+        if (config.isConfigurationSection("discovered_entities")) {
+            for (String key : config.getConfigurationSection("discovered_entities").getKeys(false)) {
+                String typeStr = config.getString("discovered_entities." + key + ".type");
+                if (typeStr != null) {
+                    registeredTypes.add(typeStr.toUpperCase());
+                }
+            }
+        }
 
         int addedCount = 0;
         for (EntityType type : EntityType.values()) {
@@ -44,10 +52,10 @@ public class DynamicPetRegistry {
             if (typeName.equals("PLAYER") || typeName.equals("ARMOR_STAND") || typeName.equals("GIANT")) continue;
 
             if (!registeredTypes.contains(typeName)) {
-                // Tạo ID cho pet mới
-                String petId = typeName.toLowerCase() + "_pet";
-                if (!config.contains("pets." + petId)) {
-                    registerDefaultPet(config, petId, type);
+                // Tạo ID cho thực thể mới và lưu vào discovered_entities.*
+                String entityId = typeName.toLowerCase() + "_pet";
+                if (!config.contains("discovered_entities." + entityId) && !config.contains("pets." + entityId)) {
+                    registerDiscoveredEntity(config, entityId, type);
                     addedCount++;
                 }
             }
@@ -55,23 +63,23 @@ public class DynamicPetRegistry {
 
         if (addedCount > 0) {
             plugin.saveConfig();
-            plugin.getLogger().info("§a[DynamicPetRegistry] Đã tự động phát hiện và đăng ký thêm " + addedCount + " loài Pet mới tương thích phiên bản server (" + serverVersion + ")!");
+            plugin.getLogger().info("§a[DynamicPetRegistry] Đã tự động phát hiện và ghi nhận " + addedCount + " loài thực thể mới vào discovered_entities.* (" + serverVersion + ")!");
         }
     }
 
-    private void registerDefaultPet(FileConfiguration config, String petId, EntityType type) {
-        String path = "pets." + petId;
+    private void registerDiscoveredEntity(FileConfiguration config, String entityId, EntityType type) {
+        String path = "discovered_entities." + entityId;
         String formattedName = formatName(type.name());
 
         config.set(path + ".enabled", false);
         config.set(path + ".visible_in_shop", false);
+        config.set(path + ".catchable", false);
         config.set(path + ".type", type.name());
         config.set(path + ".name", "&e" + formattedName + " Pet");
         config.set(path + ".icon", guessIcon(type).name());
         config.set(path + ".price", 50);
         config.set(path + ".currency", "MONEY");
         config.set(path + ".rarity", "COMMON");
-        config.set(path + ".catchable", false);
         config.set(path + ".particle", "VILLAGER_HAPPY");
         config.set(path + ".effects", Collections.emptyList());
         config.set(path + ".skills", Collections.emptyMap());

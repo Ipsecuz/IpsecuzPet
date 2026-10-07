@@ -50,7 +50,8 @@ public class PetShardManager {
     }
 
     public int getRequiredShardsToCraft(String petId) {
-        return plugin.getConfig().getInt("shards.required_shards", 50);
+        return plugin.getConfig().getInt("shards.fuse_required",
+                plugin.getConfig().getInt("shards.required_shards", 50));
     }
 
     public void convertDuplicateToShards(Player player, String petId) {

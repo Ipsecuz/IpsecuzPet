@@ -33,11 +33,19 @@ public class ModelHandler {
     }
 
     public void spawnModel(Player owner, Entity baseEntity, String petId) {
-        manager.spawnModel(owner, baseEntity, petId);
+        manager.spawnModel(owner, baseEntity, petId, false);
+    }
+
+    public void spawnModel(Player owner, Entity baseEntity, String petId, boolean isBaby) {
+        manager.spawnModel(owner, baseEntity, petId, isBaby);
     }
 
     public void spawnModel(Player owner, Entity baseEntity, String petId, String directModelId) {
-        manager.spawnModel(owner, baseEntity, petId, directModelId);
+        manager.spawnModel(owner, baseEntity, petId, directModelId, false);
+    }
+
+    public void spawnModel(Player owner, Entity baseEntity, String petId, String directModelId, boolean isBaby) {
+        manager.spawnModel(owner, baseEntity, petId, directModelId, isBaby);
     }
 
     public void updatePosition(Entity pet) {
@@ -54,18 +62,16 @@ public class ModelHandler {
 
     public void playAnimation(Entity pet, PetAnimationState state) {
         if (pet == null || state == null) return;
-        currentStates.put(pet.getUniqueId(), state);
         manager.playAnimation(pet, state);
     }
 
     public void playTransientAnimation(Entity pet, PetAnimationState state, long durationTicks, PetAnimationState returnState) {
         if (pet == null || state == null) return;
-        currentStates.put(pet.getUniqueId(), state);
         manager.playTransientAnimation(pet, state, durationTicks, returnState);
     }
 
     public PetAnimationState getCurrentState(UUID uuid) {
-        return currentStates.getOrDefault(uuid, PetAnimationState.IDLE);
+        return manager.getAnimationController().getCurrentState(uuid);
     }
 
     public void updateAnimation(Entity pet) {
@@ -75,12 +81,10 @@ public class ModelHandler {
     }
 
     public void removeModel(UUID baseEntityUuid) {
-        currentStates.remove(baseEntityUuid);
         manager.removeModel(baseEntityUuid);
     }
 
     public void removeAll() {
-        currentStates.clear();
         manager.removeAll();
     }
 

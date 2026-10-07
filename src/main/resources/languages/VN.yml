@@ -197,6 +197,35 @@ rarity:
   secret: "Bí Mật"
   eternal: "Vĩnh Hằng"
 
+trait:
+  none: "&7Bình Thường"
+  savage: "&cHung Bạo"
+  guardian: "&9Hộ Vệ"
+  swift: "&bNhanh Nhẹn"
+  vital: "&aSức Sống"
+  titan: "&6Khổng Lồ"
+  scholar: "&dThông Thái"
+
+card:
+  title_prefix: "&eThẻ Thú Cưng: &6"
+  rarity: "&7Độ hiếm: %rarity%"
+  stars: "&7Cấp sao: %stars%"
+  trait: "&7Đặc chất: %trait%"
+  level_exp: "&7Cấp độ: &aLv.%level% &7(EXP: &b%exp%&7)"
+  nickname: "&7Biệt danh: &f%nickname%"
+  skills: "&7Kỹ năng đã mở: &e%amount% skill"
+  click_redeem: "&e[Nhấp chuột phải để Triệu Hồi]"
+
+hatching:
+  disabled: "&cTính năng Ấp Trứng & Quay Pet hiện đang bị tắt bởi máy chủ!"
+  invalid_egg: "&cKhông tìm thấy dữ liệu cho loại trứng này!"
+  empty_loot: "&cTrứng này chưa được thiết lập danh sách pet có thể nở!"
+  invalid_rates: "&cTrứng này chưa có tỉ lệ rớt hợp lệ!"
+  duplicate_reward: "&e[IpsecuzPet] Bạn đã sở hữu Pet này! Đã tự động quy đổi thành Mảnh Pet và Kinh Nghiệm."
+  full_storage_reward: "&e[Kho Thú Cưng Đã Đầy] Bạn đã đạt giới hạn tối đa số Pet, phần thưởng được chuyển thành Mảnh Pet!"
+  success: "&a&lCHÚC MỪNG! §fBạn vừa ấp nở thành công Pet: %pet% &7(Độ hiếm: %rarity%&7, Đặc chất: %trait%&7)"
+  broadcast: "&6&l[IPSECUZ PET] &eNgười chơi &f%player% &evừa ấp nở thành công Pet %rarity% &e%pet%&e!"
+
 help:
   header: "&8&m------------------------"
   title: " &#00aaff✦ &#fb00ffIPSECUZ PETS &#00aaff✦"
@@ -225,3 +254,4 @@ requirement:
   transaction_failed: "&cThực hiện giao dịch chi phí thất bại! Đã hoàn trả tài nguyên."
   not_enough: "&cThiếu: &e%missing% &7(Cần: &e%required%&7, hiện có: &e%current%&7)"
   ready: "&a&l✔ ĐỦ ĐIỀU KIỆN"
+

@@ -75,6 +75,11 @@ public class NoneModelProvider implements ModelProvider {
     }
 
     @Override
+    public void renderRawAnimation(Entity pet, String animationName, PetAnimationState state) {
+        // No-op for vanilla
+    }
+
+    @Override
     public void stopAnimation(Entity pet) {
         // No-op for vanilla
     }
@@ -84,3 +89,4 @@ public class NoneModelProvider implements ModelProvider {
         // No-op for vanilla
     }
 }
+

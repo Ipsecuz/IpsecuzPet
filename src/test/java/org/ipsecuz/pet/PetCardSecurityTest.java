@@ -71,7 +71,7 @@ public class PetCardSecurityTest {
         String sig2 = PetCardSecurity.computeHmacSha256(key, data);
 
         assertNotNull(sig1);
-        assertEquals(32, sig1.length(), "HMAC signature should be 32 hex characters");
+        assertEquals(64, sig1.length(), "HMAC signature should be 64 hex characters");
         assertEquals(sig1, sig2, "Identical key and data must yield identical HMAC signature");
     }
 

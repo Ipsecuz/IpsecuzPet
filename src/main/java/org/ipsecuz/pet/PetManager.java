@@ -82,14 +82,6 @@ public class PetManager {
         // Tùy chọn Kích thước: Bé con (Baby) hoặc Trưởng thành (Adult)
         boolean isBaby = plugin.getConfigManager().isPetBaby(player.getUniqueId(), petId);
 
-        // Hook Model: Hỗ trợ model_id_baby riêng biệt cho dạng con
-        String modelId = null;
-        if (isBaby && plugin.getConfig().contains("pets." + petId + ".model_id_baby")) {
-            modelId = plugin.getConfig().getString("pets." + petId + ".model_id_baby");
-        } else {
-            modelId = plugin.getConfig().getString("pets." + petId + ".model_id", null);
-        }
-
         if (pet instanceof LivingEntity living) {
             living.setRemoveWhenFarAway(false);
             living.setCanPickupItems(false);
@@ -98,7 +90,8 @@ public class PetManager {
             // Scale kích cỡ pet thực tế (0.55 cho bé con, 1.0 cho trưởng thành)
             applyScale(living, isBaby ? 0.55 : 1.0);
 
-            modelHandler.spawnModel(player, pet, petId, modelId);
+            // Gắn Model thông qua ModelProviderManager với cơ chế Authoritative Resolver
+            modelHandler.spawnModel(player, pet, petId, isBaby);
 
             if (plugin.getConfig().getBoolean("pets." + petId + ".silent", true)) {
                 living.setSilent(true);
@@ -552,13 +545,18 @@ public class PetManager {
         // 3. Thưởng / Phạt theo độ vui vẻ (Happiness)
         if (plugin.getFeedingManager() != null) {
             int happy = plugin.getFeedingManager().getHappiness(p.getUniqueId(), petId);
-            multiplier *= plugin.getFeedingManager().getExpMultiplier(happy);
+            if (plugin.getHappinessModifierEngine() != null) {
+                multiplier *= plugin.getHappinessModifierEngine().getExpMultiplier(happy);
+            } else {
+                multiplier *= plugin.getFeedingManager().getExpMultiplier(happy);
+            }
         }
 
-        // 4. Trait SCHOLAR thưởng thêm 25% EXP
+        // 4. Thưởng EXP theo Đặc chất (Trait)
         String traitName = plugin.getConfigManager().getData().getString(p.getUniqueId() + ".pets." + petId + ".trait", "NONE");
-        if ("SCHOLAR".equalsIgnoreCase(traitName)) {
-            multiplier *= 1.25;
+        PetTrait trait = PetTrait.fromString(traitName);
+        if (trait != null) {
+            multiplier *= trait.getExpMultiplier();
         }
 
         int finalAmount = Math.max(1, (int) (amount * multiplier));
@@ -593,7 +591,7 @@ public class PetManager {
             // Action Bar phản hồi tức thì
             if (levelsGained == 1) {
                 p.sendActionBar(net.kyori.adventure.text.Component.text("§a§l★ LÊN CẤP! §eĐạt Lv." + currentLvl));
-                String msg = plugin.getLanguage().getMessage("pet.levelup");
+                String msg = plugin.getLanguage().getMessage("pet.level_up");
                 if (msg != null) p.sendMessage(msg.replace("%level%", String.valueOf(currentLvl)));
             } else {
                 p.sendActionBar(net.kyori.adventure.text.Component.text("§6§l★ +" + levelsGained + " CẤP ĐỘ! §eLv." + (currentLvl - levelsGained) + " ➔ Lv." + currentLvl));

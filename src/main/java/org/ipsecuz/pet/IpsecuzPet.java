@@ -23,6 +23,7 @@ public class IpsecuzPet extends JavaPlugin {
     private PetOwnershipManager ownershipManager;
     private PetShardManager shardManager;
     private PetCodexManager codexManager;
+    private HappinessModifierEngine happinessModifierEngine;
     private org.ipsecuz.pet.requirement.RequirementManager requirementManager;
 
     @Override
@@ -57,6 +58,7 @@ public class IpsecuzPet extends JavaPlugin {
         this.hatchingManager = new HatchingManager(this);
         this.skillManager = new SkillManager(this);
         this.feedingManager = new FeedingManager(this);
+        this.happinessModifierEngine = new HappinessModifierEngine(this);
         this.evolutionManager = new EvolutionManager(this);
         this.tradeManager = new TradeManager(this);
 
@@ -147,6 +149,7 @@ public class IpsecuzPet extends JavaPlugin {
     public HatchingManager getHatchingManager() { return hatchingManager; }
     public SkillManager getSkillManager() { return skillManager; }
     public FeedingManager getFeedingManager() { return feedingManager; }
+    public HappinessModifierEngine getHappinessModifierEngine() { return happinessModifierEngine; }
     public EvolutionManager getEvolutionManager() { return evolutionManager; }
     public TradeManager getTradeManager() { return tradeManager; }
     public DynamicPetRegistry getDynamicPetRegistry() { return dynamicPetRegistry; }

@@ -76,7 +76,9 @@ public final class PetStatEngine {
                     break;
             }
         }
-        if (plugin.getFeedingManager() != null) {
+        if (plugin.getHappinessModifierEngine() != null) {
+            stat *= plugin.getHappinessModifierEngine().getStatMultiplier(happiness, statName);
+        } else if (plugin.getFeedingManager() != null) {
             stat *= plugin.getFeedingManager().getStatMultiplier(happiness, statName);
         }
         return Math.max(0.0, stat);
@@ -119,9 +121,14 @@ public final class PetStatEngine {
         }
 
         // Apply Happiness multiplier
-        if (plugin.getFeedingManager() != null && ownerId != null) {
-            int happy = plugin.getFeedingManager().getHappiness(ownerId, petId);
-            stat *= plugin.getFeedingManager().getStatMultiplier(happy, statName);
+        if (ownerId != null) {
+            int happy = (plugin.getFeedingManager() != null)
+                    ? plugin.getFeedingManager().getHappiness(ownerId, petId) : 100;
+            if (plugin.getHappinessModifierEngine() != null) {
+                stat *= plugin.getHappinessModifierEngine().getStatMultiplier(happy, statName);
+            } else if (plugin.getFeedingManager() != null) {
+                stat *= plugin.getFeedingManager().getStatMultiplier(happy, statName);
+            }
         }
 
         return Math.max(0.0, stat);

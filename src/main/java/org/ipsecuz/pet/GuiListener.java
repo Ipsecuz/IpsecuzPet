@@ -788,11 +788,12 @@ public class GuiListener implements Listener {
                     meta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&bMảnh: " + name)));
                     List<Component> lore = new ArrayList<>();
                     lore.add(Component.text("§7Độ hiếm: " + rarity.getFormattedName()));
-                    lore.add(Component.text("§7Số mảnh hiện có: §b" + count + "/50"));
-                    if (count >= 50) {
+                    int req = plugin.getShardManager().getRequiredShardsToCraft(petId);
+                    lore.add(Component.text("§7Số mảnh hiện có: §b" + count + "/" + req));
+                    if (count >= req) {
                         lore.add(Component.text("§a§l✔ ĐỦ MẢNH! Nhấp để ghép thành Pet!"));
                     } else {
-                        lore.add(Component.text("§c✖ Cần thêm " + (50 - count) + " mảnh để ghép."));
+                        lore.add(Component.text("§c✖ Cần thêm " + (req - count) + " mảnh để ghép."));
                     }
                     meta.lore(lore);
                     meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "craft_shard_id"), PersistentDataType.STRING, petId);

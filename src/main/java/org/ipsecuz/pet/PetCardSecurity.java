@@ -73,7 +73,7 @@ public final class PetCardSecurity {
                 if (hex.length() == 1) hexString.append('0');
                 hexString.append(hex);
             }
-            return hexString.toString().substring(0, 32);
+            return hexString.toString();
         } catch (Exception e) {
             return Integer.toHexString((data + ":" + key).hashCode());
         }
@@ -101,7 +101,7 @@ public final class PetCardSecurity {
                 if (hex.length() == 1) hexString.append('0');
                 hexString.append(hex);
             }
-            return hexString.toString().substring(0, 32);
+            return hexString.toString();
         } catch (NoSuchAlgorithmException e) {
             return Integer.toHexString(payload.hashCode());
         }
@@ -120,21 +120,32 @@ public final class PetCardSecurity {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
 
-        meta.displayName(Component.text("§6📦 " + ChatColor.translateAlternateColorCodes('&', petName) + " §e(Lv." + level + ")"));
+        LanguageManager lang = (plugin != null) ? plugin.getLanguage() : null;
+        String prefix = (lang != null) ? lang.getMessage("card.title_prefix", "") : "§6📦 ";
+        meta.displayName(Component.text(prefix + ChatColor.translateAlternateColorCodes('&', petName) + " §e(Lv." + level + ")"));
         List<Component> lore = new ArrayList<>();
         lore.add(Component.text("§7--------------------"));
-        lore.add(Component.text("§7Độ hiếm: " + rarity.getFormattedName()));
-        lore.add(Component.text("§7Cấp sao: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(stars) : (stars + "⭐"))));
-        lore.add(Component.text("§7Đặc chất: " + PetTrait.fromString(trait).getFormattedName()));
-        lore.add(Component.text("§7Cấp độ: §aLv." + level + " §7(EXP: §b" + exp + "§7)"));
+        String rarityLabel = (lang != null) ? lang.getMessage("card.rarity", "%rarity%", rarity.getLocalizedName(plugin)) : "§7Độ hiếm: " + rarity.getFormattedName();
+        lore.add(Component.text(rarityLabel));
+        String starDisplay = (plugin != null && plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(stars) : (stars + "⭐");
+        String starsLabel = (lang != null) ? lang.getMessage("card.stars", "%stars%", starDisplay) : "§7Cấp sao: " + starDisplay;
+        lore.add(Component.text(starsLabel));
+        String traitName = PetTrait.fromString(trait).getLocalizedName(plugin);
+        String traitLabel = (lang != null) ? lang.getMessage("card.trait", "%trait%", traitName) : "§7Đặc chất: " + traitName;
+        lore.add(Component.text(traitLabel));
+        String lvlLabel = (lang != null) ? lang.getMessage("card.level_exp", "%level%", String.valueOf(level), "%exp%", String.valueOf(exp)) : "§7Cấp độ: §aLv." + level + " §7(EXP: §b" + exp + "§7)";
+        lore.add(Component.text(lvlLabel));
         if (customName != null && !customName.isEmpty()) {
-            lore.add(Component.text("§7Biệt danh: §f" + customName));
+            String nickLabel = (lang != null) ? lang.getMessage("card.nickname", "%nickname%", customName) : "§7Biệt danh: §f" + customName;
+            lore.add(Component.text(nickLabel));
         }
         if (unlockedSkills != null && !unlockedSkills.isEmpty()) {
-            lore.add(Component.text("§7Kỹ năng đã mở: §e" + unlockedSkills.size() + " skill"));
+            String skillLabel = (lang != null) ? lang.getMessage("card.skills", "%amount%", String.valueOf(unlockedSkills.size())) : "§7Kỹ năng đã mở: §e" + unlockedSkills.size() + " skill";
+            lore.add(Component.text(skillLabel));
         }
         lore.add(Component.text("§7--------------------"));
-        lore.add(Component.text("§e[Nhấp chuột phải để Triệu Hồi]"));
+        String clickLabel = (lang != null) ? lang.getMessage("card.click_redeem") : "§e[Nhấp chuột phải để Triệu Hồi]";
+        lore.add(Component.text(clickLabel));
         meta.lore(lore);
 
         String cardUuid = UUID.randomUUID().toString();
@@ -327,23 +338,30 @@ public final class PetCardSecurity {
         Integer schemaVersion = pdc.get(new NamespacedKey(plugin, "card_schema_version"), PersistentDataType.INTEGER);
         String signature = pdc.get(new NamespacedKey(plugin, "card_signature"), PersistentDataType.STRING);
 
-        if (schemaVersion != null && schemaVersion >= 2 && signature != null && cardUuid != null) {
+        if (schemaVersion != null && schemaVersion >= 2) {
+            // Strict canonical HMAC check only for Schema >= 2 (No legacy fallback)
+            if (signature == null || cardUuid == null) {
+                return new CardValidationResult(false, "Thẻ phiên bản mới (v" + schemaVersion + ") thiếu chữ ký hoặc mã định danh thẻ hợp lệ.", null);
+            }
             String expectedCanonical = computeCanonicalSignature(plugin, schemaVersion, cardUuid, petId, level, exp, stars, trait, customName, unlockedSkills);
             if (!signature.equals(expectedCanonical)) {
-                // Hỗ trợ kiểm tra dự phòng chuẩn SHA-256 cũ
-                String expectedLegacy = computeLegacySignature(plugin, cardUuid, petId, level, exp, stars, trait);
-                if (!signature.equals(expectedLegacy)) {
-                    return new CardValidationResult(false, "Chữ ký xác thực bị giả mạo! Dữ liệu thẻ đã bị chỉnh sửa bất hợp pháp.", null);
-                }
+                return new CardValidationResult(false, "Chữ ký xác thực bị giả mạo! Dữ liệu thẻ đã bị chỉnh sửa bất hợp pháp.", null);
             }
         } else {
-            // Thẻ v1 cũ không có chữ ký
-            boolean allowLegacy = plugin.getConfig().getBoolean("security.allow_legacy_unsigned_cards", true);
+            // Thẻ v1 cũ không thuộc schema mới
+            boolean allowLegacy = plugin.getConfig().getBoolean("security.allow_legacy_unsigned_cards", false);
             if (!allowLegacy) {
                 return new CardValidationResult(false, "Máy chủ đã tắt chế độ chấp nhận Thẻ Pet phiên bản cũ không có chữ ký bảo mật.", null);
             }
-            if (cardUuid == null) {
-                cardUuid = UUID.randomUUID().toString();
+            if (signature != null && cardUuid != null) {
+                String expectedLegacy = computeLegacySignature(plugin, cardUuid, petId, level, exp, stars, trait);
+                if (!signature.equals(expectedLegacy)) {
+                    return new CardValidationResult(false, "Chữ ký thẻ cũ không hợp lệ hoặc đã bị chỉnh sửa.", null);
+                }
+            } else {
+                UUID deterministicUuid = UUID.nameUUIDFromBytes(("legacy:" + petId + ":" + level + ":" + exp + ":" + stars + ":" + trait).getBytes(StandardCharsets.UTF_8));
+                cardUuid = "legacy-" + deterministicUuid;
+                plugin.getLogger().warning("[PetCardSecurity] Accepted legacy unsigned pet card for pet " + petId + " with deterministic ID " + cardUuid);
             }
         }
 

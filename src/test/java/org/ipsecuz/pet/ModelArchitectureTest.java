@@ -81,4 +81,19 @@ public class ModelArchitectureTest {
         assertTrue(config.contains("metric"));
         assertTrue(config.getBoolean("metric"));
     }
+
+    @Test
+    @DisplayName("Inspect ModelEngine ModeledEntity and ActiveModel API methods")
+    public void testInspectModelEngineAPI() {
+        try {
+            Class<?> modeledEntityClass = Class.forName("com.ticxo.modelengine.api.model.ModeledEntity");
+            for (java.lang.reflect.Method m : modeledEntityClass.getMethods()) {
+                if (m.getName().contains("remove") || m.getName().contains("Model") || m.getName().contains("destroy")) {
+                    System.out.println("ModeledEntity method: " + m.getName() + " -> " + m.getReturnType().getSimpleName() + " (" + java.util.Arrays.toString(m.getParameterTypes()) + ")");
+                }
+            }
+        } catch (ClassNotFoundException e) {
+            System.out.println("ModelEngine class not present on test classpath: " + e.getMessage());
+        }
+    }
 }

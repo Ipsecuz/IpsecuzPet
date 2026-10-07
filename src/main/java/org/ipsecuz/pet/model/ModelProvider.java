@@ -32,7 +32,10 @@ public interface ModelProvider {
 
     void playTransientAnimation(Entity pet, PetAnimationState state, long durationTicks, PetAnimationState returnState);
 
+    void renderRawAnimation(Entity pet, String animationName, PetAnimationState state);
+
     void stopAnimation(Entity pet);
 
     void handlePlayerQuit(Player player);
 }
+

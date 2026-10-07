@@ -197,6 +197,35 @@ rarity:
   secret: "Secret"
   eternal: "Eternal"
 
+trait:
+  none: "&7Normal"
+  savage: "&cSavage"
+  guardian: "&9Guardian"
+  swift: "&bSwift"
+  vital: "&aVital"
+  titan: "&6Titan"
+  scholar: "&dScholar"
+
+card:
+  title_prefix: "&ePet Card: &6"
+  rarity: "&7Rarity: %rarity%"
+  stars: "&7Stars: %stars%"
+  trait: "&7Trait: %trait%"
+  level_exp: "&7Level: &aLv.%level% &7(EXP: &b%exp%&7)"
+  nickname: "&7Nickname: &f%nickname%"
+  skills: "&7Unlocked Skills: &e%amount% skill(s)"
+  click_redeem: "&e[Right-click to Summon]"
+
+hatching:
+  disabled: "&cThe Hatching & Gacha system is currently disabled by the server!"
+  invalid_egg: "&cEgg data not found for this egg type!"
+  empty_loot: "&cThis egg does not have any pets configured to hatch!"
+  invalid_rates: "&cThis egg does not have valid drop rates configured!"
+  duplicate_reward: "&e[IpsecuzPet] You already own this pet! Automatically converted to Pet Shards and EXP."
+  full_storage_reward: "&e[Pet Storage Full] You reached the pet limit! Converted reward to Pet Shards."
+  success: "&a&lCONGRATULATIONS! &fYou hatched: %pet% &7(Rarity: %rarity%&7, Trait: %trait%&7)"
+  broadcast: "&6&l[IPSECUZ PET] &ePlayer &f%player% &ejust hatched a %rarity% &e%pet%&e!"
+
 help:
   header: "&8&m------------------------"
   title: " &#00aaff✦ &#fb00ffIPSECUZ PETS &#00aaff✦"
@@ -225,3 +254,4 @@ requirement:
   transaction_failed: "&cRequirement transaction failed! Resources refunded."
   not_enough: "&cMissing: &e%missing% &7(Required: &e%required%&7, Current: &e%current%&7)"
   ready: "&a&l✔ REQUIREMENTS MET"
+

@@ -23,8 +23,7 @@ public class ModelEngineProvider implements ModelProvider {
     private final IpsecuzPet plugin;
     private final Map<UUID, ModeledEntity> activeEntities = new ConcurrentHashMap<>();
     private final Map<UUID, ActiveModel> activeModels = new ConcurrentHashMap<>();
-    private final Map<UUID, PetAnimationState> currentStates = new ConcurrentHashMap<>();
-    private final Map<UUID, Long> stateExpirationMs = new ConcurrentHashMap<>();
+    private final Map<UUID, String> activeModelIds = new ConcurrentHashMap<>();
     private final Map<String, Long> lastErrorLogTime = new ConcurrentHashMap<>();
     private Boolean availableCache = null;
 
@@ -86,6 +85,7 @@ public class ModelEngineProvider implements ModelProvider {
 
             activeEntities.put(pet.getUniqueId(), modeledEntity);
             activeModels.put(pet.getUniqueId(), activeModel);
+            activeModelIds.put(pet.getUniqueId(), modelId);
 
             playTransientAnimation(pet, PetAnimationState.SPAWN, 25L, PetAnimationState.IDLE);
             return true;
@@ -108,29 +108,44 @@ public class ModelEngineProvider implements ModelProvider {
     @Override
     public void remove(UUID entityUuid) {
         if (entityUuid == null) return;
-        currentStates.remove(entityUuid);
-        stateExpirationMs.remove(entityUuid);
         activeModels.remove(entityUuid);
-        activeEntities.remove(entityUuid);
+        String modelId = activeModelIds.remove(entityUuid);
+        ModeledEntity modeledEntity = activeEntities.remove(entityUuid);
 
-        if (isAvailable()) {
+        if (isAvailable() && modeledEntity != null) {
             try {
-                ModelEngineAPI.removeModeledEntity(entityUuid);
-            } catch (Throwable ignored) {}
+                if (modelId != null) {
+                    modeledEntity.removeModel(modelId);
+                }
+                if (modeledEntity.getModels().isEmpty()) {
+                    ModelEngineAPI.removeModeledEntity(entityUuid);
+                }
+            } catch (Throwable t) {
+                logThrottledError("remove", t);
+            }
         }
     }
 
     @Override
     public void removeAll() {
-        currentStates.clear();
-        stateExpirationMs.clear();
-        for (UUID uuid : activeEntities.keySet()) {
-            if (isAvailable()) {
+        for (Map.Entry<UUID, ModeledEntity> entry : activeEntities.entrySet()) {
+            UUID uuid = entry.getKey();
+            ModeledEntity me = entry.getValue();
+            String mId = activeModelIds.get(uuid);
+            if (isAvailable() && me != null) {
                 try {
-                    ModelEngineAPI.removeModeledEntity(uuid);
-                } catch (Throwable ignored) {}
+                    if (mId != null) {
+                        me.removeModel(mId);
+                    }
+                    if (me.getModels().isEmpty()) {
+                        ModelEngineAPI.removeModeledEntity(uuid);
+                    }
+                } catch (Throwable t) {
+                    logThrottledError("removeAll", t);
+                }
             }
         }
+        activeModelIds.clear();
         activeModels.clear();
         activeEntities.clear();
     }
@@ -156,51 +171,39 @@ public class ModelEngineProvider implements ModelProvider {
     }
 
     @Override
-    public void playAnimation(Entity pet, PetAnimationState state) {
-        if (!isAvailable() || pet == null || state == null) return;
-        UUID uuid = pet.getUniqueId();
+    public void renderRawAnimation(Entity pet, String animationName, PetAnimationState state) {
+        if (!isAvailable() || pet == null || animationName == null) return;
+        ActiveModel model = activeModels.get(pet.getUniqueId());
+        if (model == null || model.isDestroyed()) return;
 
-        PetAnimationState current = currentStates.get(uuid);
-        Long expire = stateExpirationMs.get(uuid);
-        if (expire != null && System.currentTimeMillis() < expire) {
-            if (current != null && current.getPriority() > state.getPriority()) {
-                return;
+        try {
+            AnimationHandler handler = model.getAnimationHandler();
+            if (handler != null) {
+                handler.playAnimation(animationName, 0.25, 0.25, 1.0, true);
             }
+        } catch (Throwable t) {
+            logThrottledError("renderRawAnimation", t);
         }
+    }
 
-        if (current == state) {
-            return;
+    @Override
+    public void playAnimation(Entity pet, PetAnimationState state) {
+        if (pet == null || state == null) return;
+        if (plugin.getModelProviderManager() != null && plugin.getModelProviderManager().getAnimationController() != null) {
+            plugin.getModelProviderManager().getAnimationController().requestAnimation(pet, state);
+        } else {
+            renderRawAnimation(pet, resolveModelEngineAnimationName(state), state);
         }
-
-        currentStates.put(uuid, state);
-        executeAnimation(uuid, state, false);
     }
 
     @Override
     public void playTransientAnimation(Entity pet, PetAnimationState state, long durationTicks, PetAnimationState returnState) {
-        if (!isAvailable() || pet == null || state == null) return;
-        UUID uuid = pet.getUniqueId();
-
-        PetAnimationState current = currentStates.get(uuid);
-        Long expire = stateExpirationMs.get(uuid);
-        if (expire != null && System.currentTimeMillis() < expire) {
-            if (current != null && current.getPriority() > state.getPriority()) {
-                return;
-            }
+        if (pet == null || state == null) return;
+        if (plugin.getModelProviderManager() != null && plugin.getModelProviderManager().getAnimationController() != null) {
+            plugin.getModelProviderManager().getAnimationController().requestTransientAnimation(pet, state, durationTicks, returnState);
+        } else {
+            renderRawAnimation(pet, resolveModelEngineAnimationName(state), state);
         }
-
-        currentStates.put(uuid, state);
-        long targetExpiry = System.currentTimeMillis() + (durationTicks * 50L);
-        stateExpirationMs.put(uuid, targetExpiry);
-        executeAnimation(uuid, state, true);
-
-        SchedulerUtils.runEntityTaskLater(plugin, pet, () -> {
-            if (!pet.isValid()) return;
-            if (currentStates.get(uuid) == state && System.currentTimeMillis() >= stateExpirationMs.getOrDefault(uuid, 0L) - 50L) {
-                stateExpirationMs.remove(uuid);
-                playAnimation(pet, returnState != null ? returnState : PetAnimationState.IDLE);
-            }
-        }, durationTicks);
     }
 
     @Override
@@ -213,7 +216,9 @@ public class ModelEngineProvider implements ModelProvider {
                 if (handler != null) {
                     handler.forceStopAllAnimations();
                 }
-            } catch (Throwable ignored) {}
+            } catch (Throwable t) {
+                logThrottledError("stopAnimation", t);
+            }
         }
     }
 

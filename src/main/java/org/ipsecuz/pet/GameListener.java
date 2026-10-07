@@ -22,6 +22,7 @@ import org.bukkit.persistence.PersistentDataType;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.logging.Level;
 
 public class GameListener implements Listener {
     private final IpsecuzPet plugin;
@@ -97,23 +98,34 @@ public class GameListener implements Listener {
                     return;
                 }
 
-                // Tiêu hao vật phẩm thành công trước khi ghi nhận pet (Transactional consume)
-                item.setAmount(item.getAmount() - 1);
+                // Giao dịch kích hoạt thẻ an toàn (Transactional Redeem):
+                // Chỉ trừ thẻ khi chắc chắn lưu trữ hồ sơ Pet thành công; nếu lỗi sẽ rollback và bảo toàn thẻ
+                try {
+                    plugin.getConfigManager().savePetProfile(
+                            p.getUniqueId(), petId,
+                            cardData.getLevel(), cardData.getExp(), cardData.getStars(),
+                            cardData.getTrait(), cardData.getCustomName(), cardData.getUnlockedSkills(),
+                            true // Ghi đĩa bền vững ngay lập tức (Durable write)
+                    );
 
-                if (cardUuid != null) {
-                    PetCardSecurity.markCardConsumed(plugin, cardUuid); // Lưu ngay đĩa cứng trước
+                    if (cardUuid != null) {
+                        PetCardSecurity.markCardConsumed(plugin, cardUuid); // Ghi nhận thẻ đã dùng bền vững
+                    }
+
+                    // Khấu trừ vật phẩm thẻ từ tay người chơi sau khi dữ liệu đã được xác nhận an toàn
+                    item.setAmount(item.getAmount() - 1);
+
+                    plugin.getCodexManager().discover(p.getUniqueId(), petId);
+                    p.sendMessage(lang.getMessage("pet.redeem_success", "%pet_id%", petId));
+                    p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
+                } catch (Exception ex) {
+                    // Rollback hồ sơ Pet nếu có lỗi xảy ra
+                    plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId, null);
+                    plugin.getConfigManager().saveData();
+                    plugin.getLogger().log(Level.SEVERE, "Lỗi xảy ra trong quá trình kích hoạt thẻ Pet của " + p.getName(), ex);
+                    p.sendMessage("§c§l[LỖI GIAO DỊCH] §cKhông thể kích hoạt thẻ Pet do lỗi lưu trữ! Thẻ vẫn được giữ nguyên trong túi.");
+                    p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                 }
-
-                plugin.getConfigManager().savePetProfile(
-                        p.getUniqueId(), petId,
-                        cardData.getLevel(), cardData.getExp(), cardData.getStars(),
-                        cardData.getTrait(), cardData.getCustomName(), cardData.getUnlockedSkills(),
-                        true // Ghi đĩa bền vững ngay lập tức (Durable write)
-                );
-
-                plugin.getCodexManager().discover(p.getUniqueId(), petId);
-                p.sendMessage(lang.getMessage("pet.redeem_success", "%pet_id%", petId));
-                p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
             }
         }
     }
@@ -333,7 +345,10 @@ public class GameListener implements Listener {
                 }
             }
 
-            if (e.getDamager() instanceof Monster) {
+            boolean isMonsterAttack = e.getDamager() instanceof Monster
+                    || (e.getDamager() instanceof org.bukkit.entity.Projectile proj && proj.getShooter() instanceof Monster);
+
+            if (isMonsterAttack) {
                 double reduction = plugin.getSkillManager().getDamageReductionPercent(owner);
                 if (reduction > 0) {
                     e.setDamage(e.getDamage() * (1.0 - (reduction / 100.0)));
@@ -606,6 +621,22 @@ public class GameListener implements Listener {
     @EventHandler
     public void onPlayerKick(org.bukkit.event.player.PlayerKickEvent e) {
         handleDisconnect(e.getPlayer());
+    }
+
+    @EventHandler
+    public void onPetExplosionPrime(org.bukkit.event.entity.ExplosionPrimeEvent e) {
+        if (isPet(e.getEntity())) {
+            e.setCancelled(true);
+            e.setRadius(0f);
+        }
+    }
+
+    @EventHandler
+    public void onPetExplode(org.bukkit.event.entity.EntityExplodeEvent e) {
+        if (isPet(e.getEntity())) {
+            e.setCancelled(true);
+            e.blockList().clear();
+        }
     }
 
     @EventHandler

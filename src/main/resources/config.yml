@@ -942,3 +942,7 @@ capture_system:
       # Để BLACKLIST mà danh sách trống -> Nghĩa là không cấm con nào -> Bắt all
       mode: BLACKLIST
       types: []
+
+shards:
+  fuse_required: 50
+  required_shards: 50

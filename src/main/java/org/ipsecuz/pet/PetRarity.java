@@ -8,14 +8,14 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 
 public enum PetRarity {
-    COMMON("Phổ Thông", "&aPhổ Thông", NamedTextColor.GREEN, ChatColor.GREEN, 1, 100, Sound.BLOCK_NOTE_BLOCK_BELL, Particle.VILLAGER_HAPPY),
-    UNCOMMON("Đặc Biệt", "&bĐặc Biệt", NamedTextColor.AQUA, ChatColor.AQUA, 2, 70, Sound.BLOCK_NOTE_BLOCK_CHIME, Particle.CRIT),
-    RARE("Hiếm", "&9Hiếm", NamedTextColor.BLUE, ChatColor.BLUE, 5, 40, Sound.BLOCK_AMETHYST_BLOCK_CHIME, Particle.ENCHANTMENT_TABLE),
-    EPIC("Sử Thi", "&d§lSử Thi", NamedTextColor.LIGHT_PURPLE, ChatColor.LIGHT_PURPLE, 10, 20, Sound.ENTITY_PLAYER_LEVELUP, Particle.SPELL_WITCH),
-    LEGENDARY("Thần Thoại", "&6§lThần Thoại", NamedTextColor.GOLD, ChatColor.GOLD, 25, 10, Sound.UI_TOAST_CHALLENGE_COMPLETE, Particle.TOTEM),
-    MYTHIC("Huyền Thoại", "&c§lHuyền Thoại", NamedTextColor.RED, ChatColor.RED, 50, 4, Sound.ENTITY_ENDER_DRAGON_GROWL, Particle.DRAGON_BREATH),
-    SECRET("Bí Mật", "&8§l✦ BÍ MẬT ✦", NamedTextColor.DARK_GRAY, ChatColor.DARK_GRAY, 100, 2, Sound.ENTITY_WITHER_SPAWN, Particle.PORTAL),
-    ETERNAL("Vĩnh Cửu", "&e§l★ VĨNH CỬU ★", TextColor.color(0xFFD700), ChatColor.YELLOW, 200, 1, Sound.UI_TOAST_CHALLENGE_COMPLETE, Particle.FLASH);
+    COMMON("Common", "&aCommon", NamedTextColor.GREEN, ChatColor.GREEN, 1, 100, Sound.BLOCK_NOTE_BLOCK_BELL, Particle.VILLAGER_HAPPY),
+    UNCOMMON("Uncommon", "&bUncommon", NamedTextColor.AQUA, ChatColor.AQUA, 2, 70, Sound.BLOCK_NOTE_BLOCK_CHIME, Particle.CRIT),
+    RARE("Rare", "&9Rare", NamedTextColor.BLUE, ChatColor.BLUE, 5, 40, Sound.BLOCK_AMETHYST_BLOCK_CHIME, Particle.ENCHANTMENT_TABLE),
+    EPIC("Epic", "&d§lEpic", NamedTextColor.LIGHT_PURPLE, ChatColor.LIGHT_PURPLE, 10, 20, Sound.ENTITY_PLAYER_LEVELUP, Particle.SPELL_WITCH),
+    LEGENDARY("Legendary", "&6§lLegendary", NamedTextColor.GOLD, ChatColor.GOLD, 25, 10, Sound.UI_TOAST_CHALLENGE_COMPLETE, Particle.TOTEM),
+    MYTHIC("Mythic", "&c§lMythic", NamedTextColor.RED, ChatColor.RED, 50, 4, Sound.ENTITY_ENDER_DRAGON_GROWL, Particle.DRAGON_BREATH),
+    SECRET("Secret", "&8§l✦ SECRET ✦", NamedTextColor.DARK_GRAY, ChatColor.DARK_GRAY, 100, 2, Sound.ENTITY_WITHER_SPAWN, Particle.PORTAL),
+    ETERNAL("Eternal", "&e§l★ ETERNAL ★", TextColor.color(0xFFD700), ChatColor.YELLOW, 200, 1, Sound.UI_TOAST_CHALLENGE_COMPLETE, Particle.FLASH);
 
     private final String rawName;
     private final String formattedName;
@@ -55,7 +55,8 @@ public enum PetRarity {
             String key = "rarity." + name().toLowerCase();
             String localized = plugin.getLanguage().getMessage(key);
             if (localized != null && !localized.startsWith("§cMissing")) {
-                return chatColor + localized;
+                boolean bold = (this == EPIC || this == LEGENDARY || this == MYTHIC || this == SECRET || this == ETERNAL);
+                return (bold ? chatColor + "§l" : chatColor.toString()) + localized;
             }
         }
         return getFormattedName();

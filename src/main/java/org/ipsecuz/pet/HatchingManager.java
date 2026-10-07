@@ -283,21 +283,25 @@ public class HatchingManager {
     }
 
     public void processHatch(Player player, String eggId, ItemStack consumedItem) {
+        LanguageManager lang = plugin.getLanguage();
         if (!plugin.getModuleManager().isHatchingEnabled()) {
-            player.sendMessage("§cTính năng Ấp Trứng & Quay Pet hiện đang bị tắt bởi máy chủ!");
+            String msg = lang != null ? lang.getMessage("hatching.disabled") : null;
+            player.sendMessage(msg != null ? msg : "§cTính năng Ấp Trứng & Quay Pet hiện đang bị tắt bởi máy chủ!");
             return;
         }
 
         FileConfiguration config = plugin.getModuleManager().getHatchingConfig();
         ConfigurationSection eggSec = config.getConfigurationSection("eggs." + eggId);
         if (eggSec == null) {
-            player.sendMessage("§cKhông tìm thấy dữ liệu cho loại trứng này!");
+            String msg = lang != null ? lang.getMessage("hatching.invalid_egg") : null;
+            player.sendMessage(msg != null ? msg : "§cKhông tìm thấy dữ liệu cho loại trứng này!");
             return;
         }
 
         ConfigurationSection lootTable = eggSec.getConfigurationSection("loot_table");
         if (lootTable == null || lootTable.getKeys(false).isEmpty()) {
-            player.sendMessage("§cTrứng này chưa được thiết lập danh sách pet có thể nở!");
+            String msg = lang != null ? lang.getMessage("hatching.empty_loot") : null;
+            player.sendMessage(msg != null ? msg : "§cTrứng này chưa được thiết lập danh sách pet có thể nở!");
             return;
         }
 
@@ -313,7 +317,8 @@ public class HatchingManager {
         }
 
         if (totalWeight <= 0 || candidatePetIds.isEmpty()) {
-            player.sendMessage("§cTrứng này chưa có tỉ lệ rớt hợp lệ!");
+            String msg = lang != null ? lang.getMessage("hatching.invalid_rates") : null;
+            player.sendMessage(msg != null ? msg : "§cTrứng này chưa có tỉ lệ rớt hợp lệ!");
             return;
         }
 
@@ -528,13 +533,26 @@ public class HatchingManager {
 
     public void completeHatchReward(UUID playerUuid, String winningPetId, boolean showTitleAndEffects) {
         PendingHatchSession session = pendingHatchSessions.get(playerUuid);
-        if (session != null) {
-            if (!session.markCommitted()) return; // Đã commit trước đó, chặn duplicate reward tuyệt đối!
-            pendingHatchSessions.remove(playerUuid);
+        if (session == null) {
+            String path = "pending_hatch." + playerUuid;
+            if (plugin.getConfigManager().getData().contains(path)) {
+                String eggId = plugin.getConfigManager().getData().getString(path + ".egg_id");
+                String winPet = plugin.getConfigManager().getData().getString(path + ".winning_pet_id");
+                session = new PendingHatchSession(playerUuid, eggId, winPet != null ? winPet : winningPetId);
+                pendingHatchSessions.put(playerUuid, session);
+            }
         }
+
+        // Strict verification: Reject reward if session is null or already committed/completed!
+        if (session == null || !session.markCommitted()) {
+            return;
+        }
+
+        pendingHatchSessions.remove(playerUuid);
         plugin.getConfigManager().getData().set("pending_hatch." + playerUuid, null);
         plugin.getConfigManager().forceSave();
 
+        LanguageManager lang = plugin.getLanguage();
         Player player = Bukkit.getPlayer(playerUuid);
         String petDisplayName = plugin.getConfig().getString("pets." + winningPetId + ".name", winningPetId);
         PetRarity rarity = PetRarity.fromPetId(plugin, winningPetId);
@@ -543,13 +561,15 @@ public class HatchingManager {
             // ĐÃ SỞ HỮU TRƯỚC ĐÓ -> CHUYỂN ĐỔI THÀNH MẢNH SHARDS & EXP
             plugin.getShardManager().processDuplicateReward(playerUuid, winningPetId);
             if (player != null && player.isOnline()) {
-                player.sendMessage("§e[IpsecuzPet] Bạn đã sở hữu Pet này! Đã tự động quy đổi thành Mảnh Pet và Kinh Nghiệm.");
+                String dupMsg = lang != null ? lang.getMessage("hatching.duplicate_reward") : null;
+                player.sendMessage(dupMsg != null ? dupMsg : "§e[IpsecuzPet] Bạn đã sở hữu Pet này! Đã tự động quy đổi thành Mảnh Pet và Kinh Nghiệm.");
             }
         } else if (!plugin.getOwnershipManager().canAcquirePet(playerUuid)) {
             // ĐÃ ĐẦY KHO PET TẠI THỜI ĐIỂM COMMIT -> CHUYỂN ĐỔI AN TOÀN SANG MẢNH SHARDS & EXP
             plugin.getShardManager().processDuplicateReward(playerUuid, winningPetId);
             if (player != null && player.isOnline()) {
-                player.sendMessage("§e[Kho Thú Cưng Đã Đầy] Bạn đã đạt giới hạn tối đa số Pet, phần thưởng được chuyển thành Mảnh Pet!");
+                String fullMsg = lang != null ? lang.getMessage("hatching.full_storage_reward") : null;
+                player.sendMessage(fullMsg != null ? fullMsg : "§e[Kho Thú Cưng Đã Đầy] Bạn đã đạt giới hạn tối đa số Pet, phần thưởng được chuyển thành Mảnh Pet!");
             }
         } else {
             // PET MỚI -> TẠO DỮ LIỆU, ROLL TRAIT VÀ LƯU CODEX
@@ -561,7 +581,8 @@ public class HatchingManager {
             plugin.getCodexManager().discover(playerUuid, winningPetId);
 
             if (player != null && player.isOnline()) {
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                String winMsg = lang != null ? lang.getMessage("hatching.success", "%pet%", petDisplayName, "%rarity%", rarity.getFormattedName(), "%trait%", trait.getFormattedName()) : null;
+                player.sendMessage(winMsg != null ? winMsg : ChatColor.translateAlternateColorCodes('&',
                         "§a§lCHÚC MỪNG! §fBạn vừa ấp nở thành công Pet: " + petDisplayName +
                                 " §7(Độ hiếm: " + rarity.getFormattedName() + "§7, Đặc chất: " + trait.getFormattedName() + "§7)"));
             }
@@ -571,9 +592,14 @@ public class HatchingManager {
                 String pName = (player != null && player.isOnline()) ? player.getName() : Bukkit.getOfflinePlayer(playerUuid).getName();
                 if (pName == null) pName = "Người chơi";
                 String cleanPetName = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', petDisplayName));
-                Bukkit.broadcast(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&',
-                        "&6&l[IPSECUZ PET] &eNgười chơi &f" + pName + " &evừa ấp nở thành công Pet " +
-                                rarity.getFormattedName() + " &e" + cleanPetName + "&e!")));
+                String bcastMsg = lang != null ? lang.getMessage("hatching.broadcast", "%player%", pName, "%rarity%", rarity.getFormattedName(), "%pet%", cleanPetName) : null;
+                if (bcastMsg != null) {
+                    Bukkit.broadcast(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', bcastMsg)));
+                } else {
+                    Bukkit.broadcast(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&',
+                            "&6&l[IPSECUZ PET] &eNgười chơi &f" + pName + " &evừa ấp nở thành công Pet " +
+                                    rarity.getFormattedName() + " &e" + cleanPetName + "&e!")));
+                }
             }
         }
 

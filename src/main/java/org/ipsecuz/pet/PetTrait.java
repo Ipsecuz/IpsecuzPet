@@ -5,13 +5,13 @@ import org.bukkit.ChatColor;
 import java.util.concurrent.ThreadLocalRandom;
 
 public enum PetTrait {
-    NONE("Bình Thường", "&7Bình Thường", 1.0, 1.0, 1.0, 1.0, 1.0),
-    SAVAGE("Hung Tợn", "&c⚔ Hung Tợn", 1.0, 1.15, 1.0, 1.0, 1.0),
-    GUARDIAN("Hộ Vệ", "&9🛡 Hộ Vệ", 1.0, 1.0, 1.20, 1.0, 1.0),
-    SWIFT("Nhanh Nhẹn", "&b⚡ Nhanh Nhẹn", 1.0, 1.0, 1.0, 1.15, 1.0),
-    VITAL("Sức Sống", "&a❤ Sức Sống", 1.20, 1.0, 1.0, 1.0, 1.0),
-    TITAN("Khổng Lồ", "&6★ Thần Lực", 1.15, 1.10, 1.15, 0.95, 1.0),
-    SCHOLAR("Thông Thái", "&d✦ Thông Thái", 1.0, 1.0, 1.0, 1.0, 1.25);
+    NONE("Normal", "&7Normal", 1.0, 1.0, 1.0, 1.0, 1.0),
+    SAVAGE("Savage", "&c⚔ Savage", 1.0, 1.15, 1.0, 1.0, 1.0),
+    GUARDIAN("Guardian", "&9🛡 Guardian", 1.0, 1.0, 1.20, 1.0, 1.0),
+    SWIFT("Swift", "&b⚡ Swift", 1.0, 1.0, 1.0, 1.15, 1.0),
+    VITAL("Vital", "&a❤ Vital", 1.20, 1.0, 1.0, 1.0, 1.0),
+    TITAN("Titan", "&6★ Titan", 1.15, 1.10, 1.15, 0.95, 1.0),
+    SCHOLAR("Scholar", "&d✦ Scholar", 1.0, 1.0, 1.0, 1.0, 1.25);
 
     private final String rawName;
     private final String formattedName;
@@ -39,13 +39,32 @@ public enum PetTrait {
     public double getSpeedMultiplier() { return speedMultiplier; }
     public double getExpMultiplier() { return expMultiplier; }
 
+    public String getLocalizedName(IpsecuzPet plugin) {
+        if (plugin != null && plugin.getLanguage() != null) {
+            String val = plugin.getLanguage().getMessage("trait." + name().toLowerCase());
+            if (val != null && !val.startsWith("§cMissing")) {
+                return val;
+            }
+        }
+        return getFormattedName();
+    }
+
     public static PetTrait fromString(String name) {
         if (name == null || name.trim().isEmpty()) return NONE;
+        String clean = name.trim();
         for (PetTrait t : values()) {
-            if (t.name().equalsIgnoreCase(name) || t.rawName.equalsIgnoreCase(name)) {
+            if (t.name().equalsIgnoreCase(clean) || t.rawName.equalsIgnoreCase(clean)) {
                 return t;
             }
         }
+        if (clean.equalsIgnoreCase("Hung Tợn") || clean.equalsIgnoreCase("Hung Bạo")) return SAVAGE;
+        if (clean.equalsIgnoreCase("Hộ Vệ")) return GUARDIAN;
+        if (clean.equalsIgnoreCase("Nhanh Nhẹn")) return SWIFT;
+        if (clean.equalsIgnoreCase("Sức Sống")) return VITAL;
+        if (clean.equalsIgnoreCase("Khổng Lồ") || clean.equalsIgnoreCase("Thần Lực")) return TITAN;
+        if (clean.equalsIgnoreCase("Thông Thái")) return SCHOLAR;
+        if (clean.equalsIgnoreCase("Bình Thường")) return NONE;
+
         return NONE;
     }
 

@@ -81,34 +81,15 @@ public class FeedingManager {
     }
 
     public double getExpMultiplier(int happiness) {
-        if (!plugin.getModuleManager().isFeedingEnabled()) return 1.0;
-        FileConfiguration cfg = plugin.getModuleManager().getFeedingConfig();
-        int bonusThreshold = cfg.getInt("bonus_threshold", 80);
-        int penaltyThreshold = cfg.getInt("penalty_threshold", 20);
-        if (happiness >= bonusThreshold) {
-            return cfg.getDouble("bonus_exp_multiplier", 1.25);
-        } else if (happiness < penaltyThreshold) {
-            return cfg.getDouble("penalty_exp_multiplier", 0.75);
+        if (plugin.getHappinessModifierEngine() != null) {
+            return plugin.getHappinessModifierEngine().getExpMultiplier(happiness);
         }
         return 1.0;
     }
 
     public double getStatMultiplier(int happiness, String statName) {
-        if (!plugin.getModuleManager().isFeedingEnabled()) return 1.0;
-        FileConfiguration cfg = plugin.getModuleManager().getFeedingConfig();
-        int bonusThreshold = cfg.getInt("bonus_threshold", 80);
-        int penaltyThreshold = cfg.getInt("penalty_threshold", 20);
-
-        if (happiness >= bonusThreshold) {
-            if ("speed".equalsIgnoreCase(statName)) {
-                return cfg.getDouble("bonus_speed_multiplier", 1.15);
-            }
-            return cfg.getDouble("bonus_stat_multiplier", 1.10);
-        } else if (happiness < penaltyThreshold) {
-            if ("speed".equalsIgnoreCase(statName)) {
-                return cfg.getDouble("penalty_speed_multiplier", 0.85);
-            }
-            return cfg.getDouble("penalty_stat_multiplier", 0.90);
+        if (plugin.getHappinessModifierEngine() != null) {
+            return plugin.getHappinessModifierEngine().getStatMultiplier(happiness, statName);
         }
         return 1.0;
     }

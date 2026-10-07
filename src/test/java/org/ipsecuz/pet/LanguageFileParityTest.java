@@ -93,4 +93,46 @@ public class LanguageFileParityTest {
             assertTrue(enConfig.contains(key), "EN.yml missing key: " + key);
         }
     }
+
+    @Test
+    @DisplayName("Verify all getMessage keys referenced in Java sources exist in language files")
+    public void testJavaSourceKeysPresentInLanguageFiles() throws Exception {
+        InputStream vnStream = getClass().getClassLoader().getResourceAsStream("languages/VN.yml");
+        assertNotNull(vnStream);
+        YamlConfiguration vnConfig = YamlConfiguration.loadConfiguration(new InputStreamReader(vnStream, StandardCharsets.UTF_8));
+
+        File srcDir = new File("src/main/java");
+        if (!srcDir.exists()) return;
+
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(?:getMessage|getMessageList|getRaw)\\(\"([^\"]+)\"");
+        Set<String> referencedKeys = new HashSet<>();
+
+        java.nio.file.Files.walk(srcDir.toPath())
+                .filter(p -> p.toString().endsWith(".java"))
+                // Ignore the requirement package as per instructions
+                .filter(p -> !p.toString().contains("requirement"))
+                .forEach(p -> {
+                    try {
+                        String content = java.nio.file.Files.readString(p);
+                        java.util.regex.Matcher m = pattern.matcher(content);
+                        while (m.find()) {
+                            referencedKeys.add(m.group(1));
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+
+        Set<String> missing = new HashSet<>();
+        for (String key : referencedKeys) {
+            if (key.endsWith(".")) {
+                continue;
+            }
+            if (!vnConfig.contains(key)) {
+                missing.add(key);
+            }
+        }
+
+        assertTrue(missing.isEmpty(), "The following keys referenced in code are missing in VN.yml: " + missing);
+    }
 }

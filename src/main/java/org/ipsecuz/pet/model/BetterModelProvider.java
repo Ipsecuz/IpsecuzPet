@@ -13,6 +13,7 @@ import org.ipsecuz.pet.PetAnimationState;
 import org.ipsecuz.pet.SchedulerUtils;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -23,8 +24,7 @@ public class BetterModelProvider implements ModelProvider {
 
     private final IpsecuzPet plugin;
     private final Map<UUID, EntityTracker> activeTrackers = new ConcurrentHashMap<>();
-    private final Map<UUID, PetAnimationState> currentStates = new ConcurrentHashMap<>();
-    private final Map<UUID, Long> stateExpirationMs = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<UUID>> entityViewers = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastVisibilityCheck = new ConcurrentHashMap<>();
     private final Map<String, Long> lastErrorLogTime = new ConcurrentHashMap<>();
     private Boolean availableCache = null;
@@ -103,27 +103,29 @@ public class BetterModelProvider implements ModelProvider {
     @Override
     public void remove(UUID entityUuid) {
         if (entityUuid == null) return;
-        currentStates.remove(entityUuid);
-        stateExpirationMs.remove(entityUuid);
         lastVisibilityCheck.remove(entityUuid);
+        entityViewers.remove(entityUuid);
         EntityTracker tracker = activeTrackers.remove(entityUuid);
         if (tracker != null && !tracker.isClosed()) {
             try {
                 tracker.close();
-            } catch (Throwable ignored) {}
+            } catch (Throwable t) {
+                logThrottledError("tracker.close", t);
+            }
         }
     }
 
     @Override
     public void removeAll() {
-        currentStates.clear();
-        stateExpirationMs.clear();
         lastVisibilityCheck.clear();
+        entityViewers.clear();
         for (EntityTracker tracker : activeTrackers.values()) {
             if (tracker != null && !tracker.isClosed()) {
                 try {
                     tracker.close();
-                } catch (Throwable ignored) {}
+                } catch (Throwable t) {
+                    logThrottledError("tracker.closeAll", t);
+                }
             }
         }
         activeTrackers.clear();
@@ -174,70 +176,73 @@ public class BetterModelProvider implements ModelProvider {
             Location petLoc = pet.getLocation();
             double maxDistSq = 48.0 * 48.0;
 
+            Set<UUID> currentNearby = new HashSet<>();
             for (Player p : pet.getWorld().getNearbyPlayers(petLoc, 48.0)) {
-                if (!p.isOnline()) continue;
-                double distSq = p.getLocation().distanceSquared(petLoc);
-                if (distSq <= maxDistSq) {
-                    if (tracker.isHide(p)) {
+                if (p.isOnline() && p.getLocation().distanceSquared(petLoc) <= maxDistSq) {
+                    currentNearby.add(p.getUniqueId());
+                }
+            }
+
+            Set<UUID> previous = entityViewers.computeIfAbsent(uuid, k -> ConcurrentHashMap.newKeySet());
+
+            // Show new viewers: currentNearby - previous
+            for (UUID pId : currentNearby) {
+                if (!previous.contains(pId)) {
+                    Player p = Bukkit.getPlayer(pId);
+                    if (p != null && p.isOnline()) {
                         tracker.show(p);
                     }
-                } else {
-                    if (!tracker.isHide(p)) {
+                }
+            }
+
+            // Hide removed viewers: previous - currentNearby
+            for (UUID oldId : previous) {
+                if (!currentNearby.contains(oldId)) {
+                    Player p = Bukkit.getPlayer(oldId);
+                    if (p != null && p.isOnline()) {
                         tracker.hide(p);
                     }
                 }
             }
+
+            previous.clear();
+            previous.addAll(currentNearby);
         } catch (Throwable t) {
             logThrottledError("updateMultiplayerVisibility", t);
         }
     }
 
     @Override
-    public void playAnimation(Entity pet, PetAnimationState state) {
-        if (!isAvailable() || pet == null || state == null) return;
-        UUID uuid = pet.getUniqueId();
-
-        PetAnimationState current = currentStates.get(uuid);
-        Long expire = stateExpirationMs.get(uuid);
-        if (expire != null && System.currentTimeMillis() < expire) {
-            if (current != null && current.getPriority() > state.getPriority()) {
-                return;
+    public void renderRawAnimation(Entity pet, String animationName, PetAnimationState state) {
+        if (!isAvailable() || pet == null || animationName == null) return;
+        EntityTracker tracker = activeTrackers.get(pet.getUniqueId());
+        if (tracker != null && !tracker.isClosed()) {
+            try {
+                tracker.animate(animationName);
+            } catch (Throwable t) {
+                logThrottledError("renderRawAnimation", t);
             }
         }
+    }
 
-        if (current == state) {
-            return;
+    @Override
+    public void playAnimation(Entity pet, PetAnimationState state) {
+        if (pet == null || state == null) return;
+        if (plugin.getModelProviderManager() != null && plugin.getModelProviderManager().getAnimationController() != null) {
+            plugin.getModelProviderManager().getAnimationController().requestAnimation(pet, state);
+        } else {
+            renderRawAnimation(pet, state.getPrimaryName(), state);
         }
-
-        currentStates.put(uuid, state);
-        executeAnimation(uuid, state);
     }
 
     @Override
     public void playTransientAnimation(Entity pet, PetAnimationState state, long durationTicks, PetAnimationState returnState) {
-        if (!isAvailable() || pet == null || state == null) return;
-        UUID uuid = pet.getUniqueId();
-
-        PetAnimationState current = currentStates.get(uuid);
-        Long expire = stateExpirationMs.get(uuid);
-        if (expire != null && System.currentTimeMillis() < expire) {
-            if (current != null && current.getPriority() > state.getPriority()) {
-                return;
-            }
+        if (pet == null || state == null) return;
+        if (plugin.getModelProviderManager() != null && plugin.getModelProviderManager().getAnimationController() != null) {
+            plugin.getModelProviderManager().getAnimationController().requestTransientAnimation(pet, state, durationTicks, returnState);
+        } else {
+            renderRawAnimation(pet, state.getPrimaryName(), state);
         }
-
-        currentStates.put(uuid, state);
-        long targetExpiry = System.currentTimeMillis() + (durationTicks * 50L);
-        stateExpirationMs.put(uuid, targetExpiry);
-        executeAnimation(uuid, state);
-
-        SchedulerUtils.runEntityTaskLater(plugin, pet, () -> {
-            if (!pet.isValid()) return;
-            if (currentStates.get(uuid) == state && System.currentTimeMillis() >= stateExpirationMs.getOrDefault(uuid, 0L) - 50L) {
-                stateExpirationMs.remove(uuid);
-                playAnimation(pet, returnState != null ? returnState : PetAnimationState.IDLE);
-            }
-        }, durationTicks);
     }
 
     @Override
@@ -247,7 +252,9 @@ public class BetterModelProvider implements ModelProvider {
         if (tracker != null && !tracker.isClosed()) {
             try {
                 tracker.animate("idle");
-            } catch (Throwable ignored) {}
+            } catch (Throwable t) {
+                logThrottledError("stopAnimation", t);
+            }
         }
     }
 
@@ -313,3 +320,4 @@ public class BetterModelProvider implements ModelProvider {
         }
     }
 }
+
