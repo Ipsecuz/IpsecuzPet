@@ -54,3 +54,4 @@ public class HappinessModifierEngineTest {
         assertEquals(0.90, config.getDouble("penalty_stat_multiplier"), 0.001);
     }
 }
+

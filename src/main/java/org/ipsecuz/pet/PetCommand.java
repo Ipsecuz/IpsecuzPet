@@ -61,9 +61,9 @@ public class PetCommand implements CommandExecutor {
                     return handleGiveEgg(sender, args, lang);
                 case "model":
                     if (args.length > 1 && args[1].equalsIgnoreCase("status")) {
-                        return handleModelStatus(sender, lang);
+                        return handleModelStatus(sender, args, lang);
                     }
-                    sender.sendMessage("§cUsage: /pet model status");
+                    sender.sendMessage("§cUsage: /pet model status [pet_id]");
                     return true;
             }
         }
@@ -108,9 +108,9 @@ public class PetCommand implements CommandExecutor {
 
             case "model":
                 if (args.length > 1 && args[1].equalsIgnoreCase("status")) {
-                    return handleModelStatus(p, lang);
+                    return handleModelStatus(p, args, lang);
                 }
-                p.sendMessage("§cUsage: /pet model status");
+                p.sendMessage("§cUsage: /pet model status [pet_id]");
                 break;
 
             case "shop":
@@ -367,7 +367,7 @@ public class PetCommand implements CommandExecutor {
         return true;
     }
 
-    private boolean handleModelStatus(CommandSender sender, LanguageManager lang) {
+    private boolean handleModelStatus(CommandSender sender, String[] args, LanguageManager lang) {
         if (!sender.hasPermission("ipsecuzpet.admin")) {
             sender.sendMessage(lang.getMessage("general.no_permission"));
             return true;
@@ -387,6 +387,19 @@ public class PetCommand implements CommandExecutor {
         sender.sendMessage(lang.getMessage("model.modelengine_label", "%status%", meStatus));
         sender.sendMessage(lang.getMessage("model.global_provider", "%provider%", globalProvider));
         sender.sendMessage(lang.getMessage("model.active_provider", "%provider%", activeProvider));
+
+        if (args != null && args.length > 2 && mm != null) {
+            String petId = args[2];
+            org.ipsecuz.pet.model.ResolvedModel adultModel = mm.resolveModel(petId, false);
+            org.ipsecuz.pet.model.ResolvedModel babyModel = mm.resolveModel(petId, true);
+            sender.sendMessage("§b✦ Phân tích Pet: §e" + petId);
+            sender.sendMessage("  §7- Cấu hình chỉ định: §f" + plugin.getConfig().getString("pets." + petId + ".model.provider", "Mặc định (Global)"));
+            sender.sendMessage("  §7- Dạng Trưởng thành: §a" + adultModel.getProvider() + " §7(ID: §f" + adultModel.getModelId() + "§7, Fallback: " + adultModel.isFallback() + ")");
+            sender.sendMessage("  §7- Dạng Bé con: §a" + babyModel.getProvider() + " §7(ID: §f" + babyModel.getModelId() + "§7, Fallback: " + babyModel.isFallback() + ")");
+        } else {
+            sender.sendMessage("§7Mẹo: Sử dụng §e/pet model status <pet_id> §7để kiểm tra chi tiết cấu hình của Pet.");
+        }
+
         sender.sendMessage(lang.getMessage("model.status_footer"));
         return true;
     }

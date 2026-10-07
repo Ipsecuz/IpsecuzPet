@@ -6,6 +6,7 @@ public class IpsecuzPet extends JavaPlugin {
 
     public static final int RESOURCE_ID = 130551;
     private static IpsecuzPet instance;
+    private static boolean metricsInitialized = false;
     private ConfigManager configManager;
     private PetManager petManager;
     private CurrencyManager currencyManager;
@@ -61,6 +62,7 @@ public class IpsecuzPet extends JavaPlugin {
         this.happinessModifierEngine = new HappinessModifierEngine(this);
         this.evolutionManager = new EvolutionManager(this);
         this.tradeManager = new TradeManager(this);
+        this.tradeManager.recoverPendingTrades();
 
         // 6. Nạp PetManager & CaptureManager
         this.petManager = new PetManager(this);
@@ -99,16 +101,17 @@ public class IpsecuzPet extends JavaPlugin {
                 getLogger().info("§a[IpsecuzPet] Bạn đang sử dụng phiên bản mới nhất (v" + this.getDescription().getVersion() + ").");
             }
         });
-        // 12. Tích hợp bStats Metrics (Plugin ID: 34551)
-        if (getConfig().getBoolean("metric", true)) {
+        // 12. Tích hợp bStats Metrics (Plugin ID: 34551) với singleton guard
+        if (getConfig().getBoolean("metric", true) && !metricsInitialized) {
             try {
                 org.bstats.bukkit.Metrics metrics = new org.bstats.bukkit.Metrics(this, 34551);
                 metrics.addCustomChart(new org.bstats.charts.SimplePie("language", () ->
-                        getConfig().getString("language", "VN").toUpperCase()));
+                        languageManager != null ? languageManager.getSelectedLanguage().toUpperCase() : "VN"));
                 metrics.addCustomChart(new org.bstats.charts.SimplePie("model_provider", () ->
                         modelHandler != null && modelHandler.getManager() != null ? modelHandler.getManager().getActiveProviderName() : "None"));
                 metrics.addCustomChart(new org.bstats.charts.SimplePie("renderer_availability", () ->
                         modelHandler != null && modelHandler.getManager() != null ? modelHandler.getManager().getAvailableRenderersSummary() : "None"));
+                metricsInitialized = true;
             } catch (Throwable t) {
                 getLogger().warning("§c[bStats] Không thể khởi tạo dịch vụ thống kê: " + t.getMessage());
             }

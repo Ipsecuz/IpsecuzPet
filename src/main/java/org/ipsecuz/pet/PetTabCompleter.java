@@ -104,6 +104,16 @@ public class PetTabCompleter implements TabCompleter {
                     return new ArrayList<>(plugin.getModuleManager().getHatchingConfig().getConfigurationSection("eggs").getKeys(false));
                 }
             }
+            if (args[0].equalsIgnoreCase("model") && args[1].equalsIgnoreCase("status") && sender.hasPermission("ipsecuzpet.admin")) {
+                if (plugin.getConfig().getConfigurationSection("pets") != null) {
+                    for (String key : plugin.getConfig().getConfigurationSection("pets").getKeys(false)) {
+                        if (key.toLowerCase().startsWith(args[2].toLowerCase())) {
+                            results.add(key);
+                        }
+                    }
+                }
+                return results;
+            }
         }
 
         return results;

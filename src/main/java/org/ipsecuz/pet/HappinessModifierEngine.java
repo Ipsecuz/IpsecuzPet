@@ -108,3 +108,4 @@ public class HappinessModifierEngine {
         return getStatMultiplier(happiness, "speed");
     }
 }
+

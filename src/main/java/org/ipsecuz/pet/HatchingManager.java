@@ -120,23 +120,43 @@ public class HatchingManager {
         }
     }
 
-    public void recordPendingHatch(UUID uuid, String eggId, String winningPetId) {
-        PendingHatchSession session = new PendingHatchSession(uuid, eggId, winningPetId);
+    public void persistPendingSession(PendingHatchSession session) {
+        if (session == null) return;
+        String path = "pending_hatch." + session.getPlayerUuid();
+        plugin.getConfigManager().getData().set(path + ".egg_id", session.getEggId());
+        plugin.getConfigManager().getData().set(path + ".winning_pet_id", session.getWinningPetId());
+        plugin.getConfigManager().getData().set(path + ".state", session.getState().name());
+        plugin.getConfigManager().getData().set(path + ".timestamp", session.getTimestamp());
+        plugin.getConfigManager().forceSave();
+    }
+
+    public void removePersistedPendingSession(UUID uuid) {
+        if (uuid == null) return;
+        plugin.getConfigManager().getData().set("pending_hatch." + uuid, null);
+        plugin.getConfigManager().forceSave();
+    }
+
+    public void recordPendingHatch(UUID uuid, String eggId, String winningPetId, HatchState state) {
+        PendingHatchSession session = new PendingHatchSession(uuid, eggId, winningPetId, state, System.currentTimeMillis());
         pendingHatchSessions.put(uuid, session);
-        String path = "pending_hatch." + uuid;
-        plugin.getConfigManager().getData().set(path + ".egg_id", eggId);
-        plugin.getConfigManager().getData().set(path + ".winning_pet_id", winningPetId);
-        plugin.getConfigManager().getData().set(path + ".state", HatchState.PENDING.name());
-        plugin.getConfigManager().getData().set(path + ".timestamp", System.currentTimeMillis());
-        plugin.getConfigManager().saveData();
+        persistPendingSession(session);
+    }
+
+    public void recordPendingHatch(UUID uuid, String eggId, String winningPetId) {
+        recordPendingHatch(uuid, eggId, winningPetId, HatchState.PENDING);
     }
 
     public void resolvePendingHatchOnJoin(Player player) {
         if (player == null) return;
         PendingHatchSession session = pendingHatchSessions.get(player.getUniqueId());
-        if (session != null && (session.getState() == HatchState.PENDING || session.getState() == HatchState.FAILED)) {
-            plugin.getLogger().info("§e[IpsecuzPet] Đang tự động trao thưởng ấp trứng chưa nhận cho: " + player.getName());
-            completeHatchReward(player.getUniqueId(), session.getWinningPetId(), true);
+        if (session != null) {
+            if (session.getState() == HatchState.PROCESSING) {
+                plugin.getLogger().info("§e[IpsecuzPet] Đang tự động trao thưởng ấp trứng chưa nhận cho: " + player.getName());
+                completeHatchReward(player.getUniqueId(), session.getWinningPetId(), true);
+            } else if (session.getState() == HatchState.PENDING || session.getState() == HatchState.FAILED) {
+                pendingHatchSessions.remove(player.getUniqueId());
+                removePersistedPendingSession(player.getUniqueId());
+            }
         }
     }
 
@@ -305,12 +325,18 @@ public class HatchingManager {
             return;
         }
 
-        // 1. Thu thập tỷ lệ loot table
+        // 1. Thu thập tỷ lệ loot table với LinkedHashMap và kiểm tra Pet ID hợp lệ
         int totalWeight = 0;
-        Map<String, Integer> weights = new HashMap<>();
+        LinkedHashMap<String, Integer> weights = new LinkedHashMap<>();
         List<String> candidatePetIds = new ArrayList<>();
         for (String pId : lootTable.getKeys(false)) {
-            int w = lootTable.getInt(pId, 1);
+            // Xác thực pet ID tồn tại trong hệ thống và không bị tắt
+            if (!plugin.getConfig().contains("pets." + pId)) continue;
+            if (!plugin.getConfig().getBoolean("pets." + pId + ".enabled", true)) continue;
+
+            int w = lootTable.getInt(pId, 0);
+            if (w <= 0) continue; // Bỏ qua tỉ lệ không dương
+
             weights.put(pId, w);
             totalWeight += w;
             candidatePetIds.add(pId);
@@ -318,7 +344,7 @@ public class HatchingManager {
 
         if (totalWeight <= 0 || candidatePetIds.isEmpty()) {
             String msg = lang != null ? lang.getMessage("hatching.invalid_rates") : null;
-            player.sendMessage(msg != null ? msg : "§cTrứng này chưa có tỉ lệ rớt hợp lệ!");
+            player.sendMessage(msg != null ? msg : "§cTrứng này chưa có tỉ lệ rớt hợp lệ hoặc các Pet cấu hình đều không khả dụng!");
             return;
         }
 
@@ -343,14 +369,25 @@ public class HatchingManager {
             return;
         }
 
-        // 3. Khấu trừ chi phí giao dịch sau khi mọi điều kiện hợp lệ
+        // 3. Ghi nhận giao dịch PENDING bền vững TRƯỚC KHI thực hiện trừ phí thanh toán
+        PendingHatchSession session = new PendingHatchSession(player.getUniqueId(), eggId, winningPetId, HatchState.PENDING, System.currentTimeMillis());
+        pendingHatchSessions.put(player.getUniqueId(), session);
+        persistPendingSession(session);
+
+        // 4. Khấu trừ chi phí giao dịch sau khi mọi điều kiện hợp lệ
         if (!checkAndDeductRequirements(player, eggSec, consumedItem)) {
+            session.setState(HatchState.FAILED);
+            pendingHatchSessions.remove(player.getUniqueId());
+            removePersistedPendingSession(player.getUniqueId());
             player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
             return;
         }
 
-        // 4. Bắt đầu vòng quay Roulette với phiên theo dõi an toàn
-        recordPendingHatch(player.getUniqueId(), eggId, winningPetId);
+        // 5. Nâng cấp trạng thái lên PROCESSING sau khi đã thanh toán thành công
+        session.setState(HatchState.PROCESSING);
+        persistPendingSession(session);
+
+        // 6. Bắt đầu vòng quay Roulette với phiên theo dõi an toàn
         startGachaRoulette(player, eggId, eggSec, candidatePetIds, winningPetId);
     }
 
@@ -397,7 +434,7 @@ public class HatchingManager {
                     ChatColor.translateAlternateColorCodes('&', (isWinner ? "&6&l★ " : "&f") + name)));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text("§7Mã Pet: §e" + petId));
-            lore.add(Component.text("§7Độ hiếm: " + rarity.getFormattedName()));
+            lore.add(Component.text("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
             if (isWinner) {
                 lore.add(Component.text("§a§l✔ PHẦN THƯỞNG CỦA BẠN!"));
             }
@@ -581,10 +618,10 @@ public class HatchingManager {
             plugin.getCodexManager().discover(playerUuid, winningPetId);
 
             if (player != null && player.isOnline()) {
-                String winMsg = lang != null ? lang.getMessage("hatching.success", "%pet%", petDisplayName, "%rarity%", rarity.getFormattedName(), "%trait%", trait.getFormattedName()) : null;
+                String winMsg = lang != null ? lang.getMessage("hatching.success", "%pet%", petDisplayName, "%rarity%", rarity.getLocalizedName(plugin), "%trait%", trait.getLocalizedName(plugin)) : null;
                 player.sendMessage(winMsg != null ? winMsg : ChatColor.translateAlternateColorCodes('&',
                         "§a§lCHÚC MỪNG! §fBạn vừa ấp nở thành công Pet: " + petDisplayName +
-                                " §7(Độ hiếm: " + rarity.getFormattedName() + "§7, Đặc chất: " + trait.getFormattedName() + "§7)"));
+                                " §7(Độ hiếm: " + rarity.getLocalizedName(plugin) + "§7, Đặc chất: " + trait.getLocalizedName(plugin) + "§7)"));
             }
 
             // Thông báo toàn server nếu mở được Pet cấp cao
@@ -592,13 +629,13 @@ public class HatchingManager {
                 String pName = (player != null && player.isOnline()) ? player.getName() : Bukkit.getOfflinePlayer(playerUuid).getName();
                 if (pName == null) pName = "Người chơi";
                 String cleanPetName = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', petDisplayName));
-                String bcastMsg = lang != null ? lang.getMessage("hatching.broadcast", "%player%", pName, "%rarity%", rarity.getFormattedName(), "%pet%", cleanPetName) : null;
+                String bcastMsg = lang != null ? lang.getMessage("hatching.broadcast", "%player%", pName, "%rarity%", rarity.getLocalizedName(plugin), "%pet%", cleanPetName) : null;
                 if (bcastMsg != null) {
                     Bukkit.broadcast(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', bcastMsg)));
                 } else {
                     Bukkit.broadcast(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&',
                             "&6&l[IPSECUZ PET] &eNgười chơi &f" + pName + " &evừa ấp nở thành công Pet " +
-                                    rarity.getFormattedName() + " &e" + cleanPetName + "&e!")));
+                                    rarity.getLocalizedName(plugin) + " &e" + cleanPetName + "&e!")));
                 }
             }
         }

@@ -69,9 +69,7 @@ public class PetShardManager {
         int shardYield = rarity.getShardValue();
         int bonusExp = shardYield * 25;
         addShards(uuid, petId, shardYield);
-        int curExp = plugin.getConfigManager().getData().getInt(uuid + ".pets." + petId + ".exp", 0);
-        plugin.getConfigManager().getData().set(uuid + ".pets." + petId + ".exp", curExp + bonusExp);
-        plugin.getConfigManager().saveData();
+        plugin.getPetManager().addPetExpAuthoritative(uuid, petId, bonusExp, true);
     }
 
     public void processDuplicateReward(Player player, String petId) {
@@ -89,7 +87,7 @@ public class PetShardManager {
                 "%rarity%", rarity.getLocalizedName(plugin),
                 "%exp%", String.valueOf(bonusExp)));
 
-        plugin.getPetManager().giveSpecificPetExp(player, petId, bonusExp);
+        plugin.getPetManager().addPetExpAuthoritative(player.getUniqueId(), petId, bonusExp, true);
         player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1f, 1.2f);
     }
 }

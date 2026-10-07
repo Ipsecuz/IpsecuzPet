@@ -4,6 +4,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -57,10 +59,19 @@ public class TradeManager {
 
     public void recordCommittingTrade(UUID tradeId, UUID a, UUID b, java.util.List<org.bukkit.inventory.ItemStack> fromA, java.util.List<org.bukkit.inventory.ItemStack> fromB) {
         committingTrades.put(tradeId, new TradeCommitRecord(tradeId, a, b, fromA, fromB));
+        String path = "pending_trade." + tradeId;
+        plugin.getConfigManager().getData().set(path + ".player_a", a.toString());
+        plugin.getConfigManager().getData().set(path + ".player_b", b.toString());
+        plugin.getConfigManager().getData().set(path + ".items_a", fromA);
+        plugin.getConfigManager().getData().set(path + ".items_b", fromB);
+        plugin.getConfigManager().getData().set(path + ".timestamp", System.currentTimeMillis());
+        plugin.getConfigManager().forceSave();
     }
 
     public void removeCommittingTrade(UUID tradeId) {
         committingTrades.remove(tradeId);
+        plugin.getConfigManager().getData().set("pending_trade." + tradeId, null);
+        plugin.getConfigManager().forceSave();
     }
 
     public Map<UUID, TradeCommitRecord> getCommittingTrades() {
@@ -69,6 +80,84 @@ public class TradeManager {
 
     public TradeManager(IpsecuzPet plugin) {
         this.plugin = plugin;
+    }
+
+    public void recoverPendingTrades() {
+        var sec = plugin.getConfigManager().getData().getConfigurationSection("pending_trade");
+        if (sec == null) return;
+        for (String key : new ArrayList<>(sec.getKeys(false))) {
+            try {
+                UUID tradeId = UUID.fromString(key);
+                String aStr = sec.getString(key + ".player_a");
+                String bStr = sec.getString(key + ".player_b");
+                if (aStr == null || bStr == null) continue;
+                UUID playerA = UUID.fromString(aStr);
+                UUID playerB = UUID.fromString(bStr);
+
+                @SuppressWarnings("unchecked")
+                java.util.List<org.bukkit.inventory.ItemStack> itemsA = (java.util.List<org.bukkit.inventory.ItemStack>) sec.getList(key + ".items_a");
+                @SuppressWarnings("unchecked")
+                java.util.List<org.bukkit.inventory.ItemStack> itemsB = (java.util.List<org.bukkit.inventory.ItemStack>) sec.getList(key + ".items_b");
+
+                plugin.getLogger().warning("§e[IpsecuzPet] Phục hồi giao dịch dở dang sau khởi động (Crash Recovery): " + tradeId);
+
+                if (itemsA != null && !itemsA.isEmpty()) {
+                    Player pA = Bukkit.getPlayer(playerA);
+                    if (pA != null && pA.isOnline()) {
+                        for (org.bukkit.inventory.ItemStack item : itemsA) {
+                            if (item != null) pA.getInventory().addItem(item).values().forEach(drop -> pA.getWorld().dropItemNaturally(pA.getLocation(), drop));
+                        }
+                    } else {
+                        storeOfflineRefund(playerA, itemsA);
+                    }
+                }
+
+                if (itemsB != null && !itemsB.isEmpty()) {
+                    Player pB = Bukkit.getPlayer(playerB);
+                    if (pB != null && pB.isOnline()) {
+                        for (org.bukkit.inventory.ItemStack item : itemsB) {
+                            if (item != null) pB.getInventory().addItem(item).values().forEach(drop -> pB.getWorld().dropItemNaturally(pB.getLocation(), drop));
+                        }
+                    } else {
+                        storeOfflineRefund(playerB, itemsB);
+                    }
+                }
+
+                sec.set(key, null);
+            } catch (Exception ex) {
+                plugin.getLogger().severe("Lỗi khi phục hồi giao dịch dở dang " + key + ": " + ex.getMessage());
+            }
+        }
+        plugin.getConfigManager().forceSave();
+    }
+
+    private void storeOfflineRefund(UUID playerUuid, java.util.List<org.bukkit.inventory.ItemStack> items) {
+        String path = "pending_refund." + playerUuid;
+        @SuppressWarnings("unchecked")
+        java.util.List<org.bukkit.inventory.ItemStack> existing = (java.util.List<org.bukkit.inventory.ItemStack>) plugin.getConfigManager().getData().getList(path);
+        if (existing == null) existing = new java.util.ArrayList<>();
+        existing.addAll(items);
+        plugin.getConfigManager().getData().set(path, existing);
+    }
+
+    public void deliverOfflineRefundOnJoin(Player player) {
+        if (player == null) return;
+        String path = "pending_refund." + player.getUniqueId();
+        if (plugin.getConfigManager().getData().contains(path)) {
+            @SuppressWarnings("unchecked")
+            java.util.List<org.bukkit.inventory.ItemStack> items = (java.util.List<org.bukkit.inventory.ItemStack>) plugin.getConfigManager().getData().getList(path);
+            if (items != null && !items.isEmpty()) {
+                plugin.getLogger().info("§a[IpsecuzPet] Hoàn trả " + items.size() + " vật phẩm giao dịch dở dang cho: " + player.getName());
+                for (org.bukkit.inventory.ItemStack item : items) {
+                    if (item != null) {
+                        player.getInventory().addItem(item).values().forEach(drop -> player.getWorld().dropItemNaturally(player.getLocation(), drop));
+                    }
+                }
+                player.sendMessage("§a[IpsecuzPet] Bạn đã nhận lại các vật phẩm từ phiên giao dịch bị gián đoạn trước đó!");
+            }
+            plugin.getConfigManager().getData().set(path, null);
+            plugin.getConfigManager().forceSave();
+        }
     }
 
     public void sendTradeRequest(Player sender, Player target) {

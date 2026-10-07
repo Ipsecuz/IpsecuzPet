@@ -69,10 +69,6 @@ public class BetterModelProvider implements ModelProvider {
                 return false;
             }
 
-            if (pet instanceof LivingEntity living) {
-                living.setInvisible(true);
-            }
-
             EntityTracker tracker = renderer.create(pet);
             if (tracker != null) {
                 activeTrackers.put(pet.getUniqueId(), tracker);
@@ -81,10 +77,16 @@ public class BetterModelProvider implements ModelProvider {
                         tracker.show(owner);
                     } catch (Throwable ignored) {}
                 }
-                playTransientAnimation(pet, PetAnimationState.SPAWN, 25L, PetAnimationState.IDLE);
+                // Only hide base entity after tracker is confirmed attached
+                if (pet instanceof LivingEntity living) {
+                    living.setInvisible(true);
+                }
                 return true;
             }
         } catch (Throwable t) {
+            if (pet instanceof LivingEntity living && pet.isValid()) {
+                living.setInvisible(false);
+            }
             logThrottledError("spawn", t);
         }
         return false;
@@ -113,6 +115,12 @@ public class BetterModelProvider implements ModelProvider {
                 logThrottledError("tracker.close", t);
             }
         }
+        try {
+            Entity ent = Bukkit.getEntity(entityUuid);
+            if (ent instanceof LivingEntity living && ent.isValid()) {
+                living.setInvisible(false);
+            }
+        } catch (Throwable ignored) {}
     }
 
     @Override

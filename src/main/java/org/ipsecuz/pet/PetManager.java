@@ -21,6 +21,7 @@ public class PetManager {
 
     public final Map<UUID, UUID> duelRequests = new ConcurrentHashMap<>();
     public final Map<UUID, UUID> activeDuels = new ConcurrentHashMap<>();
+    public final Set<UUID> dyingPets = ConcurrentHashMap.newKeySet();
 
     public final NamespacedKey petKey;
     public final NamespacedKey petIdKey;
@@ -130,7 +131,26 @@ public class PetManager {
         player.playSound(player.getLocation(), rarity.getRevealSound(), 1f, 1.1f);
     }
 
+    public boolean isDying(UUID ownerId) {
+        return ownerId != null && dyingPets.contains(ownerId);
+    }
+
+    public void startDyingSequence(UUID ownerId, Entity pet, String petId, long durationTicks) {
+        if (ownerId == null) return;
+        dyingPets.add(ownerId);
+
+        if (modelHandler != null && pet != null) {
+            modelHandler.playTransientAnimation(pet, PetAnimationState.DEATH, durationTicks, PetAnimationState.DEATH);
+        }
+
+        SchedulerUtils.runGlobalTaskLater(plugin, () -> {
+            dyingPets.remove(ownerId);
+            removePet(ownerId);
+        }, durationTicks);
+    }
+
     public void removePet(UUID ownerId) {
+        dyingPets.remove(ownerId);
         if (activePets.containsKey(ownerId)) {
             Entity e = activePets.remove(ownerId);
             activePetIds.remove(ownerId);
@@ -164,6 +184,7 @@ public class PetManager {
     }
 
     public void removeAllPets() {
+        dyingPets.clear();
         for (UUID uuid : new ArrayList<>(activePets.keySet())) {
             removePet(uuid);
         }
@@ -241,6 +262,11 @@ public class PetManager {
 
             if (owner == null || !owner.isOnline()) {
                 removePet(ownerId);
+                continue;
+            }
+
+            if (dyingPets.contains(ownerId)) {
+                // Đang trong tiến trình hoạt ảnh cái chết, không dọn dẹp sớm!
                 continue;
             }
 
@@ -384,8 +410,8 @@ public class PetManager {
         LanguageManager lang = plugin.getLanguage();
         player.sendMessage(lang.getMessage("pet.stats_header"));
         player.sendMessage(lang.getMessage("pet.stats_title", "%pet_name%", name));
-        player.sendMessage("§7Độ hiếm: " + rarity.getFormattedName() + " §7| Sao: " + starDisplay);
-        player.sendMessage("§7Đặc chất (Trait): " + trait.getFormattedName());
+        player.sendMessage("§7Độ hiếm: " + rarity.getLocalizedName(plugin) + " §7| Sao: " + starDisplay);
+        player.sendMessage("§7Đặc chất (Trait): " + trait.getLocalizedName(plugin));
         if (lvl >= maxLvl) {
             player.sendMessage("§7Cấp độ: §6Lv." + lvl + " §e[TỐI ĐA (MAX)]");
         } else {
@@ -496,55 +522,62 @@ public class PetManager {
 
     public void giveSpecificPetExp(Player p, String petId, int amount) {
         if (p == null || petId == null || amount <= 0) return;
-        if (!plugin.getConfigManager().getData().contains(p.getUniqueId() + ".pets." + petId)) return;
+        addPetExpAuthoritative(p.getUniqueId(), petId, amount, true);
+    }
 
-        int currentExp = plugin.getConfigManager().getData().getInt(p.getUniqueId() + ".pets." + petId + ".exp", 0);
-        int currentLvl = plugin.getConfigManager().getData().getInt(p.getUniqueId() + ".pets." + petId + ".level", 1);
+    public int addPetExpAuthoritative(UUID ownerId, String petId, int amount, boolean allowLevelUp) {
+        if (ownerId == null || petId == null || amount <= 0) return 0;
+        if (!plugin.getConfigManager().getData().contains(ownerId + ".pets." + petId)) return 0;
+
+        int currentExp = plugin.getConfigManager().getData().getInt(ownerId + ".pets." + petId + ".exp", 0);
+        int currentLvl = plugin.getConfigManager().getData().getInt(ownerId + ".pets." + petId + ".level", 1);
         int maxLvl = plugin.getConfig().getInt("rpg_system.max_level", 100);
 
         if (currentLvl >= maxLvl) {
-            return;
+            return currentLvl;
         }
 
-        // --- TÍNH HỆ SỐ NHÂN KINH NGHIỆM AN TOÀN ---
+        Player onlinePlayer = Bukkit.getPlayer(ownerId);
         double multiplier = 1.0;
 
-        // 1. Quét quyền hạn của người chơi trực tiếp (ví dụ: ipsecuzpet.multiplier.1.5)
-        try {
-            for (org.bukkit.permissions.PermissionAttachmentInfo info : p.getEffectivePermissions()) {
-                if (info == null || !info.getValue()) continue;
-                String perm = info.getPermission();
-                if (perm != null && perm.startsWith("ipsecuzpet.multiplier.")) {
-                    try {
-                        double permVal = Double.parseDouble(perm.substring("ipsecuzpet.multiplier.".length()));
-                        if (permVal > multiplier) {
-                            multiplier = permVal;
-                        }
-                    } catch (NumberFormatException ignored) {}
-                }
-            }
-        } catch (Exception ignored) {}
-
-        // 2. Quét cấu hình từ config.yml
-        ConfigurationSection multSec = plugin.getConfig().getConfigurationSection("rpg_system.xp_multiplier_permissions");
-        if (multSec != null) {
-            for (Map.Entry<String, Object> entry : multSec.getValues(true).entrySet()) {
-                if (entry.getValue() instanceof ConfigurationSection) continue;
-                try {
-                    double permMultiplier = Double.parseDouble(entry.getValue().toString());
-                    String key = entry.getKey();
-                    if (p.hasPermission(key) || p.hasPermission("ipsecuzpet.multiplier." + key)) {
-                        if (permMultiplier > multiplier) {
-                            multiplier = permMultiplier;
-                        }
+        if (onlinePlayer != null && onlinePlayer.isOnline()) {
+            // 1. Quét quyền hạn của người chơi trực tiếp (ví dụ: ipsecuzpet.multiplier.1.5)
+            try {
+                for (org.bukkit.permissions.PermissionAttachmentInfo info : onlinePlayer.getEffectivePermissions()) {
+                    if (info == null || !info.getValue()) continue;
+                    String perm = info.getPermission();
+                    if (perm != null && perm.startsWith("ipsecuzpet.multiplier.")) {
+                        try {
+                            double permVal = Double.parseDouble(perm.substring("ipsecuzpet.multiplier.".length()));
+                            if (permVal > multiplier) {
+                                multiplier = permVal;
+                            }
+                        } catch (NumberFormatException ignored) {}
                     }
-                } catch (Exception ignored) {}
+                }
+            } catch (Exception ignored) {}
+
+            // 2. Quét cấu hình từ config.yml
+            ConfigurationSection multSec = plugin.getConfig().getConfigurationSection("rpg_system.xp_multiplier_permissions");
+            if (multSec != null) {
+                for (Map.Entry<String, Object> entry : multSec.getValues(true).entrySet()) {
+                    if (entry.getValue() instanceof ConfigurationSection) continue;
+                    try {
+                        double permMultiplier = Double.parseDouble(entry.getValue().toString());
+                        String key = entry.getKey();
+                        if (onlinePlayer.hasPermission(key) || onlinePlayer.hasPermission("ipsecuzpet.multiplier." + key)) {
+                            if (permMultiplier > multiplier) {
+                                multiplier = permMultiplier;
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
             }
         }
 
         // 3. Thưởng / Phạt theo độ vui vẻ (Happiness)
         if (plugin.getFeedingManager() != null) {
-            int happy = plugin.getFeedingManager().getHappiness(p.getUniqueId(), petId);
+            int happy = plugin.getFeedingManager().getHappiness(ownerId, petId);
             if (plugin.getHappinessModifierEngine() != null) {
                 multiplier *= plugin.getHappinessModifierEngine().getExpMultiplier(happy);
             } else {
@@ -553,7 +586,7 @@ public class PetManager {
         }
 
         // 4. Thưởng EXP theo Đặc chất (Trait)
-        String traitName = plugin.getConfigManager().getData().getString(p.getUniqueId() + ".pets." + petId + ".trait", "NONE");
+        String traitName = plugin.getConfigManager().getData().getString(ownerId + ".pets." + petId + ".trait", "NONE");
         PetTrait trait = PetTrait.fromString(traitName);
         if (trait != null) {
             multiplier *= trait.getExpMultiplier();
@@ -566,36 +599,38 @@ public class PetManager {
         int baseExpRequirement = plugin.getConfig().getInt("rpg_system.base_exp_requirement", 50);
         int levelsGained = 0;
 
-        while (currentLvl < maxLvl) {
-            int nextLvlExp = currentLvl * baseExpRequirement;
-            if (accumulatedExp >= nextLvlExp) {
-                accumulatedExp -= nextLvlExp;
-                currentLvl++;
-                levelsGained++;
-            } else {
-                break;
+        if (allowLevelUp) {
+            while (currentLvl < maxLvl) {
+                int nextLvlExp = currentLvl * baseExpRequirement;
+                if (accumulatedExp >= nextLvlExp) {
+                    accumulatedExp -= nextLvlExp;
+                    currentLvl++;
+                    levelsGained++;
+                } else {
+                    break;
+                }
             }
         }
 
         int finalExp = (currentLvl >= maxLvl) ? 0 : (int) Math.min(Integer.MAX_VALUE, accumulatedExp);
 
-        plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".level", currentLvl);
-        plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".exp", finalExp);
+        plugin.getConfigManager().getData().set(ownerId + ".pets." + petId + ".level", currentLvl);
+        plugin.getConfigManager().getData().set(ownerId + ".pets." + petId + ".exp", finalExp);
         plugin.getConfigManager().saveData();
 
-        if (levelsGained > 0) {
+        if (onlinePlayer != null && onlinePlayer.isOnline() && levelsGained > 0) {
             // Âm thanh vinh quang
-            p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
-            p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
+            onlinePlayer.playSound(onlinePlayer.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+            onlinePlayer.playSound(onlinePlayer.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
 
             // Action Bar phản hồi tức thì
             if (levelsGained == 1) {
-                p.sendActionBar(net.kyori.adventure.text.Component.text("§a§l★ LÊN CẤP! §eĐạt Lv." + currentLvl));
+                onlinePlayer.sendActionBar(net.kyori.adventure.text.Component.text("§a§l★ LÊN CẤP! §eĐạt Lv." + currentLvl));
                 String msg = plugin.getLanguage().getMessage("pet.level_up");
-                if (msg != null) p.sendMessage(msg.replace("%level%", String.valueOf(currentLvl)));
+                if (msg != null) onlinePlayer.sendMessage(msg.replace("%level%", String.valueOf(currentLvl)));
             } else {
-                p.sendActionBar(net.kyori.adventure.text.Component.text("§6§l★ +" + levelsGained + " CẤP ĐỘ! §eLv." + (currentLvl - levelsGained) + " ➔ Lv." + currentLvl));
-                p.sendMessage("§a§l★ TIẾN HÓA CẤP ĐỘ! §fThú cưng đã tăng vọt §e+" + levelsGained + " Cấp §f(Đạt cấp: §6Lv." + currentLvl + "§f)!");
+                onlinePlayer.sendActionBar(net.kyori.adventure.text.Component.text("§6§l★ +" + levelsGained + " CẤP ĐỘ! §eLv." + (currentLvl - levelsGained) + " ➔ Lv." + currentLvl));
+                onlinePlayer.sendMessage("§a§l★ TIẾN HÓA CẤP ĐỘ! §fThú cưng đã tăng vọt §e+" + levelsGained + " Cấp §f(Đạt cấp: §6Lv." + currentLvl + "§f)!");
             }
 
             // Phần thưởng bùa lợi (Level up rewards buff)
@@ -608,27 +643,27 @@ public class PetManager {
                     PotionEffectType pet = PotionEffectType.getByName(parts[0]);
                     int amp = parts.length > 1 ? Integer.parseInt(parts[1]) : 0;
                     if (pet != null) {
-                        p.addPotionEffect(new PotionEffect(pet, ticks, amp));
+                        onlinePlayer.addPotionEffect(new PotionEffect(pet, ticks, amp));
                     }
                 } catch (Exception ignored) {}
             }
 
             // Cập nhật thực thể đang triệu hồi nếu là pet hiện tại
-            boolean isActive = petId.equals(activePetIds.get(p.getUniqueId()));
-            Entity petEntity = isActive ? activePets.get(p.getUniqueId()) : null;
+            boolean isActive = petId.equals(activePetIds.get(ownerId));
+            Entity petEntity = isActive ? activePets.get(ownerId) : null;
             if (petEntity != null && petEntity.isValid()) {
-                updatePetStats(petEntity, petId, currentLvl, p.getUniqueId());
+                updatePetStats(petEntity, petId, currentLvl, ownerId);
 
                 String defaultName = plugin.getConfig().getString("pets." + petId + ".name", "Pet");
-                String customName = plugin.getConfigManager().getCustomName(p.getUniqueId(), petId);
+                String customName = plugin.getConfigManager().getCustomName(ownerId, petId);
                 String name = (customName != null) ? customName : defaultName;
                 String format = plugin.getLanguage().getMessage("pet.display_format");
                 if (format == null) format = "&7Lv.%level% &e%name% &7(%player%)";
 
                 String displayName = format.replace("%name%", name)
                         .replace("%level%", String.valueOf(currentLvl))
-                .replace("%player%", p.getName())
-                        .replace("%owner%", p.getName());
+                        .replace("%player%", onlinePlayer.getName())
+                        .replace("%owner%", onlinePlayer.getName());
 
                 petEntity.setCustomName(ChatColor.translateAlternateColorCodes('&', displayName));
                 petEntity.setCustomNameVisible(true);
@@ -641,6 +676,7 @@ public class PetManager {
                 } catch (Exception ignored) {}
             }
         }
+        return currentLvl;
     }
 
     public static void applyScale(LivingEntity entity, double scale) {

@@ -28,3 +28,4 @@ public class HatchingSessionSecurityTest {
         assertEquals(HatchingManager.HatchState.COMPLETED, session.getState());
     }
 }
+

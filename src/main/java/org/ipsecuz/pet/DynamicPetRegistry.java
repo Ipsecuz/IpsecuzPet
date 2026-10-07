@@ -3,39 +3,63 @@ package org.ipsecuz.pet;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 
+import java.io.File;
 import java.util.*;
 
 /**
  * Tự động phát hiện phiên bản server (1.20 -> 1.21.x -> các phiên bản mới)
- * và tự động bổ sung các Mob mới xuất hiện ở phiên bản đó vào danh sách Pet.
+ * và tự động bổ sung các Mob mới xuất hiện ở phiên bản đó vào file riêng biệt discovered_entities.yml.
+ * Tuyệt đối không thay đổi hay làm hỏng cấu trúc chú thích của config.yml.
  */
 public class DynamicPetRegistry {
     private final IpsecuzPet plugin;
     private final String serverVersion;
+    private final File discoveredFile;
+    private YamlConfiguration discoveredConfig;
 
     public DynamicPetRegistry(IpsecuzPet plugin) {
         this.plugin = plugin;
         this.serverVersion = Bukkit.getBukkitVersion();
+        this.discoveredFile = new File(plugin.getDataFolder(), "discovered_entities.yml");
+        loadDiscoveredFile();
+    }
+
+    public void loadDiscoveredFile() {
+        if (!discoveredFile.exists()) {
+            try {
+                if (discoveredFile.getParentFile() != null) {
+                    discoveredFile.getParentFile().mkdirs();
+                }
+                discoveredFile.createNewFile();
+            } catch (Exception ignored) {}
+        }
+        this.discoveredConfig = YamlConfiguration.loadConfiguration(discoveredFile);
+    }
+
+    public FileConfiguration getDiscoveredConfig() {
+        return discoveredConfig;
     }
 
     public void detectAndRegisterNewMobs() {
-        FileConfiguration config = plugin.getConfig();
+        loadDiscoveredFile();
+        FileConfiguration mainConfig = plugin.getConfig();
         Set<String> registeredTypes = new HashSet<>();
 
-        if (config.isConfigurationSection("pets")) {
-            for (String key : config.getConfigurationSection("pets").getKeys(false)) {
-                String typeStr = config.getString("pets." + key + ".type");
+        if (mainConfig.isConfigurationSection("pets")) {
+            for (String key : mainConfig.getConfigurationSection("pets").getKeys(false)) {
+                String typeStr = mainConfig.getString("pets." + key + ".type");
                 if (typeStr != null) {
                     registeredTypes.add(typeStr.toUpperCase());
                 }
             }
         }
-        if (config.isConfigurationSection("discovered_entities")) {
-            for (String key : config.getConfigurationSection("discovered_entities").getKeys(false)) {
-                String typeStr = config.getString("discovered_entities." + key + ".type");
+        if (discoveredConfig.isConfigurationSection("discovered_entities")) {
+            for (String key : discoveredConfig.getConfigurationSection("discovered_entities").getKeys(false)) {
+                String typeStr = discoveredConfig.getString("discovered_entities." + key + ".type");
                 if (typeStr != null) {
                     registeredTypes.add(typeStr.toUpperCase());
                 }
@@ -52,18 +76,21 @@ public class DynamicPetRegistry {
             if (typeName.equals("PLAYER") || typeName.equals("ARMOR_STAND") || typeName.equals("GIANT")) continue;
 
             if (!registeredTypes.contains(typeName)) {
-                // Tạo ID cho thực thể mới và lưu vào discovered_entities.*
                 String entityId = typeName.toLowerCase() + "_pet";
-                if (!config.contains("discovered_entities." + entityId) && !config.contains("pets." + entityId)) {
-                    registerDiscoveredEntity(config, entityId, type);
+                if (!discoveredConfig.contains("discovered_entities." + entityId) && !mainConfig.contains("pets." + entityId)) {
+                    registerDiscoveredEntity(discoveredConfig, entityId, type);
                     addedCount++;
                 }
             }
         }
 
         if (addedCount > 0) {
-            plugin.saveConfig();
-            plugin.getLogger().info("§a[DynamicPetRegistry] Đã tự động phát hiện và ghi nhận " + addedCount + " loài thực thể mới vào discovered_entities.* (" + serverVersion + ")!");
+            try {
+                discoveredConfig.save(discoveredFile);
+                plugin.getLogger().info("§a[DynamicPetRegistry] Đã tự động phát hiện và ghi nhận " + addedCount + " loài thực thể mới vào discovered_entities.yml (" + serverVersion + ")!");
+            } catch (Exception e) {
+                plugin.getLogger().severe("§c[DynamicPetRegistry] Không thể lưu discovered_entities.yml: " + e.getMessage());
+            }
         }
     }
 
@@ -109,4 +136,3 @@ public class DynamicPetRegistry {
         return Material.NAME_TAG;
     }
 }
-

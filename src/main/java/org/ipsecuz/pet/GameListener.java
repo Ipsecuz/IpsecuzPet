@@ -420,9 +420,6 @@ public class GameListener implements Listener {
         String petId = plugin.getPetManager().getActivePetId(ownerId);
 
         // Phát hoạt ảnh và hiệu ứng DEATH cinematic
-        if (plugin.getModelHandler() != null) {
-            plugin.getModelHandler().playTransientAnimation(pet, PetAnimationState.DEATH, 30L, PetAnimationState.DEATH);
-        }
         try {
             pet.getWorld().spawnParticle(Particle.SMOKE_LARGE, pet.getLocation().add(0, 0.6, 0), 20, 0.4, 0.4, 0.4, 0.05);
             pet.getWorld().playSound(pet.getLocation(), Sound.ENTITY_ALLAY_DEATH, 1.2f, 0.8f);
@@ -446,10 +443,8 @@ public class GameListener implements Listener {
                 Bukkit.getPlayer(ownerId).sendMessage(plugin.getLanguage().getMessage("pet.death"));
         }
 
-        // Trì hoãn removePet 30 ticks để hoạt ảnh và hiệu ứng cái chết hiển thị hoàn tất
-        SchedulerUtils.runGlobalTaskLater(plugin, () -> {
-            plugin.getPetManager().removePet(ownerId);
-        }, 30L);
+        // Bắt đầu chuỗi hấp hối (Dying Sequence - 30 ticks) an toàn, chống bị dọn dẹp sớm
+        plugin.getPetManager().startDyingSequence(ownerId, pet, petId, 30L);
     }
 
     @EventHandler
@@ -578,6 +573,9 @@ public class GameListener implements Listener {
         Player p = e.getPlayer();
         if (plugin.getHatchingManager() != null) {
             plugin.getHatchingManager().resolvePendingHatchOnJoin(p);
+        }
+        if (plugin.getTradeManager() != null) {
+            plugin.getTradeManager().deliverOfflineRefundOnJoin(p);
         }
         if (p.hasPermission("ipsecuzpet.admin")) {
             new UpdateChecker(plugin, IpsecuzPet.RESOURCE_ID).getVersion(version -> {

@@ -171,13 +171,13 @@ public class GuiListener implements Listener {
             PetTrait trait = PetTrait.fromString(traitName);
             PetRarity rarity = PetRarity.fromPetId(plugin, petId);
 
-            lore.add(Component.text("§7Độ hiếm: " + rarity.getFormattedName()));
+            lore.add(Component.text("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
             lore.add(Component.text("§7Cấp độ: §6Lv." + lvl + (lvl >= maxLvl ? " §e[TỐI ĐA]" : (" §8(" + exp + "/" + reqExp + ")"))));
             if (lvl < maxLvl) {
                 lore.add(Component.text("§7Kinh nghiệm: " + buildProgressBar(exp, reqExp, 10)));
             }
             lore.add(Component.text("§7Cấp sao: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐"))));
-            lore.add(Component.text("§7Đặc chất: " + trait.getFormattedName()));
+            lore.add(Component.text("§7Đặc chất: " + trait.getLocalizedName(plugin)));
             lore.add(Component.text("§7Dạng kích thước: " + (isBaby ? "§b👶 Bé con" : "§6🦁 Trưởng thành")));
 
             FeedingManager.HappinessState happyState = (plugin.getFeedingManager() != null)
@@ -323,7 +323,7 @@ public class GuiListener implements Listener {
                 }
             }
             lore.add(Component.text("§7Cấp sao: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐"))));
-            lore.add(Component.text("§7Đặc chất: " + trait.getFormattedName()));
+            lore.add(Component.text("§7Đặc chất: " + trait.getLocalizedName(plugin)));
             lore.add(Component.text("§7Cấp độ: §aLv." + lvl + " §7(EXP: §b" + exp + "/" + reqExp + "§7)"));
             lore.add(Component.text("§7Độ vui vẻ: §e" + happy + "%"));
             lore.add(Component.text("§7--------------------"));
@@ -703,7 +703,7 @@ public class GuiListener implements Listener {
                 }
 
                 List<Component> lore = new ArrayList<>();
-                lore.add(Component.text("§7Độ hiếm: " + rarity.getFormattedName()));
+                lore.add(Component.text("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
                 if (discovered) {
                     lore.add(Component.text("§aĐã ghi danh vào Bách Khoa Toàn Thư!"));
                     double hp = plugin.getConfig().getDouble("pets." + petId + ".stats.health", 20.0);
@@ -787,7 +787,7 @@ public class GuiListener implements Listener {
                     PetRarity rarity = PetRarity.fromPetId(plugin, petId);
                     meta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&bMảnh: " + name)));
                     List<Component> lore = new ArrayList<>();
-                    lore.add(Component.text("§7Độ hiếm: " + rarity.getFormattedName()));
+                    lore.add(Component.text("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
                     int req = plugin.getShardManager().getRequiredShardsToCraft(petId);
                     lore.add(Component.text("§7Số mảnh hiện có: §b" + count + "/" + req));
                     if (count >= req) {
@@ -878,7 +878,7 @@ public class GuiListener implements Listener {
             String price = plugin.getCurrencyManager().getPriceDisplay(key);
             PetRarity rarity = PetRarity.fromPetId(plugin, key);
 
-            lore.add(Component.text("§7Độ hiếm: " + rarity.getFormattedName()));
+            lore.add(Component.text("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
             double hp = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "health");
             double dmg = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "damage");
             double def = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "defense");

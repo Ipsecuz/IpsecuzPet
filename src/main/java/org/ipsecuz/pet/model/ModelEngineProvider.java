@@ -66,15 +66,10 @@ public class ModelEngineProvider implements ModelProvider {
                 return false;
             }
 
-            if (pet instanceof LivingEntity living) {
-                living.setInvisible(true);
-            }
-
             ModeledEntity modeledEntity = ModelEngineAPI.getOrCreateModeledEntity(pet);
             if (modeledEntity == null) {
                 return false;
             }
-            modeledEntity.setBaseEntityVisible(false);
 
             ActiveModel activeModel = ModelEngineAPI.createActiveModel(modelId);
             if (activeModel == null) {
@@ -87,9 +82,16 @@ public class ModelEngineProvider implements ModelProvider {
             activeModels.put(pet.getUniqueId(), activeModel);
             activeModelIds.put(pet.getUniqueId(), modelId);
 
-            playTransientAnimation(pet, PetAnimationState.SPAWN, 25L, PetAnimationState.IDLE);
+            // Only hide base entity after model is confirmed attached
+            modeledEntity.setBaseEntityVisible(false);
+            if (pet instanceof LivingEntity living) {
+                living.setInvisible(true);
+            }
             return true;
         } catch (Throwable t) {
+            if (pet instanceof LivingEntity living && pet.isValid()) {
+                living.setInvisible(false);
+            }
             logThrottledError("spawn", t);
         }
         return false;
@@ -117,6 +119,7 @@ public class ModelEngineProvider implements ModelProvider {
                 if (modelId != null) {
                     modeledEntity.removeModel(modelId);
                 }
+                modeledEntity.setBaseEntityVisible(true);
                 if (modeledEntity.getModels().isEmpty()) {
                     ModelEngineAPI.removeModeledEntity(entityUuid);
                 }
@@ -124,6 +127,12 @@ public class ModelEngineProvider implements ModelProvider {
                 logThrottledError("remove", t);
             }
         }
+        try {
+            Entity ent = Bukkit.getEntity(entityUuid);
+            if (ent instanceof LivingEntity living && ent.isValid()) {
+                living.setInvisible(false);
+            }
+        } catch (Throwable ignored) {}
     }
 
     @Override
@@ -192,7 +201,10 @@ public class ModelEngineProvider implements ModelProvider {
         if (plugin.getModelProviderManager() != null && plugin.getModelProviderManager().getAnimationController() != null) {
             plugin.getModelProviderManager().getAnimationController().requestAnimation(pet, state);
         } else {
-            renderRawAnimation(pet, resolveModelEngineAnimationName(state), state);
+            String animName = (plugin.getModelProviderManager() != null) ?
+                    plugin.getModelProviderManager().resolveAnimationName(null, ModelType.MODELENGINE, state) :
+                    state.getPrimaryName();
+            renderRawAnimation(pet, animName, state);
         }
     }
 
@@ -202,7 +214,10 @@ public class ModelEngineProvider implements ModelProvider {
         if (plugin.getModelProviderManager() != null && plugin.getModelProviderManager().getAnimationController() != null) {
             plugin.getModelProviderManager().getAnimationController().requestTransientAnimation(pet, state, durationTicks, returnState);
         } else {
-            renderRawAnimation(pet, resolveModelEngineAnimationName(state), state);
+            String animName = (plugin.getModelProviderManager() != null) ?
+                    plugin.getModelProviderManager().resolveAnimationName(null, ModelType.MODELENGINE, state) :
+                    state.getPrimaryName();
+            renderRawAnimation(pet, animName, state);
         }
     }
 
@@ -235,39 +250,13 @@ public class ModelEngineProvider implements ModelProvider {
             AnimationHandler handler = model.getAnimationHandler();
             if (handler == null) return;
 
-            String animName = resolveModelEngineAnimationName(state);
+            String animName = (plugin.getModelProviderManager() != null) ?
+                    plugin.getModelProviderManager().resolveAnimationName(null, ModelType.MODELENGINE, state) :
+                    state.getPrimaryName();
             handler.playAnimation(animName, 0.25, 0.25, 1.0, force);
         } catch (Throwable t) {
             logThrottledError("executeAnimation", t);
         }
-    }
-
-    private String resolveModelEngineAnimationName(PetAnimationState state) {
-        String configured = plugin.getConfig().getString("animations." + state.name().toLowerCase() + ".modelengine");
-        if (configured != null && !configured.trim().isEmpty()) {
-            return configured.trim();
-        }
-
-        return switch (state) {
-            case IDLE -> "idle";
-            case WALK -> "walk";
-            case RUN -> "run";
-            case FLY_IDLE -> "fly_idle";
-            case FLY -> "fly";
-            case ATTACK -> "attack";
-            case HURT -> "hurt";
-            case SPAWN -> "spawn";
-            case FEED -> "eat";
-            case HAPPY -> "happy";
-            case SKILL_CHARGE -> "charge";
-            case SKILL_CAST -> "cast";
-            case EVOLVE -> "evolution";
-            case CELEBRATE -> "celebrate";
-            case LEVEL_UP -> "celebrate";
-            case SAD -> "sad";
-            case DEATH -> "death";
-            default -> state.getPrimaryName();
-        };
     }
 
     private void logThrottledError(String action, Throwable t) {

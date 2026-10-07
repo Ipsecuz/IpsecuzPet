@@ -1,12 +1,12 @@
 package org.ipsecuz.pet.model;
 
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.ipsecuz.pet.IpsecuzPet;
 import org.ipsecuz.pet.PetAnimationState;
-import org.ipsecuz.pet.SchedulerUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,22 +14,74 @@ import java.util.logging.Level;
 
 public class ModelProviderManager {
 
+    public static class FailedModelEntry {
+        private final ModelType provider;
+        private final String modelId;
+        private final long timestamp;
+        private final String reason;
+
+        public FailedModelEntry(ModelType provider, String modelId, String reason) {
+            this.provider = provider;
+            this.modelId = modelId;
+            this.timestamp = System.currentTimeMillis();
+            this.reason = reason;
+        }
+
+        public boolean isExpired(long ttlMillis) {
+            return (System.currentTimeMillis() - timestamp) > ttlMillis;
+        }
+
+        public ModelType getProvider() { return provider; }
+        public String getModelId() { return modelId; }
+        public long getTimestamp() { return timestamp; }
+        public String getReason() { return reason; }
+    }
+
+    private static final long FAILED_CACHE_TTL_MS = 60_000L;
+    private static final int MAX_FAILED_CACHE_SIZE = 500;
+
     private final IpsecuzPet plugin;
-    private final BetterModelProvider betterModelProvider;
-    private final ModelEngineProvider modelEngineProvider;
+    private ModelProvider betterModelProvider;
+    private ModelProvider modelEngineProvider;
     private final NoneModelProvider noneModelProvider;
     private final PetAnimationController animationController;
 
     private final Map<UUID, ModelProvider> activeEntityProviders = new ConcurrentHashMap<>();
-    private final Set<String> failedModelCache = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Map<String, FailedModelEntry> failedModelCache = new ConcurrentHashMap<>();
     private final Map<String, Long> debugLogThrottle = new ConcurrentHashMap<>();
 
     public ModelProviderManager(IpsecuzPet plugin) {
         this.plugin = plugin;
-        this.betterModelProvider = new BetterModelProvider(plugin);
-        this.modelEngineProvider = new ModelEngineProvider(plugin);
+        this.betterModelProvider = initBetterModelProvider(plugin);
+        this.modelEngineProvider = initModelEngineProvider(plugin);
         this.noneModelProvider = new NoneModelProvider();
         this.animationController = new PetAnimationController(plugin, this);
+    }
+
+    private ModelProvider initBetterModelProvider(IpsecuzPet plugin) {
+        try {
+            if (Bukkit.getPluginManager().isPluginEnabled("BetterModel") &&
+                    Class.forName("kr.toxicity.model.api.BetterModel") != null) {
+                Class<?> clazz = Class.forName("org.ipsecuz.pet.model.BetterModelProvider");
+                return (ModelProvider) clazz.getConstructor(IpsecuzPet.class).newInstance(plugin);
+            }
+        } catch (Throwable t) {
+            plugin.getLogger().log(Level.FINE, "BetterModel API unavailable: " + t.getMessage());
+        }
+        return new UnavailableModelProvider(ModelType.BETTERMODEL);
+    }
+
+    private ModelProvider initModelEngineProvider(IpsecuzPet plugin) {
+        try {
+            if (Bukkit.getPluginManager().isPluginEnabled("ModelEngine") &&
+                    Class.forName("com.ticxo.modelengine.api.ModelEngineAPI") != null) {
+                Class<?> clazz = Class.forName("org.ipsecuz.pet.model.ModelEngineProvider");
+                return (ModelProvider) clazz.getConstructor(IpsecuzPet.class).newInstance(plugin);
+            }
+        } catch (Throwable t) {
+            plugin.getLogger().log(Level.FINE, "ModelEngine API unavailable: " + t.getMessage());
+        }
+        return new UnavailableModelProvider(ModelType.MODELENGINE);
     }
 
     public PetAnimationController getAnimationController() {
@@ -40,11 +92,11 @@ public class ModelProviderManager {
         return activeEntityProviders.get(entityUuid);
     }
 
-    public BetterModelProvider getBetterModelProvider() {
+    public ModelProvider getBetterModelProvider() {
         return betterModelProvider;
     }
 
-    public ModelEngineProvider getModelEngineProvider() {
+    public ModelProvider getModelEngineProvider() {
         return modelEngineProvider;
     }
 
@@ -61,9 +113,9 @@ public class ModelProviderManager {
     }
 
     public void reload() {
-        betterModelProvider.invalidateAvailabilityCache();
-        modelEngineProvider.invalidateAvailabilityCache();
-        failedModelCache.clear();
+        this.betterModelProvider = initBetterModelProvider(plugin);
+        this.modelEngineProvider = initModelEngineProvider(plugin);
+        this.failedModelCache.clear();
     }
 
     public boolean isDebugEnabled() {
@@ -80,8 +132,30 @@ public class ModelProviderManager {
         }
     }
 
+    public boolean isModelFailed(ModelType provider, String modelId) {
+        if (provider == null || modelId == null) return false;
+        String key = provider.name() + ":" + modelId;
+        FailedModelEntry entry = failedModelCache.get(key);
+        if (entry == null) return false;
+        if (entry.isExpired(FAILED_CACHE_TTL_MS)) {
+            failedModelCache.remove(key);
+            return false;
+        }
+        return true;
+    }
+
+    public void markModelFailed(ModelType provider, String modelId, String reason) {
+        if (provider == null || modelId == null) return;
+        if (failedModelCache.size() > MAX_FAILED_CACHE_SIZE) {
+            long now = System.currentTimeMillis();
+            failedModelCache.entrySet().removeIf(e -> (now - e.getValue().getTimestamp()) > FAILED_CACHE_TTL_MS);
+        }
+        String key = provider.name() + ":" + modelId;
+        failedModelCache.put(key, new FailedModelEntry(provider, modelId, reason));
+    }
+
     /**
-     * Xác định Provider chính thức áp dụng toàn cục nếu cấu hình là AUTO.
+     * Determines default provider for AUTO mode globally.
      */
     public ModelProvider resolveAutoProvider() {
         List<String> priority = plugin.getConfig().getStringList("model.auto_priority");
@@ -101,7 +175,7 @@ public class ModelProviderManager {
     }
 
     /**
-     * Xác định Provider cho một Pet cụ thể. Per-pet setting ghi đè Global setting.
+     * Resolves requested provider for a pet.
      */
     public ModelProvider resolveProviderForPet(String petId) {
         FileConfiguration config = plugin.getConfig();
@@ -125,7 +199,6 @@ public class ModelProviderManager {
             return noneModelProvider;
         }
 
-        // Nếu provider yêu cầu không khả dụng, kiểm tra fallback
         if (config.getBoolean("model.fallback.enabled", true)) {
             String fallbackStr = config.getString("model.fallback.provider", "BETTERMODEL");
             ModelType fallbackType = ModelType.fromString(fallbackStr);
@@ -140,15 +213,103 @@ public class ModelProviderManager {
     }
 
     /**
-     * Authoritative Model ID Resolver.
-     * Priority:
-     * 1. Pet-specific provider model configuration (adult / baby)
-     * 2. Provider-specific general model id
-     * 3. Legacy backward compatibility (model_id / model_id_baby)
-     * 4. No model
+     * Authoritative single decision step: Resolves Provider and Model ID together.
      */
-    public String resolveModelId(String petId, ModelType providerType, boolean isBaby) {
-        if (petId == null) return null;
+    public ResolvedModel resolveModel(String petId, boolean isBaby) {
+        if (petId == null || petId.trim().isEmpty()) {
+            return ResolvedModel.none(isBaby);
+        }
+
+        FileConfiguration config = plugin.getConfig();
+        String petProviderStr = config.getString("pets." + petId + ".model.provider");
+        ModelType requestedType;
+
+        if (petProviderStr != null && !petProviderStr.trim().isEmpty()) {
+            requestedType = ModelType.fromString(petProviderStr);
+        } else {
+            String globalProviderStr = config.getString("model.provider", "AUTO");
+            requestedType = ModelType.fromString(globalProviderStr);
+        }
+
+        if (requestedType == ModelType.NONE) {
+            return ResolvedModel.none(isBaby);
+        }
+
+        // Explicit provider requested (BETTERMODEL or MODELENGINE)
+        if (requestedType != ModelType.AUTO) {
+            ModelProvider targetProvider = getProvider(requestedType);
+            if (targetProvider.isAvailable()) {
+                String mId = resolveConfiguredModelId(petId, requestedType, isBaby);
+                if (mId != null && !mId.isEmpty() && !isModelFailed(requestedType, mId)) {
+                    boolean isLegacy = isLegacyId(petId, requestedType, mId, isBaby);
+                    return new ResolvedModel(requestedType, mId, false, isLegacy, isBaby);
+                }
+            }
+
+            // Explicit provider unavailable or missing model -> Fallback
+            ResolvedModel fallback = resolveFallbackModel(petId, requestedType, isBaby);
+            if (fallback.isValid()) {
+                return fallback;
+            }
+            return ResolvedModel.none(isBaby);
+        }
+
+        // AUTO resolution: Check candidates in priority order
+        List<String> priority = config.getStringList("model.auto_priority");
+        if (priority.isEmpty()) {
+            priority = List.of("BETTERMODEL", "MODELENGINE");
+        }
+
+        for (String p : priority) {
+            ModelType candidateType = ModelType.fromString(p);
+            if (candidateType == ModelType.NONE || candidateType == ModelType.AUTO) continue;
+            ModelProvider candProvider = getProvider(candidateType);
+            if (candProvider.isAvailable()) {
+                String candModelId = resolveConfiguredModelId(petId, candidateType, isBaby);
+                if (candModelId != null && !candModelId.isEmpty() && !isModelFailed(candidateType, candModelId)) {
+                    boolean isLegacy = isLegacyId(petId, candidateType, candModelId, isBaby);
+                    return new ResolvedModel(candidateType, candModelId, false, isLegacy, isBaby);
+                }
+            }
+        }
+
+        // AUTO candidates exhausted -> Fallback
+        ResolvedModel fallback = resolveFallbackModel(petId, null, isBaby);
+        if (fallback.isValid()) {
+            return fallback;
+        }
+
+        return ResolvedModel.none(isBaby);
+    }
+
+    private ResolvedModel resolveFallbackModel(String petId, ModelType primaryFailed, boolean isBaby) {
+        FileConfiguration config = plugin.getConfig();
+        if (!config.getBoolean("model.fallback.enabled", true)) {
+            return ResolvedModel.none(isBaby);
+        }
+
+        String fallbackStr = config.getString("model.fallback.provider", "BETTERMODEL");
+        ModelType fallbackType = ModelType.fromString(fallbackStr);
+        if (fallbackType == primaryFailed || fallbackType == ModelType.NONE || fallbackType == ModelType.AUTO) {
+            return ResolvedModel.none(isBaby);
+        }
+
+        ModelProvider fbProvider = getProvider(fallbackType);
+        if (fbProvider.isAvailable()) {
+            String fbModelId = resolveConfiguredModelId(petId, fallbackType, isBaby);
+            if (fbModelId != null && !fbModelId.isEmpty() && !isModelFailed(fallbackType, fbModelId)) {
+                boolean isLegacy = isLegacyId(petId, fallbackType, fbModelId, isBaby);
+                return new ResolvedModel(fallbackType, fbModelId, true, isLegacy, isBaby);
+            }
+        }
+        return ResolvedModel.none(isBaby);
+    }
+
+    /**
+     * Resolves configured model ID for a specific provider.
+     */
+    public String resolveConfiguredModelId(String petId, ModelType providerType, boolean isBaby) {
+        if (petId == null || providerType == null || providerType == ModelType.NONE) return null;
         FileConfiguration config = plugin.getConfig();
         String formKey = isBaby ? "baby" : "adult";
 
@@ -161,11 +322,12 @@ public class ModelProviderManager {
             String meId = config.getString("pets." + petId + ".model.modelengine.id");
             if (meId != null && !meId.trim().isEmpty()) return meId.trim();
 
-            // 3. Fallback to general modelengine string if defined as key
-            String meDirect = config.getString("pets." + petId + ".model.modelengine");
-            if (meDirect != null && !meDirect.trim().isEmpty() && !config.isConfigurationSection("pets." + petId + ".model.modelengine")) {
-                return meDirect.trim();
+            // 3. pets.<id>.model.modelengine
+            if (!config.isConfigurationSection("pets." + petId + ".model.modelengine")) {
+                String meDirect = config.getString("pets." + petId + ".model.modelengine");
+                if (meDirect != null && !meDirect.trim().isEmpty()) return meDirect.trim();
             }
+            return null;
         } else if (providerType == ModelType.BETTERMODEL) {
             // 1. pets.<id>.model.bettermodel.baby / adult
             String bmForm = config.getString("pets." + petId + ".model.bettermodel." + formKey);
@@ -175,16 +337,13 @@ public class ModelProviderManager {
             String bmId = config.getString("pets." + petId + ".model.bettermodel.id");
             if (bmId != null && !bmId.trim().isEmpty()) return bmId.trim();
 
-            // 3. Fallback to general bettermodel string if defined as key
-            String bmDirect = config.getString("pets." + petId + ".model.bettermodel");
-            if (bmDirect != null && !bmDirect.trim().isEmpty() && !config.isConfigurationSection("pets." + petId + ".model.bettermodel")) {
-                return bmDirect.trim();
+            // 3. pets.<id>.model.bettermodel
+            if (!config.isConfigurationSection("pets." + petId + ".model.bettermodel")) {
+                String bmDirect = config.getString("pets." + petId + ".model.bettermodel");
+                if (bmDirect != null && !bmDirect.trim().isEmpty()) return bmDirect.trim();
             }
-        }
 
-        // 3. Backward compatibility: legacy model_id / model_id_baby
-        // Only if provider is BetterModel or if no provider-specific config hijacked it
-        if (providerType == ModelType.BETTERMODEL || (providerType != ModelType.MODELENGINE && !config.contains("pets." + petId + ".model.modelengine"))) {
+            // 4. Legacy backward compatibility for BetterModel only
             if (isBaby && config.contains("pets." + petId + ".model_id_baby")) {
                 String babyLegacy = config.getString("pets." + petId + ".model_id_baby");
                 if (babyLegacy != null && !babyLegacy.trim().isEmpty()) return babyLegacy.trim();
@@ -198,17 +357,24 @@ public class ModelProviderManager {
         return null;
     }
 
+    private boolean isLegacyId(String petId, ModelType providerType, String modelId, boolean isBaby) {
+        if (providerType != ModelType.BETTERMODEL || modelId == null) return false;
+        FileConfiguration config = plugin.getConfig();
+        String legacyBaby = config.getString("pets." + petId + ".model_id_baby");
+        String legacyAdult = config.getString("pets." + petId + ".model_id");
+        return (isBaby && modelId.equals(legacyBaby)) || modelId.equals(legacyAdult);
+    }
+
+    public String resolveModelId(String petId, ModelType providerType, boolean isBaby) {
+        return resolveConfiguredModelId(petId, providerType, isBaby);
+    }
+
     public String resolveModelIdForProvider(String petId, ModelType providerType) {
-        return resolveModelId(petId, providerType, false);
+        return resolveConfiguredModelId(petId, providerType, false);
     }
 
     /**
      * Authoritative Animation Name Resolver.
-     * Priority:
-     * 1. Pet-specific mapping: pets.<id>.animations.<state>.<provider>
-     * 2. Global provider mapping: animations.<state>.<provider>
-     * 3. Fallback chain for the state
-     * 4. Default animation name
      */
     public String resolveAnimationName(String petId, ModelType providerType, PetAnimationState state) {
         if (state == null) return "idle";
@@ -266,9 +432,6 @@ public class ModelProviderManager {
         return state.getPrimaryName();
     }
 
-    /**
-     * Khởi tạo và gắn Model cho thú cưng với kiến trúc Đa Engine và Fallback an toàn.
-     */
     public boolean spawnModel(Player owner, Entity pet, String petId) {
         return spawnModel(owner, pet, petId, null, false);
     }
@@ -281,69 +444,80 @@ public class ModelProviderManager {
         return spawnModel(owner, pet, petId, directModelId, false);
     }
 
+    /**
+     * Spawns and attaches custom model with strict lifecycle ordering:
+     * remove old model -> resolve provider/model -> attach model -> register active provider -> register animation -> play SPAWN animation.
+     */
     public boolean spawnModel(Player owner, Entity pet, String petId, String directModelId, boolean isBaby) {
         if (pet == null) return false;
         UUID uuid = pet.getUniqueId();
 
-        // Xóa model cũ nếu đang tồn tại
+        // 1. Remove old model
         removeModel(uuid);
 
-        ModelProvider primary = resolveProviderForPet(petId);
-        String modelId = directModelId != null ? directModelId : resolveModelId(petId, primary.getType(), isBaby);
+        // 2. Resolve provider and model together
+        ResolvedModel resolved;
+        if (directModelId != null && !directModelId.trim().isEmpty()) {
+            ModelProvider prov = resolveProviderForPet(petId);
+            resolved = new ResolvedModel(prov.getType(), directModelId.trim(), false, false, isBaby);
+        } else {
+            resolved = resolveModel(petId, isBaby);
+        }
 
-        logDebug("Spawning pet [" + petId + "] with provider [" + primary.getType() + "] and model [" + modelId + "] (baby=" + isBaby + ")");
+        logDebug("Spawn decision for pet [" + petId + "]: " + resolved);
 
-        if (primary == noneModelProvider || modelId == null || modelId.trim().isEmpty()) {
+        if (!resolved.isValid() || resolved.getProvider() == ModelType.NONE) {
             noneModelProvider.spawn(owner, pet, null, petId);
             activeEntityProviders.put(uuid, noneModelProvider);
             animationController.registerPet(uuid, petId);
+            if (pet instanceof LivingEntity living && pet.isValid()) {
+                living.setInvisible(false);
+            }
             return true;
         }
 
-        String cacheKey = primary.getType() + ":" + modelId;
-        if (failedModelCache.contains(cacheKey)) {
-            logDebug("Model [" + cacheKey + "] is marked as failed, skipping to fallback/none.");
-            noneModelProvider.spawn(owner, pet, null, petId);
-            activeEntityProviders.put(uuid, noneModelProvider);
-            animationController.registerPet(uuid, petId);
-            return false;
-        }
+        ModelProvider primaryProvider = getProvider(resolved.getProvider());
+        boolean success = primaryProvider.spawn(owner, pet, resolved.getModelId(), petId);
 
-        boolean success = primary.spawn(owner, pet, modelId, petId);
         if (success) {
-            activeEntityProviders.put(uuid, primary);
+            // 3. Register active provider & animation controller
+            activeEntityProviders.put(uuid, primaryProvider);
             animationController.registerPet(uuid, petId);
-            logDebug("Successfully spawned model [" + modelId + "] via [" + primary.getType() + "]");
+            // 4. Play SPAWN animation AFTER full registration
+            animationController.requestTransientAnimation(pet, PetAnimationState.SPAWN, 25L, PetAnimationState.IDLE);
+            logDebug("Spawned model [" + resolved.getModelId() + "] via [" + resolved.getProvider() + "]");
             return true;
         }
 
-        // Nếu Provider chính thất bại, thử Fallback Provider
-        FileConfiguration config = plugin.getConfig();
-        if (config.getBoolean("model.fallback.enabled", true)) {
-            String fallbackStr = config.getString("model.fallback.provider", "BETTERMODEL");
-            ModelType fallbackType = ModelType.fromString(fallbackStr);
-            ModelProvider fallbackProvider = (fallbackType == ModelType.BETTERMODEL) ? betterModelProvider : modelEngineProvider;
+        // Primary spawn failed -> Record failure with TTL
+        markModelFailed(resolved.getProvider(), resolved.getModelId(), "Spawn failed or threw exception");
 
-            if (fallbackProvider != primary && fallbackProvider.isAvailable()) {
-                String fallbackModelId = resolveModelId(petId, fallbackProvider.getType(), isBaby);
-                if (fallbackModelId != null && !fallbackModelId.trim().isEmpty()) {
-                    logDebug("Attempting fallback provider [" + fallbackProvider.getType() + "] with model [" + fallbackModelId + "]");
-                    boolean fallbackSuccess = fallbackProvider.spawn(owner, pet, fallbackModelId, petId);
-                    if (fallbackSuccess) {
-                        activeEntityProviders.put(uuid, fallbackProvider);
-                        animationController.registerPet(uuid, petId);
-                        return true;
-                    }
+        // 5. Fallback retry if primary was not already fallback
+        if (!resolved.isFallback()) {
+            ResolvedModel fallback = resolveFallbackModel(petId, resolved.getProvider(), isBaby);
+            if (fallback.isValid()) {
+                ModelProvider fbProvider = getProvider(fallback.getProvider());
+                logDebug("Attempting fallback provider [" + fallback.getProvider() + "] with model [" + fallback.getModelId() + "]");
+                boolean fbSuccess = fbProvider.spawn(owner, pet, fallback.getModelId(), petId);
+                if (fbSuccess) {
+                    activeEntityProviders.put(uuid, fbProvider);
+                    animationController.registerPet(uuid, petId);
+                    animationController.requestTransientAnimation(pet, PetAnimationState.SPAWN, 25L, PetAnimationState.IDLE);
+                    return true;
+                } else {
+                    markModelFailed(fallback.getProvider(), fallback.getModelId(), "Fallback spawn failed");
                 }
             }
         }
 
-        // Đánh dấu cache để tránh lặp lại mỗi tick
-        failedModelCache.add(cacheKey);
-        logDebug("All custom model spawn attempts failed for pet [" + petId + "]. Falling back to vanilla entity.");
+        // All custom renders failed -> Fallback to vanilla entity
+        logDebug("All custom models failed for pet [" + petId + "]. Using vanilla entity.");
         noneModelProvider.spawn(owner, pet, null, petId);
         activeEntityProviders.put(uuid, noneModelProvider);
         animationController.registerPet(uuid, petId);
+        if (pet instanceof LivingEntity living && pet.isValid()) {
+            living.setInvisible(false);
+        }
         return false;
     }
 
@@ -434,4 +608,3 @@ public class ModelProviderManager {
         return "None";
     }
 }
-
