@@ -73,7 +73,7 @@ public class TradeManager {
 
     public void sendTradeRequest(Player sender, Player target) {
         if (!plugin.getModuleManager().isTradeEnabled()) {
-            sender.sendMessage("§cTính năng Giao Dịch Pet hiện đang bị tắt bởi máy chủ!");
+            sender.sendMessage(plugin.getLanguage().getMessage("trade.disabled"));
             return;
         }
 
@@ -83,25 +83,25 @@ public class TradeManager {
         }
 
         if (target == null || !target.isOnline() || target.equals(sender)) {
-            sender.sendMessage("§cNgười chơi không hợp lệ hoặc đang offline!");
+            sender.sendMessage(plugin.getLanguage().getMessage("trade.invalid_target"));
             return;
         }
 
         if (isInTrade(sender) || isInTrade(target)) {
-            sender.sendMessage("§cMột trong hai người chơi hiện đang trong phiên giao dịch khác!");
+            sender.sendMessage(plugin.getLanguage().getMessage("trade.already_trading"));
             return;
         }
 
         long timeoutMs = plugin.getModuleManager().getTradeConfig().getInt("trade_request_timeout_seconds", 60) * 1000L;
         pendingTrades.put(target.getUniqueId(), new TradeRequest(sender.getUniqueId(), System.currentTimeMillis()));
-        sender.sendMessage("§aĐã gửi lời mời giao dịch Pet tới §e" + target.getName() + "§a (Hết hạn sau 60s).");
-        target.sendMessage("§e" + sender.getName() + " §7muốn giao dịch Pet với bạn! Nhập §b/pet trade accept §7để chấp nhận.");
+        sender.sendMessage(plugin.getLanguage().getMessage("trade.invite_sent", "%player%", target.getName()));
+        target.sendMessage(plugin.getLanguage().getMessage("trade.invite_received", "%player%", sender.getName()));
         target.playSound(target.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
     }
 
     public void acceptTrade(Player accepter) {
         if (!plugin.getModuleManager().isTradeEnabled()) {
-            accepter.sendMessage("§cTính năng Giao Dịch Pet hiện đang bị tắt bởi máy chủ!");
+            accepter.sendMessage(plugin.getLanguage().getMessage("trade.disabled"));
             return;
         }
 
@@ -113,18 +113,18 @@ public class TradeManager {
         TradeRequest req = pendingTrades.remove(accepter.getUniqueId());
         long timeoutMs = plugin.getModuleManager().getTradeConfig().getInt("trade_request_timeout_seconds", 60) * 1000L;
         if (req == null || req.isExpired(timeoutMs)) {
-            accepter.sendMessage("§cBạn không có lời mời giao dịch Pet nào (hoặc lời mời đã hết hạn).");
+            accepter.sendMessage(plugin.getLanguage().getMessage("trade.no_invite"));
             return;
         }
 
         Player sender = Bukkit.getPlayer(req.getSenderId());
         if (sender == null || !sender.isOnline()) {
-            accepter.sendMessage("§cNgười gửi lời mời hiện đã offline!");
+            accepter.sendMessage(plugin.getLanguage().getMessage("trade.sender_offline"));
             return;
         }
 
         if (isInTrade(sender) || isInTrade(accepter)) {
-            accepter.sendMessage("§cMột trong hai người chơi hiện đang trong phiên giao dịch khác!");
+            accepter.sendMessage(plugin.getLanguage().getMessage("trade.already_trading"));
             return;
         }
 

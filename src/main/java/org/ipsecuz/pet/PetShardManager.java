@@ -82,9 +82,11 @@ public class PetShardManager {
         addShards(player.getUniqueId(), petId, shardYield);
 
         String petName = plugin.getConfig().getString("pets." + petId + ".name", petId);
-        player.sendMessage(ChatColor.translateAlternateColorCodes('&',
-                "§eBạn đã sở hữu §f" + petName + "§e! Trứng chuyển hóa thành §b+" + shardYield + " Mảnh Pet " +
-                        rarity.getFormattedName() + " §evà §a+" + bonusExp + " EXP§e!"));
+        player.sendMessage(plugin.getLanguage().getMessage("shards.duplicate_reward",
+                "%pet_name%", petName,
+                "%amount%", String.valueOf(shardYield),
+                "%rarity%", rarity.getLocalizedName(plugin),
+                "%exp%", String.valueOf(bonusExp)));
 
         plugin.getPetManager().giveSpecificPetExp(player, petId, bonusExp);
         player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1f, 1.2f);

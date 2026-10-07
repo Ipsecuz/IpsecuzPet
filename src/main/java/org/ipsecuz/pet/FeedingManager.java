@@ -163,7 +163,7 @@ public class FeedingManager {
         int curHappy = getHappiness(player.getUniqueId(), petId);
         int maxHappy = config.getInt("max_happiness", 100);
         if (curHappy >= maxHappy) {
-            player.sendMessage("§aThú cưng đã no căng bụng và vô cùng hạnh phúc (" + maxHappy + "/" + maxHappy + ")!");
+            player.sendMessage(plugin.getLanguage().getMessage("feeding.full", "%happiness%", String.valueOf(maxHappy)));
             return false;
         }
 
@@ -180,10 +180,9 @@ public class FeedingManager {
 
         HappinessState state = getHappinessState(newHappy);
         player.sendActionBar(net.kyori.adventure.text.Component.text(
-                "§d♡ Thân Thiết +" + addHappy + " §8(" + newHappy + "/" + maxHappy + ") §7| §b✦ EXP +" + addExp
+                "§d♡ +" + addHappy + " §8(" + newHappy + "/" + maxHappy + ") §7| §b✦ EXP +" + addExp
         ));
-        player.sendMessage("§aĐã cho thú cưng ăn §e" + matName + "§a! Độ vui vẻ: §e" + newHappy + "/" + maxHappy +
-                " §7(" + state.getDisplay() + "§7) §a(+§b" + addExp + " EXP§a)");
+        player.sendMessage(plugin.getLanguage().getMessage("pet.feed_success", "%happiness%", String.valueOf(newHappy)));
 
         String activeId = plugin.getPetManager().getActivePetId(player.getUniqueId());
         boolean isActive = petId.equals(activeId);

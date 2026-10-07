@@ -288,7 +288,8 @@ public class GuiListener implements Listener {
         String customName = cm.getCustomName(p.getUniqueId(), petId);
         String name = (customName != null) ? customName : defaultName;
 
-        Inventory inv = Bukkit.createInventory(holder, 45, LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&8✦ Quản Lý: " + name)));
+        String rawTitle = plugin.getLanguage().getMessage("gui.detail_title", "%pet_name%", name);
+        Inventory inv = Bukkit.createInventory(holder, 45, LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', rawTitle)));
         holder.setInventory(inv);
 
         ItemStack border = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
@@ -314,7 +315,13 @@ public class GuiListener implements Listener {
             pMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&6★ " + name)));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text("§7Mã định danh: §e" + petId));
-            lore.add(Component.text("§7Độ hiếm: " + rarity.getFormattedName()));
+            lore.add(Component.text("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
+            if (plugin.getModelProviderManager() != null) {
+                var provider = plugin.getModelProviderManager().resolveProviderForPet(petId);
+                if (provider != null && provider.getType() != org.ipsecuz.pet.model.ModelType.NONE) {
+                    lore.add(Component.text(plugin.getLanguage().getMessage("model.model_3d_label", "%provider%", provider.getType().name())));
+                }
+            }
             lore.add(Component.text("§7Cấp sao: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐"))));
             lore.add(Component.text("§7Đặc chất: " + trait.getFormattedName()));
             lore.add(Component.text("§7Cấp độ: §aLv." + lvl + " §7(EXP: §b" + exp + "/" + reqExp + "§7)"));
@@ -620,7 +627,7 @@ public class GuiListener implements Listener {
         ItemStack confirmBtn = new ItemStack(Material.LIME_CONCRETE);
         ItemMeta cMeta = confirmBtn.getItemMeta();
         if (cMeta != null) {
-            cMeta.displayName(Component.text("§a§l✔ XÁC NHẬN"));
+            cMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(plugin.getLanguage().getMessage("gui.btn_confirm")));
             List<Component> cLore = new ArrayList<>();
             cLore.add(Component.text("§7Nhấp để hoàn tất thao tác."));
             cMeta.lore(cLore);
@@ -638,7 +645,7 @@ public class GuiListener implements Listener {
         ItemStack cancelBtn = new ItemStack(Material.RED_CONCRETE);
         ItemMeta canMeta = cancelBtn.getItemMeta();
         if (canMeta != null) {
-            canMeta.displayName(Component.text("§c§l✖ HỦY BỎ"));
+            canMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(plugin.getLanguage().getMessage("gui.btn_cancel")));
             List<Component> canLore = new ArrayList<>();
             canLore.add(Component.text("§7Nhấp để hủy thao tác và quay lại."));
             canMeta.lore(canLore);

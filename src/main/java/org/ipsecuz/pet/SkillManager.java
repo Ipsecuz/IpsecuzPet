@@ -88,24 +88,24 @@ public class SkillManager {
 
     public boolean unlockSkill(Player player, String petId, String skillType) {
         if (!plugin.getModuleManager().isSkillsEnabled()) {
-            player.sendMessage("§cTính năng Kỹ Năng Pet hiện đang bị tắt bởi máy chủ!");
+            player.sendMessage(plugin.getLanguage().getMessage("skills.disabled"));
             return false;
         }
 
         if (!plugin.getConfigManager().getData().contains(player.getUniqueId() + ".pets." + petId)) {
-            player.sendMessage("§cBạn không sở hữu thú cưng này!");
+            player.sendMessage(plugin.getLanguage().getMessage("skills.not_owned"));
             return false;
         }
 
         if (isSkillUnlocked(player.getUniqueId(), petId, skillType)) {
-            player.sendMessage("§aThú cưng đã học kỹ năng này rồi!");
+            player.sendMessage(plugin.getLanguage().getMessage("skills.already_learned"));
             return false;
         }
 
         FileConfiguration config = plugin.getModuleManager().getSkillsConfig();
         ConfigurationSection sec = config.getConfigurationSection("skills." + petId + "." + skillType);
         if (sec == null) {
-            player.sendMessage("§cKhông tìm thấy thông tin kỹ năng này!");
+            player.sendMessage(plugin.getLanguage().getMessage("skills.not_found"));
             return false;
         }
 
@@ -124,14 +124,14 @@ public class SkillManager {
         plugin.getConfigManager().saveData();
 
         String skillName = sec.getString("name", skillType);
-        player.sendMessage("§a§lTHÀNH CÔNG! §fThú cưng đã học được kỹ năng: " + ChatColor.translateAlternateColorCodes('&', skillName));
+        player.sendMessage(plugin.getLanguage().getMessage("skills.learn_success", "%skill%", ChatColor.translateAlternateColorCodes('&', skillName)));
         player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
         return true;
     }
 
     public boolean triggerUltimate(Player player) {
         if (!plugin.getModuleManager().isSkillsEnabled()) {
-            player.sendMessage("§cTính năng Kỹ Năng Pet hiện đang bị tắt bởi máy chủ!");
+            player.sendMessage(plugin.getLanguage().getMessage("skills.disabled"));
             return false;
         }
 
@@ -147,12 +147,12 @@ public class SkillManager {
         FileConfiguration config = plugin.getModuleManager().getSkillsConfig();
         ConfigurationSection skillSec = config.getConfigurationSection("skills." + petId + ".ultimate");
         if (skillSec == null) {
-            player.sendMessage("§cPet này hiện chưa có Tuyệt Chiêu Kích Hoạt!");
+            player.sendMessage(plugin.getLanguage().getMessage("skills.no_active_skill"));
             return false;
         }
 
         if (!isSkillUnlocked(player.getUniqueId(), petId, "ultimate")) {
-            player.sendMessage("§cThú cưng chưa học Tuyệt Chiêu này! Hãy mở Bảng Điều Khiển để học.");
+            player.sendMessage(plugin.getLanguage().getMessage("skills.not_learned"));
             return false;
         }
 
@@ -163,7 +163,7 @@ public class SkillManager {
         long remaining = (lastUse + (cdSec * 1000L) - now) / 1000L;
 
         if (remaining > 0) {
-            player.sendMessage("§cTuyệt chiêu đang hồi lại! Vui lòng chờ §e" + remaining + "s§c.");
+            player.sendMessage(plugin.getLanguage().getMessage("skills.cooldown", "%cooldown%", String.valueOf(remaining)));
             return false;
         }
 
@@ -175,7 +175,7 @@ public class SkillManager {
         String pName = skillSec.getString("particle", "EXPLOSION_NORMAL");
         String sName = skillSec.getString("sound", "ENTITY_GENERIC_EXPLODE");
 
-        player.sendMessage("§6§lPET SKILL! §e" + ChatColor.translateAlternateColorCodes('&', skillName) + " §ađã được kích hoạt!");
+        player.sendMessage(plugin.getLanguage().getMessage("skills.cast_success", "%skill%", ChatColor.translateAlternateColorCodes('&', skillName)));
 
         SchedulerUtils.runEntityTask(plugin, pet, () -> {
             Location chargeLoc = pet.getLocation();
@@ -213,7 +213,7 @@ public class SkillManager {
                         }
                         player.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 200, 1));
                         if (cleansed > 0) {
-                            player.sendMessage("§aKhúc Hát Thanh Lọc đã loại bỏ §e" + cleansed + " §ahiệu ứng tiêu cực!");
+                            player.sendMessage(plugin.getLanguage().getMessage("skills.cleanse_effect", "%amount%", String.valueOf(cleansed)));
                         }
                     });
 

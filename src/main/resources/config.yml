@@ -1,6 +1,23 @@
 # ==========================================================
 #               IPSECUZ PETS - CONFIGURATION
 # ==========================================================
+# Ngôn ngữ hiển thị (VN hoặc EN)
+language: VN # VN hoặc EN
+
+# Thu thập thống kê ẩn danh qua bStats
+metric: true
+
+# Cấu hình hệ thống Renderer 3D Model (BetterModel + ModelEngine 4)
+model:
+  provider: AUTO # NONE, BETTERMODEL, MODELENGINE, AUTO
+  auto_priority:
+    - BETTERMODEL
+    - MODELENGINE
+  fallback:
+    enabled: true
+    provider: BETTERMODEL
+  debug: false
+
 # Giới hạn số lượng Pet tối đa một người chơi có thể sở hữu
 max_pets: 2
 

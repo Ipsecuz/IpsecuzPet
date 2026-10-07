@@ -55,12 +55,12 @@ public class EvolutionManager {
 
     public boolean upgradeStar(Player player, String petId) {
         if (!plugin.getModuleManager().isEvolutionEnabled()) {
-            player.sendMessage("§cTính năng Tiến Hóa & Tăng Sao hiện đang bị tắt bởi máy chủ!");
+            player.sendMessage(plugin.getLanguage().getMessage("skills.disabled"));
             return false;
         }
 
         if (!plugin.getConfigManager().getData().contains(player.getUniqueId() + ".pets." + petId)) {
-            player.sendMessage("§cBạn không sở hữu thú cưng này!");
+            player.sendMessage(plugin.getLanguage().getMessage("skills.not_owned"));
             return false;
         }
 
@@ -68,7 +68,7 @@ public class EvolutionManager {
         int maxStar = plugin.getModuleManager().getEvolutionConfig().getInt("max_stars", 5);
 
         if (curStar >= maxStar) {
-            player.sendMessage("§cThú cưng này đã đạt cấp sao tối đa (" + getStarDisplay(curStar) + "§c)!");
+            player.sendMessage(plugin.getLanguage().getMessage("evolution.max_stars", "%stars%", String.valueOf(curStar)));
             return false;
         }
 
@@ -128,20 +128,18 @@ public class EvolutionManager {
                 player.sendActionBar(net.kyori.adventure.text.Component.text(
                         "§6§l★ TIẾN HÓA: " + getStarDisplay(curStar) + " §e➔ " + getStarDisplay(nextStar)
                 ));
-                player.sendMessage("§6§lTIẾN HÓA THÀNH CÔNG! §ePet của bạn đã đạt cấp " + getStarDisplay(nextStar) + "§e!");
-                player.sendMessage("§a✦ Máu, Sát thương & Phòng thủ được gia tăng +15%!");
+                player.sendMessage(plugin.getLanguage().getMessage("evolution.success", "%stars%", String.valueOf(nextStar)));
                 plugin.getPetManager().refreshPetStats(player);
             }, 50L);
 
         } else {
             // Khi không triệu hồi trực tiếp: Nâng cấp tức thời
-            player.sendMessage("§6§lTIẾN HÓA THÀNH CÔNG! §ePet của bạn đã đạt cấp " + getStarDisplay(nextStar) + "§e!");
-            player.sendMessage("§a✦ Máu, Sát thương & Phòng thủ được gia tăng +15%!");
+            player.sendMessage(plugin.getLanguage().getMessage("evolution.success", "%stars%", String.valueOf(nextStar)));
             player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
-            try {
-                player.getWorld().spawnParticle(Particle.FIREWORKS_SPARK, player.getLocation().add(0, 1, 0), 25, 0.4, 0.5, 0.4, 0.08);
-            } catch (Exception ignored) {}
         }
+        try {
+            player.getWorld().spawnParticle(Particle.FIREWORKS_SPARK, player.getLocation().add(0, 1, 0), 25, 0.4, 0.5, 0.4, 0.08);
+        } catch (Exception ignored) {}
         return true;
     }
 }

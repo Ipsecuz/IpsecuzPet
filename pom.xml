@@ -26,6 +26,37 @@
                     <target>${java.version}</target>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.2</version>
+                <configuration>
+                    <relocations>
+                        <relocation>
+                            <pattern>org.bstats</pattern>
+                            <shadedPattern>org.ipsecuz.pet.libs.bstats</shadedPattern>
+                        </relocation>
+                    </relocations>
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <exclude>META-INF/*.SF</exclude>
+                                <exclude>META-INF/*.DSA</exclude>
+                                <exclude>META-INF/*.RSA</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
         <resources>
             <resource>
@@ -49,6 +80,12 @@
         <repository>
             <id>rosewood-repo</id>
             <url>https://repo.rosewooddev.io/repository/public/</url>
+        </repository>
+
+        <repository>
+            <id>nexus</id>
+            <name>Lumine Public</name>
+            <url>https://mvn.lumine.io/repository/maven-public/</url>
         </repository>
     </repositories>
 
@@ -80,6 +117,20 @@
             <version>1.15.0</version>
             <scope>system</scope>
             <systemPath>${project.basedir}/libs/BetterModel.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.ticxo.modelengine</groupId>
+            <artifactId>ModelEngine</artifactId>
+            <version>R4.0.7</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.bstats</groupId>
+            <artifactId>bstats-bukkit</artifactId>
+            <version>3.2.1</version>
+            <scope>compile</scope>
         </dependency>
 
         <dependency>

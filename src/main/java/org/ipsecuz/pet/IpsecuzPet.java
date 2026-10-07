@@ -97,6 +97,20 @@ public class IpsecuzPet extends JavaPlugin {
                 getLogger().info("§a[IpsecuzPet] Bạn đang sử dụng phiên bản mới nhất (v" + this.getDescription().getVersion() + ").");
             }
         });
+        // 12. Tích hợp bStats Metrics (Plugin ID: 34551)
+        if (getConfig().getBoolean("metric", true)) {
+            try {
+                org.bstats.bukkit.Metrics metrics = new org.bstats.bukkit.Metrics(this, 34551);
+                metrics.addCustomChart(new org.bstats.charts.SimplePie("language", () ->
+                        getConfig().getString("language", "VN").toUpperCase()));
+                metrics.addCustomChart(new org.bstats.charts.SimplePie("model_provider", () ->
+                        modelHandler != null && modelHandler.getManager() != null ? modelHandler.getManager().getActiveProviderName() : "None"));
+                metrics.addCustomChart(new org.bstats.charts.SimplePie("renderer_availability", () ->
+                        modelHandler != null && modelHandler.getManager() != null ? modelHandler.getManager().getAvailableRenderersSummary() : "None"));
+            } catch (Throwable t) {
+                getLogger().warning("§c[bStats] Không thể khởi tạo dịch vụ thống kê: " + t.getMessage());
+            }
+        }
     }
 
     @Override
@@ -128,6 +142,7 @@ public class IpsecuzPet extends JavaPlugin {
     public LanguageManager getLanguage() { return languageManager; }
     public CaptureManager getCaptureManager() { return captureManager; }
     public ModelHandler getModelHandler() { return modelHandler; }
+    public org.ipsecuz.pet.model.ModelProviderManager getModelProviderManager() { return modelHandler != null ? modelHandler.getManager() : null; }
     public ModuleManager getModuleManager() { return moduleManager; }
     public HatchingManager getHatchingManager() { return hatchingManager; }
     public SkillManager getSkillManager() { return skillManager; }

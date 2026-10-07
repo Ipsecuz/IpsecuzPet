@@ -98,12 +98,7 @@ public class PetManager {
             // Scale kích cỡ pet thực tế (0.55 cho bé con, 1.0 cho trưởng thành)
             applyScale(living, isBaby ? 0.55 : 1.0);
 
-            if (modelId != null && !modelId.trim().isEmpty()) {
-                living.setInvisible(true);
-                modelHandler.spawnModel(player, pet, modelId);
-            } else {
-                living.setInvisible(false);
-            }
+            modelHandler.spawnModel(player, pet, petId, modelId);
 
             if (plugin.getConfig().getBoolean("pets." + petId + ".silent", true)) {
                 living.setSilent(true);

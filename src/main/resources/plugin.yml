@@ -5,7 +5,7 @@ api-version: 1.19
 folia-supported: true
 authors: [Ipsecuz]
 description: Plugin Pet RPG System - Stats, Duel, Mount, Shop, Hatching, Skills, Modules.
-softdepend: [BetterModel, Vault, PlayerPoints, ItemsAdder, Oraxen, Nexo, Citizens, FancyNpcs]
+softdepend: [BetterModel, ModelEngine, Vault, PlayerPoints, ItemsAdder, Oraxen, Nexo, Citizens, FancyNpcs]
 commands:
   ipsecuzpet:
     description: Lệnh chính của hệ thống Pet

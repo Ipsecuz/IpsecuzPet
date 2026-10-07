@@ -45,6 +45,7 @@ public class PetTabCompleter implements TabCompleter {
                 commands.add("giveball");
                 commands.add("giveegg");
                 commands.add("reload");
+                commands.add("model");
             }
 
             for (String cmd : commands) {
@@ -56,6 +57,12 @@ public class PetTabCompleter implements TabCompleter {
         }
 
         if (args.length == 2) {
+            if (args[0].equalsIgnoreCase("model") && sender.hasPermission("ipsecuzpet.admin")) {
+                if ("status".startsWith(args[1].toLowerCase())) {
+                    results.add("status");
+                }
+                return results;
+            }
             if (args[0].equalsIgnoreCase("withdraw") && sender instanceof Player p) {
                 if (plugin.getConfigManager().getData().getConfigurationSection(p.getUniqueId() + ".pets") != null) {
                     results.addAll(plugin.getConfigManager().getData().getConfigurationSection(p.getUniqueId() + ".pets").getKeys(false));

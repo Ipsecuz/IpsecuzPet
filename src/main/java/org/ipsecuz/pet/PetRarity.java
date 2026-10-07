@@ -50,6 +50,17 @@ public enum PetRarity {
         return Component.text(ChatColor.translateAlternateColorCodes('&', formattedName));
     }
 
+    public String getLocalizedName(IpsecuzPet plugin) {
+        if (plugin != null && plugin.getLanguage() != null) {
+            String key = "rarity." + name().toLowerCase();
+            String localized = plugin.getLanguage().getMessage(key);
+            if (localized != null && !localized.startsWith("§cMissing")) {
+                return chatColor + localized;
+            }
+        }
+        return getFormattedName();
+    }
+
     public static PetRarity fromString(String name) {
         if (name == null || name.trim().isEmpty()) return COMMON;
         String clean = name.trim().toUpperCase();

@@ -80,10 +80,11 @@ public class TradeSession {
     }
 
     private void renderBaseFrame() {
+        var lang = plugin.getLanguage();
         ItemStack blackGlass = createGlass(Material.BLACK_STAINED_GLASS_PANE, " ");
-        ItemStack cyanGlass = createGlass(Material.CYAN_STAINED_GLASS_PANE, "§b✦ Bên đề nghị: " + playerA.getName());
-        ItemStack orangeGlass = createGlass(Material.ORANGE_STAINED_GLASS_PANE, "§6✦ Bên đối tác: " + playerB.getName());
-        ItemStack whiteGlass = createGlass(Material.GRAY_STAINED_GLASS_PANE, "§8⇄ Vách Ngăn");
+        ItemStack cyanGlass = createGlass(Material.CYAN_STAINED_GLASS_PANE, lang.getMessage("trade.initiator_offer", "%player%", playerA.getName()));
+        ItemStack orangeGlass = createGlass(Material.ORANGE_STAINED_GLASS_PANE, lang.getMessage("trade.partner_offer", "%player%", playerB.getName()));
+        ItemStack whiteGlass = createGlass(Material.GRAY_STAINED_GLASS_PANE, lang.getMessage("trade.divider"));
 
         for (int i = 0; i < 54; i++) {
             if (SLOTS_A.contains(i) || SLOTS_B.contains(i) || i == 38 || i == 42 || i == 49) {
@@ -100,19 +101,22 @@ public class TradeSession {
     }
 
     public void updateStatusButtons() {
+        var lang = plugin.getLanguage();
         // Nút khóa bên A (slot 38)
         ItemStack btnA = createGlass(
                 lockedA ? Material.LIME_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE,
-                lockedA ? "§a§l✔ " + playerA.getName() + " ĐÃ KHÓA" : "§c§l✖ " + playerA.getName() + " CHƯA KHÓA",
-                "§7Nhấp để chuyển trạng thái Khóa / Mở"
+                lockedA ? lang.getMessage("trade.status_locked", "%player%", playerA.getName())
+                        : lang.getMessage("trade.status_unlocked", "%player%", playerA.getName()),
+                lang.getMessage("trade.toggle_lock")
         );
         inventory.setItem(38, btnA);
 
         // Nút khóa bên B (slot 42)
         ItemStack btnB = createGlass(
                 lockedB ? Material.LIME_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE,
-                lockedB ? "§a§l✔ " + playerB.getName() + " ĐÃ KHÓA" : "§c§l✖ " + playerB.getName() + " CHƯA KHÓA",
-                "§7Nhấp để chuyển trạng thái Khóa / Mở"
+                lockedB ? lang.getMessage("trade.status_locked", "%player%", playerB.getName())
+                        : lang.getMessage("trade.status_unlocked", "%player%", playerB.getName()),
+                lang.getMessage("trade.toggle_lock")
         );
         inventory.setItem(42, btnB);
 
@@ -120,16 +124,16 @@ public class TradeSession {
         ItemStack centerSlot;
         if (countdown > 0) {
             centerSlot = createGlass(Material.YELLOW_STAINED_GLASS_PANE,
-                    "§e§lĐANG ĐẾM NGƯỢC: §6" + countdown + "s...",
-                    "§7Giao dịch sẽ hoàn tất sau giây lát!");
+                    lang.getMessage("trade.countdown", "%time%", String.valueOf(countdown)),
+                    lang.getMessage("trade.countdown_desc"));
         } else if (lockedA && lockedB) {
             centerSlot = createGlass(Material.LIME_STAINED_GLASS_PANE,
-                    "§a§lCẢ HAI ĐÃ SẴN SÀNG!",
-                    "§7Đang chuẩn bị xác nhận...");
+                    lang.getMessage("trade.ready"),
+                    lang.getMessage("trade.ready_desc"));
         } else {
             centerSlot = createGlass(Material.BARRIER,
-                    "§c§lCHỜ KHÓA GIAO DỊCH",
-                    "§7Cả 2 người chơi phải bấm nút Khóa để tiếp tục.");
+                    lang.getMessage("trade.waiting_lock"),
+                    lang.getMessage("trade.waiting_lock_desc"));
         }
         inventory.setItem(49, centerSlot);
     }
@@ -144,8 +148,8 @@ public class TradeSession {
             updateStatusButtons();
             playerA.playSound(playerA.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.8f, 0.8f);
             playerB.playSound(playerB.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.8f, 0.8f);
-            playerA.sendMessage("§e[Giao Dịch] Ưu đãi đã thay đổi. Trạng thái khóa đã được hủy bỏ!");
-            playerB.sendMessage("§e[Giao Dịch] Ưu đãi đã thay đổi. Trạng thái khóa đã được hủy bỏ!");
+            playerA.sendMessage(plugin.getLanguage().getMessage("trade.offer_changed"));
+            playerB.sendMessage(plugin.getLanguage().getMessage("trade.offer_changed"));
         }
     }
 
@@ -319,8 +323,8 @@ public class TradeSession {
         playerA.playSound(playerA.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
         playerB.playSound(playerB.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
 
-        playerA.sendMessage("§a§lGIAO DỊCH THÀNH CÔNG! §fBạn đã nhận được Thẻ Pet từ §e" + playerB.getName() + "§f.");
-        playerB.sendMessage("§a§lGIAO DỊCH THÀNH CÔNG! §fBạn đã nhận được Thẻ Pet từ §e" + playerA.getName() + "§f.");
+        playerA.sendMessage(plugin.getLanguage().getMessage("trade.success", "%player%", playerB.getName()));
+        playerB.sendMessage(plugin.getLanguage().getMessage("trade.success", "%player%", playerA.getName()));
 
         playerA.closeInventory();
         playerB.closeInventory();
@@ -350,8 +354,8 @@ public class TradeSession {
         }
 
         if (reason != null) {
-            if (playerA.isOnline()) playerA.sendMessage("§c§l[GIAO DỊCH ĐÃ HỦY] §7" + reason);
-            if (playerB.isOnline()) playerB.sendMessage("§c§l[GIAO DỊCH ĐÃ HỦY] §7" + reason);
+            if (playerA.isOnline()) playerA.sendMessage(plugin.getLanguage().getMessage("trade.cancelled", "%reason%", reason));
+            if (playerB.isOnline()) playerB.sendMessage(plugin.getLanguage().getMessage("trade.cancelled", "%reason%", reason));
         }
 
         if (playerA.isOnline() && playerA.getOpenInventory().getTopInventory().equals(inventory)) {

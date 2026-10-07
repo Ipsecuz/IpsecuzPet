@@ -59,6 +59,12 @@ public class PetCommand implements CommandExecutor {
                     return handleGiveBall(sender, args, lang);
                 case "giveegg":
                     return handleGiveEgg(sender, args, lang);
+                case "model":
+                    if (args.length > 1 && args[1].equalsIgnoreCase("status")) {
+                        return handleModelStatus(sender, lang);
+                    }
+                    sender.sendMessage("§cUsage: /pet model status");
+                    return true;
             }
         }
 
@@ -80,26 +86,31 @@ public class PetCommand implements CommandExecutor {
                 p.sendMessage(lang.getMessage("help.cmd_gui"));
                 p.sendMessage(lang.getMessage("help.cmd_shop"));
                 p.sendMessage(lang.getMessage("help.cmd_despawn"));
-                p.sendMessage("§e/pet hatch §7- Mở Lò Ấp Trứng (Hỗ trợ gắn NPC)");
-                p.sendMessage("§e/pet codex §7- Sách Bách Khoa Thu Thập Pet");
-                p.sendMessage("§e/pet shards §7- Kho Mảnh Shards Pet");
-                p.sendMessage("§e/pet baby §7- Đổi dạng Bé con (Baby) / Trưởng thành");
-                p.sendMessage("§e/pet feed §7- Cho thú cưng ăn tăng Độ Vui Vẻ");
-                p.sendMessage("§e/pet skill §7- Kích hoạt Tuyệt Chiêu Pet");
-                p.sendMessage("§e/pet star §7- Tiến hóa & Tăng sao Pet");
-                p.sendMessage("§e/pet trade <player> §7- Giao dịch Pet an toàn");
+                p.sendMessage(lang.getMessage("help.cmd_hatch"));
+                p.sendMessage(lang.getMessage("help.cmd_codex"));
+                p.sendMessage(lang.getMessage("help.cmd_shards"));
+                p.sendMessage(lang.getMessage("help.cmd_baby"));
+                p.sendMessage(lang.getMessage("help.cmd_feed"));
+                p.sendMessage(lang.getMessage("help.cmd_skill"));
+                p.sendMessage(lang.getMessage("help.cmd_star"));
+                p.sendMessage(lang.getMessage("help.cmd_trade"));
                 p.sendMessage(lang.getMessage("help.cmd_duel"));
                 p.sendMessage(lang.getMessage("help.cmd_accept"));
-                p.sendMessage("§e/pet stats §7- Xem chỉ số Pet");
-                p.sendMessage("§e/pet withdraw <id> §7- Đổi Pet thành vật phẩm");
-                p.sendMessage("§e/pet rename <tên> §7- Đổi tên Pet");
                 if (p.hasPermission("ipsecuzpet.admin")) {
-                    p.sendMessage("§c/pet give <player> <pet_id> §7- Admin Give Pet");
-                    p.sendMessage("§c/pet giveball <player> <ball_id> <amount> §7- Give Ball");
-                    p.sendMessage("§c/pet giveegg <player> <egg_id> <amount> §7- Give Egg");
-                    p.sendMessage("§c/pet reload §7- Admin Reload (Configs & Modules)");
+                    p.sendMessage(lang.getMessage("help.cmd_model_status"));
+                    p.sendMessage(lang.getMessage("help.cmd_give"));
+                    p.sendMessage(lang.getMessage("help.cmd_giveball"));
+                    p.sendMessage(lang.getMessage("help.cmd_giveegg"));
+                    p.sendMessage(lang.getMessage("help.cmd_reload"));
                 }
                 p.sendMessage(lang.getMessage("help.footer"));
+                break;
+
+            case "model":
+                if (args.length > 1 && args[1].equalsIgnoreCase("status")) {
+                    return handleModelStatus(p, lang);
+                }
+                p.sendMessage("§cUsage: /pet model status");
                 break;
 
             case "shop":
@@ -356,6 +367,30 @@ public class PetCommand implements CommandExecutor {
         return true;
     }
 
+    private boolean handleModelStatus(CommandSender sender, LanguageManager lang) {
+        if (!sender.hasPermission("ipsecuzpet.admin")) {
+            sender.sendMessage(lang.getMessage("general.no_permission"));
+            return true;
+        }
+
+        var mm = plugin.getModelProviderManager();
+        boolean bm = mm != null && mm.getBetterModelProvider().isAvailable();
+        boolean me = mm != null && mm.getModelEngineProvider().isAvailable();
+        String bmStatus = bm ? lang.getMessage("model.installed") : lang.getMessage("model.not_installed");
+        String meStatus = me ? lang.getMessage("model.installed") : lang.getMessage("model.not_installed");
+        String globalProvider = plugin.getConfig().getString("model.provider", "AUTO");
+        String activeProvider = (mm != null) ? mm.getActiveProviderName() : "None";
+
+        sender.sendMessage(lang.getMessage("model.status_header"));
+        sender.sendMessage(lang.getMessage("model.status_title"));
+        sender.sendMessage(lang.getMessage("model.bettermodel_label", "%status%", bmStatus));
+        sender.sendMessage(lang.getMessage("model.modelengine_label", "%status%", meStatus));
+        sender.sendMessage(lang.getMessage("model.global_provider", "%provider%", globalProvider));
+        sender.sendMessage(lang.getMessage("model.active_provider", "%provider%", activeProvider));
+        sender.sendMessage(lang.getMessage("model.status_footer"));
+        return true;
+    }
+
     private boolean handleReload(CommandSender sender, LanguageManager lang) {
         if (!sender.hasPermission("ipsecuzpet.admin")) {
             sender.sendMessage(lang.getMessage("general.no_permission"));
@@ -365,13 +400,16 @@ public class PetCommand implements CommandExecutor {
         plugin.getLanguage().loadMessages();
         plugin.getConfigManager().loadDataFile();
         plugin.getCaptureManager().loadBalls();
+        if (plugin.getModelHandler() != null && plugin.getModelHandler().getManager() != null) {
+            plugin.getModelHandler().getManager().reload();
+        }
         if (plugin.getModuleManager() != null) {
             plugin.getModuleManager().reloadAllModules();
         }
         if (plugin.getDynamicPetRegistry() != null) {
             plugin.getDynamicPetRegistry().detectAndRegisterNewMobs();
         }
-        sender.sendMessage(lang.getMessage("general.config_reloaded"));
+        sender.sendMessage(plugin.getLanguage().getMessage("general.config_reloaded"));
         return true;
     }
 
@@ -381,7 +419,7 @@ public class PetCommand implements CommandExecutor {
             return true;
         }
         if (args.length < 3) {
-            sender.sendMessage("§cCú pháp: /pet give <player> <pet_id>");
+            sender.sendMessage(lang.getMessage("admin.give_usage"));
             return true;
         }
         Player receiver = Bukkit.getPlayer(args[1]);
@@ -399,7 +437,7 @@ public class PetCommand implements CommandExecutor {
             return true;
         }
         if (!plugin.getOwnershipManager().canAcquirePet(receiver)) {
-            sender.sendMessage("§cNgười chơi " + receiver.getName() + " đã đạt giới hạn số lượng Pet!");
+            sender.sendMessage(lang.getMessage("pet.limit_reached", "%max_pets%", String.valueOf(plugin.getConfig().getInt("max_pets", 2))));
             return true;
         }
         plugin.getConfigManager().createPetDataIfMissing(receiver.getUniqueId(), petIdToGive);
@@ -418,7 +456,7 @@ public class PetCommand implements CommandExecutor {
             return true;
         }
         if (args.length < 3) {
-            sender.sendMessage("§cCú pháp: /pet giveball <player> <ball_id> [amount]");
+            sender.sendMessage(lang.getMessage("admin.giveball_usage"));
             return true;
         }
         Player targetP = Bukkit.getPlayer(args[1]);
@@ -432,12 +470,12 @@ public class PetCommand implements CommandExecutor {
             try {
                 amount = Integer.parseInt(args[3]);
             } catch (NumberFormatException e) {
-                sender.sendMessage("§cSố lượng phải là một con số nguyên hợp lệ!");
+                sender.sendMessage(lang.getMessage("general.invalid_amount"));
                 return true;
             }
         }
         if (amount <= 0 || amount > 2304) {
-            sender.sendMessage("§cSố lượng không hợp lệ! Vui lòng nhập từ 1 đến 2304.");
+            sender.sendMessage(lang.getMessage("general.invalid_amount"));
             return true;
         }
 
@@ -470,7 +508,7 @@ public class PetCommand implements CommandExecutor {
             return true;
         }
         if (args.length < 3) {
-            sender.sendMessage("§cCú pháp: /pet giveegg <player> <egg_id> [amount]");
+            sender.sendMessage(lang.getMessage("admin.giveegg_usage"));
             return true;
         }
         Player targetEggP = Bukkit.getPlayer(args[1]);
@@ -484,17 +522,17 @@ public class PetCommand implements CommandExecutor {
             try {
                 eggAmount = Integer.parseInt(args[3]);
             } catch (NumberFormatException e) {
-                sender.sendMessage("§cSố lượng phải là một con số nguyên hợp lệ!");
+                sender.sendMessage(lang.getMessage("general.invalid_amount"));
                 return true;
             }
         }
         if (eggAmount <= 0 || eggAmount > 2304) {
-            sender.sendMessage("§cSố lượng không hợp lệ! Vui lòng nhập từ 1 đến 2304.");
+            sender.sendMessage(lang.getMessage("general.invalid_amount"));
             return true;
         }
 
         if (plugin.getModuleManager() == null || !plugin.getModuleManager().getHatchingConfig().contains("eggs." + eggId)) {
-            sender.sendMessage("§cKhông tìm thấy ID trứng: " + eggId + "! Kiểm tra modules/hatching.yml");
+            sender.sendMessage(lang.getMessage("admin.invalid_egg_id"));
             return true;
         }
 
@@ -511,8 +549,8 @@ public class PetCommand implements CommandExecutor {
             remainingEggs -= batch;
         }
 
-        sender.sendMessage("§aĐã gửi §e" + eggAmount + "x " + eggId + " §acho người chơi §e" + targetEggP.getName() + "§a.");
-        targetEggP.sendMessage("§aBạn vừa nhận được §e" + eggAmount + "x Trứng Thú Cưng §atừ Admin!");
+        sender.sendMessage(lang.getMessage("admin.giveegg_success", "%amount%", String.valueOf(eggAmount), "%egg_id%", eggId, "%player%", targetEggP.getName()));
+        targetEggP.sendMessage(lang.getMessage("admin.giveegg_received"));
         return true;
     }
 }
