@@ -294,6 +294,7 @@ public class TradeSession {
                 throw new IllegalStateException("Phát hiện tràn ô lưu trữ không mong muốn trong khi trao đổi!");
             }
             commitSuccess = true;
+            plugin.getTradeManager().markTradeCommitted(tradeTxId);
         } catch (Throwable ex) {
             plugin.getLogger().severe("Lỗi nghiêm trọng trong quá trình chuyển giao dịch Pet: " + ex.getMessage());
             // Rollback ngay lập tức về snapshot

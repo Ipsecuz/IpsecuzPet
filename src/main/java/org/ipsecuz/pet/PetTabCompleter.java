@@ -23,28 +23,31 @@ public class PetTabCompleter implements TabCompleter {
 
         if (args.length == 1) {
             List<String> commands = new ArrayList<>();
-            commands.add("shop");
             commands.add("help");
             commands.add("despawn");
             commands.add("baby");
-            commands.add("hatch");
-            commands.add("codex");
-            commands.add("shards");
-            commands.add("feed");
-            commands.add("skill");
-            commands.add("star");
-            commands.add("trade");
             commands.add("duel");
             commands.add("accept");
             commands.add("stats");
-            commands.add("withdraw");
-            commands.add("rename");
+
+            if (sender.hasPermission("ipsecuzpet.shop")) commands.add("shop");
+            if (sender.hasPermission("ipsecuzpet.hatch")) commands.add("hatch");
+            if (sender.hasPermission("ipsecuzpet.codex")) commands.add("codex");
+            if (sender.hasPermission("ipsecuzpet.shards")) commands.add("shards");
+            if (sender.hasPermission("ipsecuzpet.feed")) commands.add("feed");
+            if (sender.hasPermission("ipsecuzpet.skill")) commands.add("skill");
+            if (sender.hasPermission("ipsecuzpet.evolution")) commands.add("star");
+            if (sender.hasPermission("ipsecuzpet.trade")) commands.add("trade");
+            if (sender.hasPermission("ipsecuzpet.withdraw")) commands.add("withdraw");
+            if (sender.hasPermission("ipsecuzpet.rename")) commands.add("rename");
 
             if (sender.hasPermission("ipsecuzpet.admin")) {
                 commands.add("give");
                 commands.add("giveball");
                 commands.add("giveegg");
                 commands.add("reload");
+            }
+            if (sender.hasPermission("ipsecuzpet.admin") || sender.hasPermission("ipsecuzpet.model.status")) {
                 commands.add("model");
             }
 
@@ -57,7 +60,7 @@ public class PetTabCompleter implements TabCompleter {
         }
 
         if (args.length == 2) {
-            if (args[0].equalsIgnoreCase("model") && sender.hasPermission("ipsecuzpet.admin")) {
+            if (args[0].equalsIgnoreCase("model") && (sender.hasPermission("ipsecuzpet.admin") || sender.hasPermission("ipsecuzpet.model.status"))) {
                 if ("status".startsWith(args[1].toLowerCase())) {
                     results.add("status");
                 }
@@ -104,7 +107,7 @@ public class PetTabCompleter implements TabCompleter {
                     return new ArrayList<>(plugin.getModuleManager().getHatchingConfig().getConfigurationSection("eggs").getKeys(false));
                 }
             }
-            if (args[0].equalsIgnoreCase("model") && args[1].equalsIgnoreCase("status") && sender.hasPermission("ipsecuzpet.admin")) {
+            if (args[0].equalsIgnoreCase("model") && args[1].equalsIgnoreCase("status") && (sender.hasPermission("ipsecuzpet.admin") || sender.hasPermission("ipsecuzpet.model.status"))) {
                 if (plugin.getConfig().getConfigurationSection("pets") != null) {
                     for (String key : plugin.getConfig().getConfigurationSection("pets").getKeys(false)) {
                         if (key.toLowerCase().startsWith(args[2].toLowerCase())) {

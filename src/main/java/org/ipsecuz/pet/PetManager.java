@@ -136,16 +136,35 @@ public class PetManager {
     }
 
     public void startDyingSequence(UUID ownerId, Entity pet, String petId, long durationTicks) {
-        if (ownerId == null) return;
-        dyingPets.add(ownerId);
+        if (ownerId == null || pet == null) return;
+        // Atomic guard: không cho phép lên lịch tử trận hai lần cùng lúc
+        if (!dyingPets.add(ownerId)) {
+            return;
+        }
 
-        if (modelHandler != null && pet != null) {
+        if (modelHandler != null) {
             modelHandler.playTransientAnimation(pet, PetAnimationState.DEATH, durationTicks, PetAnimationState.DEATH);
         }
 
-        SchedulerUtils.runGlobalTaskLater(plugin, () -> {
-            dyingPets.remove(ownerId);
-            removePet(ownerId);
+        // Thực thi dọn dẹp trên Pet Entity Region Scheduler (chuẩn Folia), TUYỆT ĐỐI không dùng GlobalRegionScheduler!
+        SchedulerUtils.runEntityTaskLater(plugin, pet, () -> {
+            try {
+                if (modelHandler != null) {
+                    modelHandler.removeModel(pet.getUniqueId());
+                }
+                if (pet.isValid()) {
+                    pet.remove();
+                }
+            } catch (Throwable t) {
+                plugin.getLogger().warning("Lỗi dọn dẹp thực thể pet trong tiến trình tử trận: " + t.getMessage());
+            } finally {
+                dyingPets.remove(ownerId);
+                activePets.remove(ownerId);
+                activePetIds.remove(ownerId);
+                if (plugin.getSkillManager() != null) {
+                    plugin.getSkillManager().clearCooldown(ownerId);
+                }
+            }
         }, durationTicks);
     }
 
@@ -254,44 +273,92 @@ public class PetManager {
                 || name.contains("ENDER_DRAGON") || name.contains("WITHER") || name.contains("VEX");
     }
 
+    public static class PetFollowSnapshot {
+        private final UUID ownerId;
+        private final boolean online;
+        private final Location location;
+        private final org.bukkit.World world;
+        private final org.bukkit.util.Vector direction;
+
+        public PetFollowSnapshot(UUID ownerId, boolean online, Location location, org.bukkit.World world, org.bukkit.util.Vector direction) {
+            this.ownerId = ownerId;
+            this.online = online;
+            this.location = (location != null) ? location.clone() : null;
+            this.world = world;
+            this.direction = (direction != null) ? direction.clone() : new org.bukkit.util.Vector(0, 0, 1);
+        }
+
+        public UUID getOwnerId() { return ownerId; }
+        public boolean isOnline() { return online; }
+        public Location getLocation() { return location != null ? location.clone() : null; }
+        public org.bukkit.World getWorld() { return world; }
+        public org.bukkit.util.Vector getDirection() { return direction != null ? direction.clone() : new org.bukkit.util.Vector(0, 0, 1); }
+    }
+
+    private long tickCounter = 0;
+
     private void runPetLogic() {
-        for (Map.Entry<UUID, Entity> entry : activePets.entrySet()) {
-            UUID ownerId = entry.getKey();
-            Entity pet = entry.getValue();
-            Player owner = Bukkit.getPlayer(ownerId);
+        tickCounter++;
+        final long currentTick = tickCounter;
 
-            if (owner == null || !owner.isOnline()) {
-                removePet(ownerId);
-                continue;
-            }
-
+        // BỐI CẢNH TOÀN CỤC (GLOBAL SCHEDULER CONTEXT):
+        // Chỉ duyệt qua tập khóa UUID nhẹ, TUYỆT ĐỐI không gọi owner.isOnline() hay pet.isValid() từ luồng này!
+        for (UUID ownerId : activePets.keySet()) {
             if (dyingPets.contains(ownerId)) {
-                // Đang trong tiến trình hoạt ảnh cái chết, không dọn dẹp sớm!
+                // Đang trong hoạt ảnh cái chết an toàn, bỏ qua không dọn dẹp
                 continue;
             }
 
-            if (pet == null || !pet.isValid()) {
-                removePet(ownerId);
+            Player owner = Bukkit.getPlayer(ownerId);
+            if (owner == null) {
+                Entity pet = activePets.get(ownerId);
+                if (pet != null) {
+                    SchedulerUtils.runEntityTask(plugin, pet, () -> removePet(ownerId));
+                } else {
+                    activePets.remove(ownerId);
+                    activePetIds.remove(ownerId);
+                }
                 continue;
             }
 
+            // BỐI CẢNH VÙNG NGƯỜI CHƠI (PLAYER REGION): Chụp snapshot trạng thái chủ nhân bất biến
             SchedulerUtils.runEntityTask(plugin, owner, () -> {
-                if (!owner.isOnline() || !pet.isValid()) return;
-                Location ownerLoc = owner.getLocation().clone();
-                org.bukkit.World ownerWorld = owner.getWorld();
-                org.bukkit.util.Vector ownerDir = ownerLoc.getDirection().clone();
+                if (!owner.isOnline()) {
+                    Entity pEnt = activePets.get(ownerId);
+                    if (pEnt != null) {
+                        SchedulerUtils.runEntityTask(plugin, pEnt, () -> removePet(ownerId));
+                    }
+                    return;
+                }
 
+                PetFollowSnapshot snapshot = new PetFollowSnapshot(
+                        ownerId,
+                        true,
+                        owner.getLocation(),
+                        owner.getWorld(),
+                        owner.getLocation().getDirection()
+                );
+
+                Entity pet = activePets.get(ownerId);
+                if (pet == null) return;
+
+                // BỐI CẢNH VÙNG PET (PET REGION): Chỉ dùng snapshot + trạng thái cục bộ của Pet
                 SchedulerUtils.runEntityTask(plugin, pet, () -> {
-                    if (!pet.isValid() || !owner.isOnline()) return;
+                    if (!pet.isValid() || !snapshot.isOnline()) {
+                        removePet(ownerId);
+                        return;
+                    }
 
-                    // Folia & Cross-world check: nếu khác thế giới, teleport sang
-                    if (!pet.getWorld().equals(ownerWorld)) {
-                        SchedulerUtils.teleportAsync(pet, ownerLoc);
+                    // Khác thế giới: dịch chuyển tức thời bất đồng bộ sang vị trí chủ nhân
+                    if (!pet.getWorld().equals(snapshot.getWorld())) {
+                        SchedulerUtils.teleportAsync(pet, snapshot.getLocation());
                         return;
                     }
 
                     String petId = activePetIds.get(ownerId);
                     Location petLoc = pet.getLocation();
+                    Location ownerLoc = snapshot.getLocation();
+                    org.bukkit.util.Vector ownerDir = snapshot.getDirection();
 
                     boolean isFlying = isFlyingType(pet.getType());
                     double distSq = petLoc.distanceSquared(ownerLoc);
@@ -312,7 +379,7 @@ public class PetManager {
                             modelHandler.playAnimation(pet, PetAnimationState.FLY_IDLE);
                         }
                     } else {
-                        // Pet mặt đất: Vị trí đội hình bên cạnh/phía sau người chơi (Flank formation)
+                        // Đội hình flank formation cho Pet mặt đất
                         org.bukkit.util.Vector facing = ownerDir.clone().setY(0);
                         if (facing.lengthSquared() < 0.001) facing = new org.bukkit.util.Vector(0, 0, 1);
                         facing.normalize();
@@ -339,12 +406,21 @@ public class PetManager {
                     }
 
                     modelHandler.updatePosition(pet);
-                    modelHandler.updateMultiplayerVisibility(pet);
+
+                    // Phân chia nhịp độ hiệu năng (Cadence Splitting):
+                    // 1. Tầm nhìn hiển thị: mỗi 15 ticks (3 chu kỳ)
+                    if (currentTick % 3 == 0) {
+                        modelHandler.updateMultiplayerVisibility(pet);
+                    }
+                    // 2. Hạt hiệu ứng: mỗi 20 ticks (4 chu kỳ)
+                    if (currentTick % 4 == 0) {
+                        playParticles(pet, petId);
+                    }
+
                     plugin.getSkillManager().handlePetTick(owner, pet, petId);
 
-                    playParticles(pet, petId);
-
-                    if (System.currentTimeMillis() % 2000 < 250) {
+                    // 3. Hiệu ứng bùa lợi định kỳ: mỗi 40 ticks (8 chu kỳ)
+                    if (currentTick % 8 == 0) {
                         SchedulerUtils.runEntityTask(plugin, owner, () -> applyBuffs(owner, petId, ownerId));
                     }
                 });
@@ -381,6 +457,8 @@ public class PetManager {
     public boolean hasPet(UUID uuid) { return activePets.containsKey(uuid); }
     public Entity getPet(UUID uuid) { return activePets.get(uuid); }
     public String getActivePetId(UUID uuid) { return activePetIds.get(uuid); }
+    public Map<UUID, Entity> getActivePets() { return Collections.unmodifiableMap(activePets); }
+    public Map<UUID, String> getActivePetIds() { return Collections.unmodifiableMap(activePetIds); }
 
     public void showPetStats(Player player, Entity pet) {
         String petId = pet.getPersistentDataContainer().get(petIdKey, PersistentDataType.STRING);
@@ -624,13 +702,17 @@ public class PetManager {
             onlinePlayer.playSound(onlinePlayer.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
 
             // Action Bar phản hồi tức thì
+            LanguageManager lang = plugin.getLanguage();
             if (levelsGained == 1) {
-                onlinePlayer.sendActionBar(net.kyori.adventure.text.Component.text("§a§l★ LÊN CẤP! §eĐạt Lv." + currentLvl));
-                String msg = plugin.getLanguage().getMessage("pet.level_up");
-                if (msg != null) onlinePlayer.sendMessage(msg.replace("%level%", String.valueOf(currentLvl)));
+                String ab = (lang != null) ? lang.getMessage("pet.actionbar_level_up", "%level%", String.valueOf(currentLvl)) : "&a&l★ LÊN CẤP! &eĐạt Lv." + currentLvl;
+                onlinePlayer.sendActionBar(GuiText.component(ab));
+                String msg = (lang != null) ? lang.getMessage("pet.level_up") : null;
+                if (msg != null) onlinePlayer.sendMessage(GuiText.component(msg.replace("%level%", String.valueOf(currentLvl))));
             } else {
-                onlinePlayer.sendActionBar(net.kyori.adventure.text.Component.text("§6§l★ +" + levelsGained + " CẤP ĐỘ! §eLv." + (currentLvl - levelsGained) + " ➔ Lv." + currentLvl));
-                onlinePlayer.sendMessage("§a§l★ TIẾN HÓA CẤP ĐỘ! §fThú cưng đã tăng vọt §e+" + levelsGained + " Cấp §f(Đạt cấp: §6Lv." + currentLvl + "§f)!");
+                String ab = (lang != null) ? lang.getMessage("pet.actionbar_multi_level_up", "%levels%", String.valueOf(levelsGained), "%current%", String.valueOf(currentLvl)) : "&6&l★ +" + levelsGained + " CẤP ĐỘ! &eLv." + (currentLvl - levelsGained) + " ➔ Lv." + currentLvl;
+                onlinePlayer.sendActionBar(GuiText.component(ab));
+                String msg = (lang != null) ? lang.getMessage("pet.multi_level_up", "%levels%", String.valueOf(levelsGained), "%current%", String.valueOf(currentLvl)) : "&a&l★ TIẾN HÓA CẤP ĐỘ! &fThú cưng đã tăng vọt &e+" + levelsGained + " Cấp &f(Đạt cấp: &6Lv." + currentLvl + "&f)!";
+                onlinePlayer.sendMessage(GuiText.component(msg));
             }
 
             // Phần thưởng bùa lợi (Level up rewards buff)

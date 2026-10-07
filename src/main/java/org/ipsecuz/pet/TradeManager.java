@@ -28,21 +28,32 @@ public class TradeManager {
         }
     }
 
+    public enum TradeCommitStatus {
+        PREPARED,
+        COMMITTED
+    }
+
     public static class TradeCommitRecord {
         private final UUID tradeId;
         private final UUID playerA;
         private final UUID playerB;
         private final java.util.List<org.bukkit.inventory.ItemStack> itemsFromA;
         private final java.util.List<org.bukkit.inventory.ItemStack> itemsFromB;
+        private final TradeCommitStatus status;
         private final long timestamp;
 
         public TradeCommitRecord(UUID tradeId, UUID playerA, UUID playerB, java.util.List<org.bukkit.inventory.ItemStack> itemsFromA, java.util.List<org.bukkit.inventory.ItemStack> itemsFromB) {
+            this(tradeId, playerA, playerB, itemsFromA, itemsFromB, TradeCommitStatus.PREPARED, System.currentTimeMillis());
+        }
+
+        public TradeCommitRecord(UUID tradeId, UUID playerA, UUID playerB, java.util.List<org.bukkit.inventory.ItemStack> itemsFromA, java.util.List<org.bukkit.inventory.ItemStack> itemsFromB, TradeCommitStatus status, long timestamp) {
             this.tradeId = tradeId;
             this.playerA = playerA;
             this.playerB = playerB;
             this.itemsFromA = itemsFromA;
             this.itemsFromB = itemsFromB;
-            this.timestamp = System.currentTimeMillis();
+            this.status = status;
+            this.timestamp = timestamp;
         }
 
         public UUID getTradeId() { return tradeId; }
@@ -50,6 +61,7 @@ public class TradeManager {
         public UUID getPlayerB() { return playerB; }
         public java.util.List<org.bukkit.inventory.ItemStack> getItemsFromA() { return itemsFromA; }
         public java.util.List<org.bukkit.inventory.ItemStack> getItemsFromB() { return itemsFromB; }
+        public TradeCommitStatus getStatus() { return status; }
         public long getTimestamp() { return timestamp; }
     }
 
@@ -58,14 +70,35 @@ public class TradeManager {
     private final Set<TradeSession> activeSessions = ConcurrentHashMap.newKeySet();
 
     public void recordCommittingTrade(UUID tradeId, UUID a, UUID b, java.util.List<org.bukkit.inventory.ItemStack> fromA, java.util.List<org.bukkit.inventory.ItemStack> fromB) {
-        committingTrades.put(tradeId, new TradeCommitRecord(tradeId, a, b, fromA, fromB));
+        committingTrades.put(tradeId, new TradeCommitRecord(tradeId, a, b, fromA, fromB, TradeCommitStatus.PREPARED, System.currentTimeMillis()));
         String path = "pending_trade." + tradeId;
         plugin.getConfigManager().getData().set(path + ".player_a", a.toString());
         plugin.getConfigManager().getData().set(path + ".player_b", b.toString());
         plugin.getConfigManager().getData().set(path + ".items_a", fromA);
         plugin.getConfigManager().getData().set(path + ".items_b", fromB);
+        plugin.getConfigManager().getData().set(path + ".status", TradeCommitStatus.PREPARED.name());
         plugin.getConfigManager().getData().set(path + ".timestamp", System.currentTimeMillis());
         plugin.getConfigManager().forceSave();
+    }
+
+    public void markTradeCommitted(UUID tradeId) {
+        TradeCommitRecord current = committingTrades.get(tradeId);
+        if (current != null) {
+            committingTrades.put(tradeId, new TradeCommitRecord(
+                    current.getTradeId(),
+                    current.getPlayerA(),
+                    current.getPlayerB(),
+                    current.getItemsFromA(),
+                    current.getItemsFromB(),
+                    TradeCommitStatus.COMMITTED,
+                    current.getTimestamp()
+            ));
+        }
+        String path = "pending_trade." + tradeId;
+        if (plugin.getConfigManager().getData().contains(path)) {
+            plugin.getConfigManager().getData().set(path + ".status", TradeCommitStatus.COMMITTED.name());
+            plugin.getConfigManager().forceSave();
+        }
     }
 
     public void removeCommittingTrade(UUID tradeId) {
@@ -88,9 +121,27 @@ public class TradeManager {
         for (String key : new ArrayList<>(sec.getKeys(false))) {
             try {
                 UUID tradeId = UUID.fromString(key);
+                String statusStr = sec.getString(key + ".status", TradeCommitStatus.PREPARED.name());
+                TradeCommitStatus status;
+                try {
+                    status = TradeCommitStatus.valueOf(statusStr);
+                } catch (IllegalArgumentException e) {
+                    status = TradeCommitStatus.PREPARED;
+                }
+
+                // Nếu đã COMMITTED trước khi tắt server, việc chuyển đồ đã thành công hoàn tất -> TUYỆT ĐỐI không hoàn trả tránh nhân bản đồ!
+                if (status == TradeCommitStatus.COMMITTED) {
+                    plugin.getLogger().info("§a[IpsecuzPet] Giao dịch " + tradeId + " đã hoàn tất bàn giao trước khi tắt server. Dọn dẹp nhật ký.");
+                    sec.set(key, null);
+                    continue;
+                }
+
                 String aStr = sec.getString(key + ".player_a");
                 String bStr = sec.getString(key + ".player_b");
-                if (aStr == null || bStr == null) continue;
+                if (aStr == null || bStr == null) {
+                    sec.set(key, null);
+                    continue;
+                }
                 UUID playerA = UUID.fromString(aStr);
                 UUID playerB = UUID.fromString(bStr);
 
@@ -99,7 +150,7 @@ public class TradeManager {
                 @SuppressWarnings("unchecked")
                 java.util.List<org.bukkit.inventory.ItemStack> itemsB = (java.util.List<org.bukkit.inventory.ItemStack>) sec.getList(key + ".items_b");
 
-                plugin.getLogger().warning("§e[IpsecuzPet] Phục hồi giao dịch dở dang sau khởi động (Crash Recovery): " + tradeId);
+                plugin.getLogger().warning("§e[IpsecuzPet] Phục hồi giao dịch PREPARED dở dang sau khởi động (Crash Recovery): " + tradeId);
 
                 if (itemsA != null && !itemsA.isEmpty()) {
                     Player pA = Bukkit.getPlayer(playerA);

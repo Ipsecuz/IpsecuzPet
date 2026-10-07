@@ -585,43 +585,56 @@ public class HatchingManager {
             return;
         }
 
-        pendingHatchSessions.remove(playerUuid);
-        plugin.getConfigManager().getData().set("pending_hatch." + playerUuid, null);
-        plugin.getConfigManager().forceSave();
-
         LanguageManager lang = plugin.getLanguage();
         Player player = Bukkit.getPlayer(playerUuid);
         String petDisplayName = plugin.getConfig().getString("pets." + winningPetId + ".name", winningPetId);
         PetRarity rarity = PetRarity.fromPetId(plugin, winningPetId);
+        PetTrait rolledTrait = null;
+        boolean isDuplicateReward = false;
+        boolean isStorageFullReward = false;
 
+        // 1. TẠO DỮ LIỆU PHẦN THƯỞNG (Pet mới hoặc quy đổi Shards) TRƯỚC KHI XÓA TRANSACTION
         if (plugin.getConfigManager().getData().contains(playerUuid + ".pets." + winningPetId)) {
             // ĐÃ SỞ HỮU TRƯỚC ĐÓ -> CHUYỂN ĐỔI THÀNH MẢNH SHARDS & EXP
+            isDuplicateReward = true;
             plugin.getShardManager().processDuplicateReward(playerUuid, winningPetId);
+        } else if (!plugin.getOwnershipManager().canAcquirePet(playerUuid)) {
+            // ĐÃ ĐẦY KHO PET TẠI THỜI ĐIỂM COMMIT -> CHUYỂN ĐỔI AN TOÀN SANG MẢNH SHARDS & EXP
+            isStorageFullReward = true;
+            plugin.getShardManager().processDuplicateReward(playerUuid, winningPetId);
+        } else {
+            // PET MỚI -> TẠO DỮ LIỆU, ROLL TRAIT VÀ LƯU CODEX
+            plugin.getConfigManager().createPetDataIfMissing(playerUuid, winningPetId);
+            rolledTrait = PetTrait.rollRandomTrait();
+            plugin.getConfigManager().getData().set(playerUuid + ".pets." + winningPetId + ".trait", rolledTrait.name());
+            plugin.getCodexManager().discover(playerUuid, winningPetId);
+        }
+
+        // 2. DỌN DẸP TRANSACTION CHỈ SAU KHI DỮ LIỆU PHẦN THƯỞNG ĐÃ ĐƯỢC THIẾT LẬP
+        pendingHatchSessions.remove(playerUuid);
+        plugin.getConfigManager().getData().set("pending_hatch." + playerUuid, null);
+
+        // 3. CAM KẾT BỀN VỮNG XUỐNG ĐĨA CẢ PHẦN THƯỞNG VÀ VIỆC XÓA TRANSACTION TRONG 1 LẦN LƯU
+        plugin.getConfigManager().forceSave();
+
+        // 4. GỬI THÔNG BÁO VÀ THÔNG ĐIỆP SAU KHI PERSISTENCE ĐÃ ĐẢM BẢO 100%
+        if (isDuplicateReward) {
             if (player != null && player.isOnline()) {
                 String dupMsg = lang != null ? lang.getMessage("hatching.duplicate_reward") : null;
                 player.sendMessage(dupMsg != null ? dupMsg : "§e[IpsecuzPet] Bạn đã sở hữu Pet này! Đã tự động quy đổi thành Mảnh Pet và Kinh Nghiệm.");
             }
-        } else if (!plugin.getOwnershipManager().canAcquirePet(playerUuid)) {
-            // ĐÃ ĐẦY KHO PET TẠI THỜI ĐIỂM COMMIT -> CHUYỂN ĐỔI AN TOÀN SANG MẢNH SHARDS & EXP
-            plugin.getShardManager().processDuplicateReward(playerUuid, winningPetId);
+        } else if (isStorageFullReward) {
             if (player != null && player.isOnline()) {
                 String fullMsg = lang != null ? lang.getMessage("hatching.full_storage_reward") : null;
                 player.sendMessage(fullMsg != null ? fullMsg : "§e[Kho Thú Cưng Đã Đầy] Bạn đã đạt giới hạn tối đa số Pet, phần thưởng được chuyển thành Mảnh Pet!");
             }
         } else {
-            // PET MỚI -> TẠO DỮ LIỆU, ROLL TRAIT VÀ LƯU CODEX
-            plugin.getConfigManager().createPetDataIfMissing(playerUuid, winningPetId);
-            PetTrait trait = PetTrait.rollRandomTrait();
-            plugin.getConfigManager().getData().set(playerUuid + ".pets." + winningPetId + ".trait", trait.name());
-            plugin.getConfigManager().forceSave();
-
-            plugin.getCodexManager().discover(playerUuid, winningPetId);
-
             if (player != null && player.isOnline()) {
-                String winMsg = lang != null ? lang.getMessage("hatching.success", "%pet%", petDisplayName, "%rarity%", rarity.getLocalizedName(plugin), "%trait%", trait.getLocalizedName(plugin)) : null;
+                String traitName = (rolledTrait != null) ? rolledTrait.getLocalizedName(plugin) : "NONE";
+                String winMsg = lang != null ? lang.getMessage("hatching.success", "%pet%", petDisplayName, "%rarity%", rarity.getLocalizedName(plugin), "%trait%", traitName) : null;
                 player.sendMessage(winMsg != null ? winMsg : ChatColor.translateAlternateColorCodes('&',
                         "§a§lCHÚC MỪNG! §fBạn vừa ấp nở thành công Pet: " + petDisplayName +
-                                " §7(Độ hiếm: " + rarity.getLocalizedName(plugin) + "§7, Đặc chất: " + trait.getLocalizedName(plugin) + "§7)"));
+                                " §7(Độ hiếm: " + rarity.getLocalizedName(plugin) + "§7, Đặc chất: " + traitName + "§7)"));
             }
 
             // Thông báo toàn server nếu mở được Pet cấp cao

@@ -2,6 +2,7 @@ package org.ipsecuz.pet;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -10,21 +11,38 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class PetCardSecurityTest {
 
-    private String computeTestSignature(String uniqueId, String petId, int level, int exp, int stars, String trait, String salt) {
-        String payload = uniqueId + ":" + petId + ":" + level + ":" + exp + ":" + stars + ":" + trait + ":" + salt;
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] hash = md.digest(payload.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
-            }
-            return hexString.toString().substring(0, 32);
-        } catch (NoSuchAlgorithmException e) {
-            return Integer.toHexString(payload.hashCode());
-        }
+    @Test
+    public void testBuildCanonicalPayloadDeterminismAndSkillSorting() {
+        int schema = PetCardSecurity.CURRENT_SCHEMA;
+        String cardUuid = "uuid-abc-123";
+        String petId = "ender_dragon_pet";
+        int level = 50;
+        int exp = 1200;
+        int stars = 3;
+        String trait = "SAVAGE";
+        String customName = "DragonLord";
+
+        // Skills in different order must yield identical canonical payload due to alphabetical sorting
+        List<String> skills1 = List.of("roar", "fireball", "dash");
+        List<String> skills2 = List.of("fireball", "dash", "roar");
+
+        String payload1 = PetCardSecurity.buildCanonicalPayload(schema, cardUuid, petId, level, exp, stars, trait, customName, skills1);
+        String payload2 = PetCardSecurity.buildCanonicalPayload(schema, cardUuid, petId, level, exp, stars, trait, customName, skills2);
+
+        assertNotNull(payload1);
+        assertEquals(payload1, payload2, "Canonical payload must sort skills alphabetically for deterministic signing");
+        assertEquals("2:uuid-abc-123:ender_dragon_pet:50:1200:3:SAVAGE:DragonLord:dash,fireball,roar", payload1);
+    }
+
+    @Test
+    public void testBuildCanonicalPayloadNullSafety() {
+        int schema = PetCardSecurity.CURRENT_SCHEMA;
+        String cardUuid = "uuid-xyz-789";
+        String petId = "cat_pet";
+
+        String payload = PetCardSecurity.buildCanonicalPayload(schema, cardUuid, petId, 1, 0, 1, "NONE", null, null);
+        assertNotNull(payload);
+        assertEquals("2:uuid-xyz-789:cat_pet:1:0:1:NONE::", payload, "Null custom name and null skills should resolve to empty strings");
     }
 
     @Test
@@ -36,30 +54,38 @@ public class PetCardSecurityTest {
         int exp = 1200;
         int stars = 3;
         String trait = "SAVAGE";
+        String customName = "Shadow";
+        List<String> skills = List.of("dash", "fireball");
 
-        String validSig = computeTestSignature(cardUuid, petId, level, exp, stars, trait, salt);
+        String basePayload = PetCardSecurity.buildCanonicalPayload(2, cardUuid, petId, level, exp, stars, trait, customName, skills);
+        String validSig = PetCardSecurity.computeHmacSha256(salt, basePayload);
         assertNotNull(validSig);
-        assertEquals(32, validSig.length());
+        assertEquals(64, validSig.length());
 
         // Identical parameters produce identical signature
-        String matchSig = computeTestSignature(cardUuid, petId, level, exp, stars, trait, salt);
-        assertEquals(validSig, matchSig);
+        String matchPayload = PetCardSecurity.buildCanonicalPayload(2, cardUuid, petId, level, exp, stars, trait, customName, skills);
+        assertEquals(validSig, PetCardSecurity.computeHmacSha256(salt, matchPayload));
 
         // Tampering level
-        String tamperedLevel = computeTestSignature(cardUuid, petId, 99, exp, stars, trait, salt);
-        assertNotEquals(validSig, tamperedLevel, "Tampering with level must invalidate signature");
+        String tamperedLevel = PetCardSecurity.buildCanonicalPayload(2, cardUuid, petId, 99, exp, stars, trait, customName, skills);
+        assertNotEquals(validSig, PetCardSecurity.computeHmacSha256(salt, tamperedLevel), "Tampering with level must invalidate signature");
 
         // Tampering stars
-        String tamperedStars = computeTestSignature(cardUuid, petId, level, exp, 5, trait, salt);
-        assertNotEquals(validSig, tamperedStars, "Tampering with stars must invalidate signature");
+        String tamperedStars = PetCardSecurity.buildCanonicalPayload(2, cardUuid, petId, level, exp, 5, trait, customName, skills);
+        assertNotEquals(validSig, PetCardSecurity.computeHmacSha256(salt, tamperedStars), "Tampering with stars must invalidate signature");
 
         // Tampering trait
-        String tamperedTrait = computeTestSignature(cardUuid, petId, level, exp, stars, "TITAN", salt);
-        assertNotEquals(validSig, tamperedTrait, "Tampering with trait must invalidate signature");
+        String tamperedTrait = PetCardSecurity.buildCanonicalPayload(2, cardUuid, petId, level, exp, stars, "TITAN", customName, skills);
+        assertNotEquals(validSig, PetCardSecurity.computeHmacSha256(salt, tamperedTrait), "Tampering with trait must invalidate signature");
 
         // Tampering salt
-        String wrongSalt = computeTestSignature(cardUuid, petId, level, exp, stars, trait, "foreign-server-salt");
-        assertNotEquals(validSig, wrongSalt, "Cards forged on a different server must fail signature check");
+        assertNotEquals(validSig, PetCardSecurity.computeHmacSha256("foreign-server-salt", basePayload), "Cards forged on a different server must fail signature check");
+    }
+
+    @Test
+    public void testFailClosedNullInputThrowsException() {
+        assertThrows(IllegalArgumentException.class, () -> PetCardSecurity.computeHmacSha256(null, "some-data"));
+        assertThrows(IllegalArgumentException.class, () -> PetCardSecurity.computeHmacSha256("some-key", null));
     }
 
     @Test

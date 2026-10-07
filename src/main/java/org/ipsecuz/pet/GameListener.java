@@ -150,15 +150,25 @@ public class GameListener implements Listener {
         // Bắt thú hoang bằng Bóng Bắt Thú (Capture System)
         if (!isPet(e.getRightClicked()) && e.getRightClicked() instanceof LivingEntity target) {
             ItemStack hand = p.getInventory().getItemInMainHand();
+            if (plugin.getCaptureManager() == null) return;
             String ballId = plugin.getCaptureManager().getBallIdFromItem(hand);
             if (ballId != null) {
                 e.setCancelled(true);
+
+                // 8. CỔNG KIỂM SOÁT CAPTURE MODULE: Chặn ngay lập tức nếu tính năng bị tắt
+                if (!plugin.getCaptureManager().isCaptureEnabled()) {
+                    String msg = lang != null ? lang.getMessage("capture.disabled") : null;
+                    p.sendMessage(msg != null ? msg : "§cTính năng Bắt Thú Cưng hiện đang bị tắt bởi máy chủ!");
+                    return;
+                }
+
                 EntityType type = target.getType();
                 String foundPetId = null;
 
                 for (String key : plugin.getConfig().getConfigurationSection("pets").getKeys(false)) {
-                    if (plugin.getConfig().getString("pets." + key + ".type").equals(type.toString())) {
-                        if (plugin.getConfig().getBoolean("pets." + key + ".catchable", false)) {
+                    if (plugin.getConfig().getString("pets." + key + ".type", "").equals(type.toString())) {
+                        if (plugin.getConfig().getBoolean("pets." + key + ".catchable", false)
+                                && plugin.getConfig().getBoolean("pets." + key + ".enabled", true)) {
                             foundPetId = key;
                             break;
                         }
@@ -180,41 +190,83 @@ public class GameListener implements Listener {
                     return;
                 }
 
+                if (plugin.getCaptureManager().hasPendingCapture(p.getUniqueId())) {
+                    p.sendMessage("§cBạn đang trong quá trình bắt một thú cưng khác!");
+                    return;
+                }
+
+                // 7. KHỞI TẠO PHIÊN BẮT THÚ CHỜ XỬ LÝ (PENDING CAPTURE SESSION)
+                plugin.getCaptureManager().startCapture(p, ballId, target, foundPetId);
                 hand.setAmount(hand.getAmount() - 1);
                 p.sendMessage(lang.getMessage("pet.catch_start"));
                 p.playSound(p.getLocation(), Sound.ENTITY_FISHING_BOBBER_THROW, 1f, 1f);
 
-                String finalPetId = foundPetId;
+                final String finalPetId = foundPetId;
+                final UUID targetUuid = target.getUniqueId();
+
                 SchedulerUtils.runEntityTaskLater(plugin, p, () -> {
-                    // HOÀN TRẢ BÓNG NẾU MỤC TIÊU ĐÃ CHẾT HOẶC BIẾN MẤT TRONG KHI BẮT
-                    if (!target.isValid() || target.isDead()) {
-                        ItemStack refundBall = plugin.getCaptureManager().createBallItem(ballId, 1);
-                        if (refundBall != null) {
-                            HashMap<Integer, ItemStack> overflow = p.getInventory().addItem(refundBall);
-                            for (ItemStack leftover : overflow.values()) {
-                                p.getWorld().dropItemNaturally(p.getLocation(), leftover);
-                            }
-                            p.sendMessage("§eMục tiêu đã biến mất hoặc bị hạ gục! Bóng bắt thú đã được hoàn trả.");
-                        }
+                    // 9. TÁI XÁC THỰC LẦN CUỐI TRƯỚC KHI BÀN GIAO THƯỞNG (FINAL REVALIDATION)
+                    CaptureManager.PendingCapture pending = plugin.getCaptureManager().getPendingCapture(p.getUniqueId());
+                    if (pending == null) return;
+
+                    if (!plugin.getCaptureManager().isCaptureEnabled()) {
+                        plugin.getCaptureManager().refundAndFinish(p.getUniqueId(), "§cTính năng bắt thú đã bị tắt! Bóng bắt thú đã được hoàn trả.");
+                        return;
+                    }
+
+                    if (!p.isOnline()) {
+                        return;
+                    }
+
+                    if (!target.isValid() || target.isDead() || !target.getUniqueId().equals(targetUuid)) {
+                        plugin.getCaptureManager().refundAndFinish(p.getUniqueId(), "§eMục tiêu đã biến mất hoặc bị hạ gục! Bóng bắt thú đã được hoàn trả.");
+                        return;
+                    }
+
+                    if (!plugin.getConfig().contains("pets." + finalPetId)
+                            || !plugin.getConfig().getBoolean("pets." + finalPetId + ".enabled", true)) {
+                        plugin.getCaptureManager().refundAndFinish(p.getUniqueId(), "§cPet này không còn khả dụng trên hệ thống! Đã hoàn trả bóng.");
+                        return;
+                    }
+
+                    if (plugin.getConfigManager().getData().contains(p.getUniqueId() + ".pets." + finalPetId)) {
+                        plugin.getCaptureManager().refundAndFinish(p.getUniqueId(), "§cBạn đã sở hữu thú cưng này trong lúc bắt! Đã hoàn trả bóng.");
+                        return;
+                    }
+
+                    if (!plugin.getOwnershipManager().canAcquirePet(p)) {
+                        plugin.getCaptureManager().refundAndFinish(p.getUniqueId(), "§cKho thú cưng đã đầy! Đã hoàn trả bóng.");
                         return;
                     }
 
                     CaptureManager.CaptureResult result = plugin.getCaptureManager().calculateCapture(p, type, ballId);
                     if (result == CaptureManager.CaptureResult.TYPE_NOT_ALLOWED) {
+                        plugin.getCaptureManager().finishCapture(p.getUniqueId());
                         p.sendMessage(lang.getMessage("pet.catch_fail_type"));
                         p.playSound(p.getLocation(), Sound.BLOCK_ANVIL_LAND, 1f, 1f);
                     } else if (result == CaptureManager.CaptureResult.SUCCESS) {
-                        p.sendMessage(lang.getMessage("pet.caught", "%pet_type%", plugin.getConfig().getString("pets." + finalPetId + ".name")));
-                        target.remove();
-                        plugin.getConfigManager().createPetDataIfMissing(p.getUniqueId(), finalPetId);
-                        PetTrait trait = PetTrait.rollRandomTrait();
-                        plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + finalPetId + ".trait", trait.name());
-                        plugin.getConfigManager().saveData();
-                        plugin.getCodexManager().discover(p.getUniqueId(), finalPetId);
+                        // 10. GIAO DỊCH BẮT THÚ NGUYÊN TỬ (TRANSACTIONAL CAPTURE)
+                        // Chỉ gỡ bỏ thực thể hoang dã khi hồ sơ lưu trữ Pet đã hoàn thành chắc chắn
+                        try {
+                            plugin.getConfigManager().createPetDataIfMissing(p.getUniqueId(), finalPetId);
+                            PetTrait trait = PetTrait.rollRandomTrait();
+                            plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + finalPetId + ".trait", trait.name());
+                            plugin.getConfigManager().saveData();
+                            plugin.getCodexManager().discover(p.getUniqueId(), finalPetId);
 
-                        p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
-                        p.spawnParticle(Particle.VILLAGER_HAPPY, target.getLocation().add(0, 1, 0), 15, 0.5, 0.5, 0.5);
+                            target.remove();
+                            plugin.getCaptureManager().finishCapture(p.getUniqueId());
+
+                            p.sendMessage(lang.getMessage("pet.caught", "%pet_type%", plugin.getConfig().getString("pets." + finalPetId + ".name")));
+                            p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
+                            p.spawnParticle(Particle.VILLAGER_HAPPY, target.getLocation().add(0, 1, 0), 15, 0.5, 0.5, 0.5);
+                        } catch (Exception ex) {
+                            plugin.getLogger().log(Level.SEVERE, "Lỗi xảy ra khi lưu trữ Pet bắt được cho " + p.getName(), ex);
+                            plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + finalPetId, null);
+                            plugin.getCaptureManager().refundAndFinish(p.getUniqueId(), "§cLỗi máy chủ khi tạo Pet! Bóng bắt thú đã được hoàn trả.");
+                        }
                     } else {
+                        plugin.getCaptureManager().finishCapture(p.getUniqueId());
                         p.sendMessage(lang.getMessage("pet.catch_fail"));
                         p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                     }
@@ -306,7 +358,7 @@ public class GameListener implements Listener {
             }
         }
 
-        // Pet hỗ trợ tấn công mục tiêu của chủ
+        // Pet hỗ trợ tấn công mục tiêu của chủ (chỉ đặt mục tiêu cho Pet Mob, KHÔNG cường hóa đòn đánh của người chơi)
         if (e.getDamager() instanceof Player p && plugin.getPetManager().hasPet(p.getUniqueId())) {
             Entity pet = plugin.getPetManager().getPet(p.getUniqueId());
             if (pet instanceof Mob mob && !e.getEntity().equals(pet) && e.getEntity() instanceof LivingEntity target) {
@@ -320,19 +372,6 @@ public class GameListener implements Listener {
                 } else {
                     mob.setTarget(target);
                 }
-            }
-
-            // Kỹ năng nội tại: Sát thương cộng thêm (Warden) & Chí mạng (Wolf)
-            double bonusPercent = plugin.getSkillManager().getBonusDamagePercent(p);
-            if (bonusPercent > 0) {
-                e.setDamage(e.getDamage() * (1.0 + (bonusPercent / 100.0)));
-            }
-
-            double critChance = plugin.getSkillManager().getCritChancePercent(p);
-            if (critChance > 0 && ThreadLocalRandom.current().nextDouble(100.0) < critChance) {
-                e.setDamage(e.getDamage() * 1.5);
-                p.getWorld().spawnParticle(Particle.CRIT, e.getEntity().getLocation().add(0, 1, 0), 20, 0.4, 0.4, 0.4, 0.1);
-                p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_ATTACK_CRIT, 1f, 1f);
             }
         }
 
@@ -352,6 +391,58 @@ public class GameListener implements Listener {
                 double reduction = plugin.getSkillManager().getDamageReductionPercent(owner);
                 if (reduction > 0) {
                     e.setDamage(e.getDamage() * (1.0 - (reduction / 100.0)));
+                }
+            }
+        }
+
+        // Sát thương tấn công của Pet khi tham chiến (PvE & PvP hợp lệ)
+        if (isPet(e.getDamager()) && !isPet(e.getEntity())) {
+            UUID ownerId = getOwnerId(e.getDamager());
+            if (ownerId != null) {
+                if (e.getEntity() instanceof Player targetPlayer) {
+                    boolean allowPlayerTarget = plugin.getConfig().getBoolean("combat.target_players", false);
+                    boolean isDuel = plugin.getPetManager().activeDuels.containsKey(ownerId)
+                            && targetPlayer.getUniqueId().equals(plugin.getPetManager().activeDuels.get(ownerId));
+                    if (!allowPlayerTarget && !isDuel) {
+                        e.setCancelled(true);
+                        return;
+                    }
+                }
+
+                String petId = plugin.getPetManager().getActivePetId(ownerId);
+                if (petId != null) {
+                    ConfigManager cm = plugin.getConfigManager();
+                    int lvl = cm.getData().getInt(ownerId + ".pets." + petId + ".level", 1);
+                    double baseDamage = PetStatEngine.calculateEffectiveStat(plugin, ownerId, petId, lvl, "damage");
+
+                    String traitName = cm.getData().getString(ownerId + ".pets." + petId + ".trait", "NONE");
+                    PetTrait trait = PetTrait.fromString(traitName);
+                    double traitMultiplier = trait.getDamageMultiplier();
+
+                    int happy = cm.getData().getInt(ownerId + ".pets." + petId + ".happiness", 100);
+                    double happyMultiplier = (plugin.getHappinessModifierEngine() != null)
+                            ? plugin.getHappinessModifierEngine().getDamageMultiplier(happy) : 1.0;
+
+                    double finalPetDamage = baseDamage * traitMultiplier * happyMultiplier;
+
+                    Player petOwner = Bukkit.getPlayer(ownerId);
+                    if (petOwner != null && plugin.getSkillManager() != null) {
+                        double bonusPercent = plugin.getSkillManager().getBonusDamagePercent(petOwner);
+                        if (bonusPercent > 0) {
+                            finalPetDamage *= (1.0 + (bonusPercent / 100.0));
+                        }
+
+                        double critChance = plugin.getSkillManager().getCritChancePercent(petOwner);
+                        if (critChance > 0 && ThreadLocalRandom.current().nextDouble(100.0) < critChance) {
+                            finalPetDamage *= 1.5;
+                            try {
+                                e.getEntity().getWorld().spawnParticle(Particle.CRIT, e.getEntity().getLocation().add(0, 1, 0), 20, 0.4, 0.4, 0.4, 0.1);
+                                e.getEntity().getWorld().playSound(e.getEntity().getLocation(), Sound.ENTITY_PLAYER_ATTACK_CRIT, 1f, 1f);
+                            } catch (Throwable ignored) {}
+                        }
+                    }
+
+                    e.setDamage(Math.max(1.0, finalPetDamage));
                 }
             }
         }
@@ -634,6 +725,25 @@ public class GameListener implements Listener {
         if (isPet(e.getEntity())) {
             e.setCancelled(true);
             e.blockList().clear();
+        }
+    }
+
+    @EventHandler
+    public void onPetProjectileHit(org.bukkit.event.entity.ProjectileHitEvent e) {
+        if (e.getEntity().getShooter() instanceof Entity shooter && isPet(shooter)) {
+            UUID ownerId = getOwnerId(shooter);
+            if (e.getHitEntity() instanceof Player hitPlayer && ownerId != null) {
+                if (hitPlayer.getUniqueId().equals(ownerId)) {
+                    e.setCancelled(true);
+                    return;
+                }
+                boolean allowPlayerTarget = plugin.getConfig().getBoolean("combat.target_players", false);
+                boolean isDuel = plugin.getPetManager().activeDuels.containsKey(ownerId)
+                        && hitPlayer.getUniqueId().equals(plugin.getPetManager().activeDuels.get(ownerId));
+                if (!allowPlayerTarget && !isDuel) {
+                    e.setCancelled(true);
+                }
+            }
         }
     }
 

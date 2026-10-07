@@ -72,22 +72,53 @@ public class CaptureManager {
         }
     }
 
-    public void handlePlayerQuit(UUID playerUuid) {
+    public boolean hasPendingCapture(UUID playerUuid) {
+        return playerUuid != null && pendingCaptures.containsKey(playerUuid);
+    }
+
+    public PendingCapture getPendingCapture(UUID playerUuid) {
+        return playerUuid != null ? pendingCaptures.get(playerUuid) : null;
+    }
+
+    public void refundAndFinish(UUID playerUuid, String message) {
         PendingCapture session = finishCapture(playerUuid);
         if (session != null) {
             Player p = org.bukkit.Bukkit.getPlayer(playerUuid);
-            if (p != null) {
+            if (p != null && p.isOnline()) {
                 refundBall(p, session.getBallId());
+                if (message != null && !message.isEmpty()) {
+                    p.sendMessage(message);
+                }
+            } else {
+                storeOfflineBallRefund(playerUuid, session.getBallId());
             }
         }
     }
 
-    public void refundAllPending() {
-        for (PendingCapture session : pendingCaptures.values()) {
-            Player p = org.bukkit.Bukkit.getPlayer(session.getPlayerUuid());
-            if (p != null && p.isOnline()) {
-                refundBall(p, session.getBallId());
+    private void storeOfflineBallRefund(UUID playerUuid, String ballId) {
+        try {
+            ItemStack refund = createBallItem(ballId, 1);
+            if (refund != null) {
+                String path = "pending_refund." + playerUuid;
+                @SuppressWarnings("unchecked")
+                java.util.List<ItemStack> existing = (java.util.List<ItemStack>) plugin.getConfigManager().getData().getList(path);
+                if (existing == null) existing = new ArrayList<>();
+                existing.add(refund);
+                plugin.getConfigManager().getData().set(path, existing);
+                plugin.getConfigManager().forceSave();
             }
+        } catch (Throwable t) {
+            plugin.getLogger().warning("Lỗi lưu trữ hoàn trả bóng ngoại tuyến: " + t.getMessage());
+        }
+    }
+
+    public void handlePlayerQuit(UUID playerUuid) {
+        refundAndFinish(playerUuid, null);
+    }
+
+    public void refundAllPending() {
+        for (UUID playerUuid : new ArrayList<>(pendingCaptures.keySet())) {
+            refundAndFinish(playerUuid, "§ePlugin đang tắt/tải lại! Bóng bắt thú đã được hoàn trả an toàn.");
         }
         pendingCaptures.clear();
     }

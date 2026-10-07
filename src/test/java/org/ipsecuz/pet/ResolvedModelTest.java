@@ -69,3 +69,4 @@ public class ResolvedModelTest {
         assertFalse(emptyId.isValid());
     }
 }
+

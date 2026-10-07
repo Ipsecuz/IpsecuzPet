@@ -27,11 +27,58 @@ public final class PetCardSecurity {
 
     private static final Set<String> consumedCards = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static final java.util.concurrent.atomic.AtomicBoolean cardsLoaded = new java.util.concurrent.atomic.AtomicBoolean(false);
+    private static final Object fileLock = new Object();
+
+    public static void reset() {
+        consumedCards.clear();
+        cardsLoaded.set(false);
+    }
+
+    public static void reload(IpsecuzPet plugin) {
+        reset();
+        ensureCardsLoaded(plugin);
+    }
 
     private static void ensureCardsLoaded(IpsecuzPet plugin) {
         if (cardsLoaded.compareAndSet(false, true)) {
-            List<String> list = plugin.getConfigManager().getData().getStringList("security.consumed_cards");
-            consumedCards.addAll(list);
+            if (plugin == null) return;
+            java.io.File storageFile = new java.io.File(plugin.getDataFolder(), "consumed_cards.txt");
+            synchronized (fileLock) {
+                // 1. Nạp từ file lưu trữ chuyên dụng nếu đã tồn tại
+                if (storageFile.exists()) {
+                    try {
+                        List<String> lines = java.nio.file.Files.readAllLines(storageFile.toPath(), StandardCharsets.UTF_8);
+                        for (String line : lines) {
+                            String trimmed = line.trim();
+                            if (!trimmed.isEmpty()) {
+                                consumedCards.add(trimmed);
+                            }
+                        }
+                    } catch (java.io.IOException ex) {
+                        plugin.getLogger().severe("Lỗi nạp danh sách thẻ đã dùng từ consumed_cards.txt: " + ex.getMessage());
+                    }
+                }
+
+                // 2. Tự động di chuyển dữ liệu cũ từ data.yml sang file mới (One-time migration)
+                List<String> legacyList = plugin.getConfigManager().getData().getStringList("security.consumed_cards");
+                if (!legacyList.isEmpty()) {
+                    consumedCards.addAll(legacyList);
+                    try {
+                        storageFile.getParentFile().mkdirs();
+                        java.nio.file.Files.write(
+                                storageFile.toPath(),
+                                legacyList,
+                                StandardCharsets.UTF_8,
+                                java.nio.file.StandardOpenOption.CREATE,
+                                java.nio.file.StandardOpenOption.APPEND
+                        );
+                        plugin.getConfigManager().getData().set("security.consumed_cards", null);
+                        plugin.getConfigManager().forceSave();
+                    } catch (java.io.IOException ex) {
+                        plugin.getLogger().warning("Lỗi di chuyển security.consumed_cards cũ sang file chuyên dụng: " + ex.getMessage());
+                    }
+                }
+            }
         }
     }
 
@@ -45,23 +92,42 @@ public final class PetCardSecurity {
         if (cardUuid == null || cardUuid.isEmpty()) return;
         ensureCardsLoaded(plugin);
         if (consumedCards.add(cardUuid)) {
-            List<String> list = new ArrayList<>(consumedCards);
-            plugin.getConfigManager().getData().set("security.consumed_cards", list);
-            plugin.getConfigManager().forceSave(); // Bắt buộc lưu ngay lập tức xuống đĩa (Durable write)
+            if (plugin != null) {
+                java.io.File storageFile = new java.io.File(plugin.getDataFolder(), "consumed_cards.txt");
+                synchronized (fileLock) {
+                    try {
+                        storageFile.getParentFile().mkdirs();
+                        java.nio.file.Files.writeString(
+                                storageFile.toPath(),
+                                cardUuid + System.lineSeparator(),
+                                StandardCharsets.UTF_8,
+                                java.nio.file.StandardOpenOption.CREATE,
+                                java.nio.file.StandardOpenOption.APPEND,
+                                java.nio.file.StandardOpenOption.SYNC
+                        );
+                    } catch (java.io.IOException ex) {
+                        plugin.getLogger().severe("Lỗi ghi nhận thẻ tiêu hao xuống đĩa: " + ex.getMessage());
+                    }
+                }
+            }
         }
     }
 
-    private static String getServerSalt(IpsecuzPet plugin) {
+    public static synchronized String getServerSalt(IpsecuzPet plugin) {
+        if (plugin == null) return "fallback-salt-local";
         String salt = plugin.getConfigManager().getData().getString("security.server_salt");
         if (salt == null || salt.trim().isEmpty()) {
             salt = UUID.randomUUID().toString().replace("-", "") + System.currentTimeMillis();
             plugin.getConfigManager().getData().set("security.server_salt", salt);
-            plugin.getConfigManager().saveData();
+            plugin.getConfigManager().forceSave(); // Bắt buộc lưu ngay lập tức (DURABLE PERSISTENCE)
         }
         return salt;
     }
 
     public static String computeHmacSha256(String key, String data) {
+        if (key == null || data == null) {
+            throw new IllegalArgumentException("Key và data không được để trống khi tính HMAC");
+        }
         try {
             javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
             javax.crypto.spec.SecretKeySpec secretKey = new javax.crypto.spec.SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
@@ -75,17 +141,22 @@ public final class PetCardSecurity {
             }
             return hexString.toString();
         } catch (Exception e) {
-            return Integer.toHexString((data + ":" + key).hashCode());
+            // Thất bại bảo mật phải FAIL-CLOSED, TUYỆT ĐỐI không hạ cấp xuống hàm băm không an toàn
+            throw new SecurityException("Không thể khởi tạo HmacSHA256: " + e.getMessage(), e);
         }
     }
 
-    public static String computeCanonicalSignature(IpsecuzPet plugin, int schema, String uniqueId, String petId, int level, int exp, int stars, String trait, String customName, List<String> skills) {
-        String salt = getServerSalt(plugin);
+    public static String buildCanonicalPayload(int schema, String uniqueId, String petId, int level, int exp, int stars, String trait, String customName, List<String> skills) {
         List<String> sortedSkills = (skills != null) ? new ArrayList<>(skills) : new ArrayList<>();
         Collections.sort(sortedSkills);
         String skillsStr = String.join(",", sortedSkills);
         String cName = (customName != null) ? customName : "";
-        String payload = schema + ":" + uniqueId + ":" + petId + ":" + level + ":" + exp + ":" + stars + ":" + trait + ":" + cName + ":" + skillsStr;
+        return schema + ":" + uniqueId + ":" + petId + ":" + level + ":" + exp + ":" + stars + ":" + trait + ":" + cName + ":" + skillsStr;
+    }
+
+    public static String computeCanonicalSignature(IpsecuzPet plugin, int schema, String uniqueId, String petId, int level, int exp, int stars, String trait, String customName, List<String> skills) {
+        String salt = getServerSalt(plugin);
+        String payload = buildCanonicalPayload(schema, uniqueId, petId, level, exp, stars, trait, customName, skills);
         return computeHmacSha256(salt, payload);
     }
 
@@ -121,31 +192,31 @@ public final class PetCardSecurity {
         if (meta == null) return item;
 
         LanguageManager lang = (plugin != null) ? plugin.getLanguage() : null;
-        String prefix = (lang != null) ? lang.getMessage("card.title_prefix", "") : "§6📦 ";
-        meta.displayName(Component.text(prefix + ChatColor.translateAlternateColorCodes('&', petName) + " §e(Lv." + level + ")"));
+        String prefix = (lang != null) ? lang.getMessage("card.title_prefix", "") : "&6📦 ";
+        meta.displayName(GuiText.component(prefix + petName + " &e(Lv." + level + ")"));
         List<Component> lore = new ArrayList<>();
-        lore.add(Component.text("§7--------------------"));
-        String rarityLabel = (lang != null) ? lang.getMessage("card.rarity", "%rarity%", rarity.getLocalizedName(plugin)) : "§7Độ hiếm: " + rarity.getFormattedName();
-        lore.add(Component.text(rarityLabel));
+        lore.add(GuiText.component("&7--------------------"));
+        String rarityLabel = (lang != null) ? lang.getMessage("card.rarity", "%rarity%", rarity.getLocalizedName(plugin)) : "&7Độ hiếm: " + rarity.getLocalizedName(plugin);
+        lore.add(GuiText.component(rarityLabel));
         String starDisplay = (plugin != null && plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(stars) : (stars + "⭐");
-        String starsLabel = (lang != null) ? lang.getMessage("card.stars", "%stars%", starDisplay) : "§7Cấp sao: " + starDisplay;
-        lore.add(Component.text(starsLabel));
+        String starsLabel = (lang != null) ? lang.getMessage("card.stars", "%stars%", starDisplay) : "&7Cấp sao: " + starDisplay;
+        lore.add(GuiText.component(starsLabel));
         String traitName = PetTrait.fromString(trait).getLocalizedName(plugin);
-        String traitLabel = (lang != null) ? lang.getMessage("card.trait", "%trait%", traitName) : "§7Đặc chất: " + traitName;
-        lore.add(Component.text(traitLabel));
-        String lvlLabel = (lang != null) ? lang.getMessage("card.level_exp", "%level%", String.valueOf(level), "%exp%", String.valueOf(exp)) : "§7Cấp độ: §aLv." + level + " §7(EXP: §b" + exp + "§7)";
-        lore.add(Component.text(lvlLabel));
+        String traitLabel = (lang != null) ? lang.getMessage("card.trait", "%trait%", traitName) : "&7Đặc chất: " + traitName;
+        lore.add(GuiText.component(traitLabel));
+        String lvlLabel = (lang != null) ? lang.getMessage("card.level_exp", "%level%", String.valueOf(level), "%exp%", String.valueOf(exp)) : "&7Cấp độ: &aLv." + level + " &7(EXP: &b" + exp + "&7)";
+        lore.add(GuiText.component(lvlLabel));
         if (customName != null && !customName.isEmpty()) {
-            String nickLabel = (lang != null) ? lang.getMessage("card.nickname", "%nickname%", customName) : "§7Biệt danh: §f" + customName;
-            lore.add(Component.text(nickLabel));
+            String nickLabel = (lang != null) ? lang.getMessage("card.nickname", "%nickname%", customName) : "&7Biệt danh: &f" + customName;
+            lore.add(GuiText.component(nickLabel));
         }
         if (unlockedSkills != null && !unlockedSkills.isEmpty()) {
-            String skillLabel = (lang != null) ? lang.getMessage("card.skills", "%amount%", String.valueOf(unlockedSkills.size())) : "§7Kỹ năng đã mở: §e" + unlockedSkills.size() + " skill";
-            lore.add(Component.text(skillLabel));
+            String skillLabel = (lang != null) ? lang.getMessage("card.skills", "%amount%", String.valueOf(unlockedSkills.size())) : "&7Kỹ năng đã mở: &e" + unlockedSkills.size() + " skill";
+            lore.add(GuiText.component(skillLabel));
         }
-        lore.add(Component.text("§7--------------------"));
-        String clickLabel = (lang != null) ? lang.getMessage("card.click_redeem") : "§e[Nhấp chuột phải để Triệu Hồi]";
-        lore.add(Component.text(clickLabel));
+        lore.add(GuiText.component("&7--------------------"));
+        String clickLabel = (lang != null) ? lang.getMessage("card.click_redeem") : "&e[Nhấp chuột phải để Triệu Hồi]";
+        lore.add(GuiText.component(clickLabel));
         meta.lore(lore);
 
         String cardUuid = UUID.randomUUID().toString();

@@ -57,6 +57,9 @@ public class ConfigManager {
         }
     }
 
+    private final java.util.concurrent.atomic.AtomicLong saveGeneration = new java.util.concurrent.atomic.AtomicLong(0);
+    private volatile long lastCommittedGeneration = 0;
+
     /**
      * Lưu dữ liệu thông minh với cơ chế Debounce và Snapshot an toàn luồng (Folia-safe thread snapshot)
      */
@@ -70,14 +73,16 @@ public class ConfigManager {
         // Lên lịch lưu sau 2.5 giây không gây block worker thread
         SchedulerUtils.runAsyncLater(plugin, () -> {
             String snapshotContent = null;
+            long generation = 0;
             synchronized (saveLock) {
                 saveScheduled = false;
                 if (isDirty.getAndSet(false) && dataConfig != null) {
+                    generation = saveGeneration.incrementAndGet();
                     snapshotContent = dataConfig.saveToString();
                 }
             }
             if (snapshotContent != null) {
-                performDiskWrite(snapshotContent);
+                performDiskWrite(snapshotContent, generation);
             }
         }, 50L);
     }
@@ -87,27 +92,57 @@ public class ConfigManager {
      */
     public void forceSave() {
         String snapshotContent = null;
+        long generation = 0;
         synchronized (saveLock) {
             isDirty.set(false);
             if (dataConfig != null) {
+                generation = saveGeneration.incrementAndGet();
                 snapshotContent = dataConfig.saveToString();
             }
         }
         if (snapshotContent != null) {
-            performDiskWrite(snapshotContent);
+            performDiskWrite(snapshotContent, generation);
         }
     }
 
-    private void performDiskWrite(String content) {
+    /**
+     * Đồng bộ ngay lập tức các thay đổi đang chờ lưu (nếu có) trước khi thực hiện reload hoặc thao tác quan trọng.
+     */
+    public void flushPendingData() {
+        if (isDirty.get()) {
+            forceSave();
+        }
+    }
+
+    /**
+     * Chỉ nạp lại cấu hình plugin (config.yml, v.v.), TUYỆT ĐỐI không ghi đè dữ liệu người chơi trong bộ nhớ.
+     */
+    public void reloadPluginConfig() {
+        plugin.reloadConfig();
+    }
+
+    /**
+     * Nạp lại dữ liệu người chơi trực tiếp từ đĩa cứng (chỉ dùng khi khởi động server hoặc yêu cầu rõ ràng từ admin).
+     */
+    public void loadPlayerDataFromDisk() {
+        loadDataFile();
+    }
+
+    private void performDiskWrite(String content, long generation) {
         if (content == null || dataFile == null) return;
         diskLock.lock();
         try {
+            // Chống đua snapshot (Stale Snapshot Race): Không cho phép snapshot cũ ghi đè lên dữ liệu đã lưu mới hơn!
+            if (generation < lastCommittedGeneration) {
+                return;
+            }
             // Tạo bản sao lưu an toàn trước khi ghi
             if (dataFile.exists() && dataFile.length() > 0) {
                 File backupFile = new File(dataFile.getParentFile(), "data.yml.bak");
                 Files.copy(dataFile.toPath(), backupFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
             Files.writeString(dataFile.toPath(), content, java.nio.charset.StandardCharsets.UTF_8);
+            lastCommittedGeneration = generation;
         } catch (IOException e) {
             plugin.getLogger().severe("Lỗi nghiêm trọng khi ghi file data.yml: " + e.getMessage());
         } finally {

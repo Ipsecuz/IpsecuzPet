@@ -7,6 +7,7 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.ipsecuz.pet.IpsecuzPet;
 import org.ipsecuz.pet.PetAnimationState;
+import org.ipsecuz.pet.SchedulerUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -113,9 +114,49 @@ public class ModelProviderManager {
     }
 
     public void reload() {
-        this.betterModelProvider = initBetterModelProvider(plugin);
-        this.modelEngineProvider = initModelEngineProvider(plugin);
+        if (this.betterModelProvider == null || this.betterModelProvider instanceof UnavailableModelProvider) {
+            this.betterModelProvider = initBetterModelProvider(plugin);
+        }
+        if (this.modelEngineProvider == null || this.modelEngineProvider instanceof UnavailableModelProvider) {
+            this.modelEngineProvider = initModelEngineProvider(plugin);
+        }
         this.failedModelCache.clear();
+        this.debugLogThrottle.clear();
+        rebindActivePets();
+    }
+
+    /**
+     * Tái liên kết toàn bộ model cho các pet đang hoạt động sau khi cấu hình được tải lại (Rebind on Reload).
+     * Đảm bảo không để lại model rác hay renderer cũ bị bỏ rơi.
+     */
+    public void rebindActivePets() {
+        if (plugin.getPetManager() == null) return;
+        Map<UUID, Entity> activePets = plugin.getPetManager().getActivePets();
+        Map<UUID, String> activePetIds = plugin.getPetManager().getActivePetIds();
+        if (activePets == null || activePets.isEmpty()) return;
+
+        for (Map.Entry<UUID, Entity> entry : activePets.entrySet()) {
+            UUID ownerId = entry.getKey();
+            Entity pet = entry.getValue();
+            String petId = (activePetIds != null) ? activePetIds.get(ownerId) : null;
+            if (pet == null || petId == null) continue;
+
+            SchedulerUtils.runEntityTask(plugin, pet, () -> {
+                if (!pet.isValid()) return;
+                Player owner = Bukkit.getPlayer(ownerId);
+                boolean isBaby = plugin.getConfigManager().isPetBaby(ownerId, petId);
+
+                // 1. Dọn dẹp model cũ khỏi provider trước đó
+                removeModel(pet);
+
+                // 2. Tái phân giải và gắn model mới theo cấu hình cập nhật
+                spawnModel(owner, pet, petId, isBaby);
+
+                // 3. Phục hồi hoạt ảnh và tầm nhìn
+                playAnimation(pet, PetAnimationState.IDLE);
+                updateMultiplayerVisibility(pet);
+            });
+        }
     }
 
     public boolean isDebugEnabled() {

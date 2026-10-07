@@ -27,7 +27,25 @@ public class TradeRecoveryJournalTest {
         assertEquals(playerB, record.getPlayerB());
         assertNotNull(record.getItemsFromA());
         assertNotNull(record.getItemsFromB());
+        assertEquals(TradeManager.TradeCommitStatus.PREPARED, record.getStatus(), "Default status should be PREPARED");
         assertTrue(record.getTimestamp() >= before && record.getTimestamp() <= after);
+    }
+
+    @Test
+    @DisplayName("TradeCommitRecord correctly supports COMMITTED status")
+    public void testTradeCommitStatusCommitted() {
+        UUID tradeId = UUID.randomUUID();
+        UUID playerA = UUID.randomUUID();
+        UUID playerB = UUID.randomUUID();
+
+        long now = System.currentTimeMillis();
+        TradeManager.TradeCommitRecord record = new TradeManager.TradeCommitRecord(
+                tradeId, playerA, playerB, Collections.emptyList(), Collections.emptyList(),
+                TradeManager.TradeCommitStatus.COMMITTED, now
+        );
+
+        assertEquals(TradeManager.TradeCommitStatus.COMMITTED, record.getStatus());
+        assertEquals(now, record.getTimestamp());
     }
 
     @Test
@@ -44,3 +62,4 @@ public class TradeRecoveryJournalTest {
         assertEquals(playerUuid.toString(), refundPath.substring("pending_refund.".length()));
     }
 }
+

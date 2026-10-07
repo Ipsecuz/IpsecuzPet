@@ -69,3 +69,4 @@ public class UnavailableModelProvider implements ModelProvider {
     @Override
     public void handlePlayerQuit(Player player) {}
 }
+

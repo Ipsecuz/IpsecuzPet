@@ -114,14 +114,26 @@ public class PetCommand implements CommandExecutor {
                 break;
 
             case "shop":
+                if (!p.hasPermission("ipsecuzpet.shop")) {
+                    p.sendMessage(lang.getMessage("general.no_permission"));
+                    return true;
+                }
                 GuiListener.openShopMenu(p);
                 break;
 
             case "codex":
+                if (!p.hasPermission("ipsecuzpet.codex")) {
+                    p.sendMessage(lang.getMessage("general.no_permission"));
+                    return true;
+                }
                 GuiListener.openCodexMenu(p);
                 break;
 
             case "shards":
+                if (!p.hasPermission("ipsecuzpet.shards")) {
+                    p.sendMessage(lang.getMessage("general.no_permission"));
+                    return true;
+                }
                 GuiListener.openShardsMenu(p);
                 break;
 
@@ -325,17 +337,29 @@ public class PetCommand implements CommandExecutor {
                 break;
 
             case "feed":
+                if (!p.hasPermission("ipsecuzpet.feed")) {
+                    p.sendMessage(lang.getMessage("general.no_permission"));
+                    return true;
+                }
                 ItemStack handItem = p.getInventory().getItemInMainHand();
                 plugin.getFeedingManager().feedPet(p, handItem);
                 break;
 
             case "skill":
             case "ultimate":
+                if (!p.hasPermission("ipsecuzpet.skill")) {
+                    p.sendMessage(lang.getMessage("general.no_permission"));
+                    return true;
+                }
                 plugin.getSkillManager().triggerUltimate(p);
                 break;
 
             case "star":
             case "evolve":
+                if (!p.hasPermission("ipsecuzpet.evolution")) {
+                    p.sendMessage(lang.getMessage("general.no_permission"));
+                    return true;
+                }
                 if (!plugin.getPetManager().hasPet(p.getUniqueId())) {
                     p.sendMessage(lang.getMessage("pet.no_pet"));
                     return true;
@@ -368,7 +392,7 @@ public class PetCommand implements CommandExecutor {
     }
 
     private boolean handleModelStatus(CommandSender sender, String[] args, LanguageManager lang) {
-        if (!sender.hasPermission("ipsecuzpet.admin")) {
+        if (!sender.hasPermission("ipsecuzpet.admin") && !sender.hasPermission("ipsecuzpet.model.status")) {
             sender.sendMessage(lang.getMessage("general.no_permission"));
             return true;
         }
@@ -409,12 +433,14 @@ public class PetCommand implements CommandExecutor {
             sender.sendMessage(lang.getMessage("general.no_permission"));
             return true;
         }
-        plugin.reloadConfig();
+        plugin.getConfigManager().flushPendingData();
+        plugin.getConfigManager().reloadPluginConfig();
         plugin.getLanguage().loadMessages();
-        plugin.getConfigManager().loadDataFile();
+        // Không reload data.yml để bảo vệ dữ liệu người chơi đang hoạt động
         plugin.getCaptureManager().loadBalls();
         if (plugin.getModelHandler() != null && plugin.getModelHandler().getManager() != null) {
             plugin.getModelHandler().getManager().reload();
+            plugin.getModelHandler().getManager().rebindActivePets();
         }
         if (plugin.getModuleManager() != null) {
             plugin.getModuleManager().reloadAllModules();

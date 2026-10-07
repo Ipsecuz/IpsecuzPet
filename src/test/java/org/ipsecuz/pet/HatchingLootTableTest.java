@@ -104,3 +104,4 @@ public class HatchingLootTableTest {
         assertEquals(HatchingManager.HatchState.COMPLETED, session.getState());
     }
 }
+

@@ -51,6 +51,9 @@ pet:
 
   # RPG Messages
   level_up: "&6&lLEVEL UP! &eYour pet reached level &b%level%&e!"
+  actionbar_level_up: "&a&l★ LEVEL UP! &eReached Lv.%level%"
+  actionbar_multi_level_up: "&6&l★ +%levels% LEVELS! &eLv.%current%"
+  multi_level_up: "&a&l★ MASS LEVEL UP! &fPet gained &e+%levels% Levels &f(Reached: &6Lv.%current%&f)!"
   death: "&cYour pet died! Mine diamond ores to revive it."
   revive_progress: "&bRevival progress: &e%current%/%max%"
   revive_complete: "&a&lSUCCESS! &eAll dead pets have been revived!"
@@ -254,4 +257,7 @@ requirement:
   transaction_failed: "&cRequirement transaction failed! Resources refunded."
   not_enough: "&cMissing: &e%missing% &7(Required: &e%required%&7, Current: &e%current%&7)"
   ready: "&a&l✔ REQUIREMENTS MET"
+
+capture:
+  disabled: "&cThe pet capture system is currently disabled!"
 

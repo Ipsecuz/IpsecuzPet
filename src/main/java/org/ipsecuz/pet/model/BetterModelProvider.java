@@ -259,7 +259,16 @@ public class BetterModelProvider implements ModelProvider {
         EntityTracker tracker = activeTrackers.get(pet.getUniqueId());
         if (tracker != null && !tracker.isClosed()) {
             try {
-                tracker.animate("idle");
+                String petId = null;
+                try {
+                    org.bukkit.NamespacedKey key = new org.bukkit.NamespacedKey(plugin, "pet_pet_id");
+                    petId = pet.getPersistentDataContainer().get(key, org.bukkit.persistence.PersistentDataType.STRING);
+                } catch (Throwable ignored) {}
+
+                String idleAnim = (plugin.getModelProviderManager() != null)
+                        ? plugin.getModelProviderManager().resolveAnimationName(petId, ModelType.BETTERMODEL, PetAnimationState.IDLE)
+                        : "idle";
+                tracker.animate(idleAnim != null ? idleAnim : "idle");
             } catch (Throwable t) {
                 logThrottledError("stopAnimation", t);
             }

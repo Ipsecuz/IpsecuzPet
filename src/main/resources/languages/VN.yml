@@ -51,6 +51,9 @@ pet:
 
   # RPG Messages
   level_up: "&6&lLÊN CẤP! &ePet của bạn đã đạt cấp &b%level%&e!"
+  actionbar_level_up: "&a&l★ LÊN CẤP! &eĐạt Lv.%level%"
+  actionbar_multi_level_up: "&6&l★ +%levels% CẤP ĐỘ! &eLv.%current%"
+  multi_level_up: "&a&l★ TIẾN HÓA CẤP ĐỘ! &fThú cưng đã tăng vọt &e+%levels% Cấp &f(Đạt cấp: &6Lv.%current%&f)!"
   death: "&cPet của bạn đã chết! Hãy đi đào quặng để hồi sinh nó."
   revive_progress: "&bTiến độ hồi sinh: &e%current%/%max%"
   revive_complete: "&a&lTHÀNH CÔNG! &eTất cả Pet đã được hồi sinh!"
@@ -254,4 +257,7 @@ requirement:
   transaction_failed: "&cThực hiện giao dịch chi phí thất bại! Đã hoàn trả tài nguyên."
   not_enough: "&cThiếu: &e%missing% &7(Cần: &e%required%&7, hiện có: &e%current%&7)"
   ready: "&a&l✔ ĐỦ ĐIỀU KIỆN"
+
+capture:
+  disabled: "&cTính năng bắt thú cưng hiện đang bị vô hiệu hóa!"
 
