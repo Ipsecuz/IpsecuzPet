@@ -100,22 +100,16 @@ public class GameListener implements Listener {
                 // Tiêu hao vật phẩm thành công trước khi ghi nhận pet (Transactional consume)
                 item.setAmount(item.getAmount() - 1);
 
-                plugin.getConfigManager().createPetDataIfMissing(p.getUniqueId(), petId);
-                plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".level", cardData.getLevel());
-                plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".exp", cardData.getExp());
-                plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".stars", cardData.getStars());
-                plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".trait", cardData.getTrait());
-                if (cardData.getCustomName() != null && !cardData.getCustomName().isEmpty()) {
-                    plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".custom_name", cardData.getCustomName());
-                }
-                if (cardData.getUnlockedSkills() != null && !cardData.getUnlockedSkills().isEmpty()) {
-                    plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".unlocked_skills", cardData.getUnlockedSkills());
-                }
-                plugin.getConfigManager().saveData();
-
                 if (cardUuid != null) {
-                    PetCardSecurity.markCardConsumed(plugin, cardUuid);
+                    PetCardSecurity.markCardConsumed(plugin, cardUuid); // Lưu ngay đĩa cứng trước
                 }
+
+                plugin.getConfigManager().savePetProfile(
+                        p.getUniqueId(), petId,
+                        cardData.getLevel(), cardData.getExp(), cardData.getStars(),
+                        cardData.getTrait(), cardData.getCustomName(), cardData.getUnlockedSkills(),
+                        true // Ghi đĩa bền vững ngay lập tức (Durable write)
+                );
 
                 plugin.getCodexManager().discover(p.getUniqueId(), petId);
                 p.sendMessage(lang.getMessage("pet.redeem_success", "%pet_id%", petId));
@@ -405,9 +399,20 @@ public class GameListener implements Listener {
         if (!isPet(e.getEntity())) return;
         e.getDrops().clear();
         e.setDroppedExp(0);
-        UUID ownerId = getOwnerId(e.getEntity());
+        Entity pet = e.getEntity();
+        UUID ownerId = getOwnerId(pet);
+        if (ownerId == null) return;
         String petId = plugin.getPetManager().getActivePetId(ownerId);
-        plugin.getPetManager().removePet(ownerId);
+
+        // Phát hoạt ảnh và hiệu ứng DEATH cinematic
+        if (plugin.getModelHandler() != null) {
+            plugin.getModelHandler().playTransientAnimation(pet, PetAnimationState.DEATH, 30L, PetAnimationState.DEATH);
+        }
+        try {
+            pet.getWorld().spawnParticle(Particle.SMOKE_LARGE, pet.getLocation().add(0, 0.6, 0), 20, 0.4, 0.4, 0.4, 0.05);
+            pet.getWorld().playSound(pet.getLocation(), Sound.ENTITY_ALLAY_DEATH, 1.2f, 0.8f);
+        } catch (Exception ignored) {}
+
         if (plugin.getPetManager().activeDuels.containsKey(ownerId)) {
             UUID winnerId = plugin.getPetManager().activeDuels.get(ownerId);
             plugin.getPetManager().activeDuels.remove(ownerId);
@@ -425,6 +430,11 @@ public class GameListener implements Listener {
             if (Bukkit.getPlayer(ownerId) != null)
                 Bukkit.getPlayer(ownerId).sendMessage(plugin.getLanguage().getMessage("pet.death"));
         }
+
+        // Trì hoãn removePet 30 ticks để hoạt ảnh và hiệu ứng cái chết hiển thị hoàn tất
+        SchedulerUtils.runGlobalTaskLater(plugin, () -> {
+            plugin.getPetManager().removePet(ownerId);
+        }, 30L);
     }
 
     @EventHandler
@@ -525,7 +535,21 @@ public class GameListener implements Listener {
                         plugin.getLanguage().getMessage("pet.revive_progress", "%current%", String.valueOf(cur), "%max%", String.valueOf(max))
                 ));
                 if (cur >= max) {
-                    for (String pid : pets) if (cm.isPetDead(p.getUniqueId(), pid)) cm.setPetStatus(p.getUniqueId(), pid, "ALIVE");
+                    String reviveMode = plugin.getConfig().getString("rpg_system.revive_mode", "SINGLE");
+                    if ("SINGLE".equalsIgnoreCase(reviveMode)) {
+                        for (String pid : pets) {
+                            if (cm.isPetDead(p.getUniqueId(), pid)) {
+                                cm.setPetStatus(p.getUniqueId(), pid, "ALIVE");
+                                break;
+                            }
+                        }
+                    } else {
+                        for (String pid : pets) {
+                            if (cm.isPetDead(p.getUniqueId(), pid)) {
+                                cm.setPetStatus(p.getUniqueId(), pid, "ALIVE");
+                            }
+                        }
+                    }
                     cm.resetReviveProgress(p.getUniqueId());
                     p.sendMessage(plugin.getLanguage().getMessage("pet.revive_complete"));
                     p.playSound(p.getLocation(), Sound.ITEM_TOTEM_USE, 1f, 1f);
@@ -537,6 +561,9 @@ public class GameListener implements Listener {
     @EventHandler
     public void onPlayerJoin(org.bukkit.event.player.PlayerJoinEvent e) {
         Player p = e.getPlayer();
+        if (plugin.getHatchingManager() != null) {
+            plugin.getHatchingManager().resolvePendingHatchOnJoin(p);
+        }
         if (p.hasPermission("ipsecuzpet.admin")) {
             new UpdateChecker(plugin, IpsecuzPet.RESOURCE_ID).getVersion(version -> {
                 if (UpdateChecker.isNewerVersion(version, plugin.getDescription().getVersion())) {

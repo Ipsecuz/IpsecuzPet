@@ -55,6 +55,17 @@ public class PetOwnershipManager {
         return current < limit;
     }
 
+    public boolean canAcquirePet(UUID uuid) {
+        if (uuid == null) return false;
+        Player online = org.bukkit.Bukkit.getPlayer(uuid);
+        if (online != null && online.isOnline()) {
+            return canAcquirePet(online);
+        }
+        int current = getOwnedPetCount(uuid);
+        int limit = plugin.getConfig().getInt("max_pets", 2);
+        return current < limit;
+    }
+
     public boolean acquirePet(Player player, String petId, int level, int exp, int stars, PetTrait trait, String customName) {
         if (player == null || petId == null) return false;
         UUID uuid = player.getUniqueId();

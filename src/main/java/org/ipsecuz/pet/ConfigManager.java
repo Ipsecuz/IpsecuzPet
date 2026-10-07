@@ -154,6 +154,83 @@ public class ConfigManager {
         if (uuid == null || petId == null) return;
         synchronized (saveLock) {
             dataConfig.set(uuid + ".pets." + petId + ".status", status);
+            if ("DEAD".equalsIgnoreCase(status)) {
+                forceSave(); // Trạng thái chết phải lưu đĩa ngay lập tức
+            } else {
+                saveData();
+            }
+        }
+    }
+
+    public void savePetProfile(UUID uuid, String petId, int level, int exp, int stars, String trait, String customName, java.util.List<String> unlockedSkills, boolean immediate) {
+        if (uuid == null || petId == null) return;
+        synchronized (saveLock) {
+            String path = uuid + ".pets." + petId;
+            createPetDataIfMissing(uuid, petId);
+            dataConfig.set(path + ".level", level);
+            dataConfig.set(path + ".exp", exp);
+            dataConfig.set(path + ".stars", stars);
+            dataConfig.set(path + ".trait", trait);
+            if (customName != null && !customName.isEmpty()) {
+                dataConfig.set(path + ".custom_name", customName);
+            }
+            if (unlockedSkills != null && !unlockedSkills.isEmpty()) {
+                dataConfig.set(path + ".unlocked_skills", unlockedSkills);
+            }
+            if (immediate) {
+                forceSave();
+            } else {
+                saveData();
+            }
+        }
+    }
+
+    public void setPetLevelAndExp(UUID uuid, String petId, int level, int exp) {
+        if (uuid == null || petId == null) return;
+        synchronized (saveLock) {
+            String path = uuid + ".pets." + petId;
+            dataConfig.set(path + ".level", level);
+            dataConfig.set(path + ".exp", exp);
+            saveData();
+        }
+    }
+
+    public void setPetStars(UUID uuid, String petId, int stars) {
+        if (uuid == null || petId == null) return;
+        synchronized (saveLock) {
+            dataConfig.set(uuid + ".pets." + petId + ".stars", stars);
+            saveData();
+        }
+    }
+
+    public void setPetTrait(UUID uuid, String petId, String trait) {
+        if (uuid == null || petId == null) return;
+        synchronized (saveLock) {
+            dataConfig.set(uuid + ".pets." + petId + ".trait", trait);
+            saveData();
+        }
+    }
+
+    public void setPetUnlockedSkills(UUID uuid, String petId, java.util.List<String> skills) {
+        if (uuid == null || petId == null) return;
+        synchronized (saveLock) {
+            dataConfig.set(uuid + ".pets." + petId + ".unlocked_skills", skills);
+            saveData();
+        }
+    }
+
+    public void setShards(UUID uuid, String petId, int amount) {
+        if (uuid == null || petId == null) return;
+        synchronized (saveLock) {
+            dataConfig.set(uuid + ".shards." + petId, amount);
+            saveData();
+        }
+    }
+
+    public void setCodexDiscovered(UUID uuid, String petId) {
+        if (uuid == null || petId == null) return;
+        synchronized (saveLock) {
+            dataConfig.set(uuid + ".codex." + petId, true);
             saveData();
         }
     }

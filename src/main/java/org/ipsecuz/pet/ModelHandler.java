@@ -87,6 +87,17 @@ public class ModelHandler {
         // EntityTracker được gắn trực tiếp vào Bukkit Entity nên tự động theo dõi vị trí qua NMS packets.
     }
 
+    private final Map<String, Long> lastErrorLogTime = new ConcurrentHashMap<>();
+
+    private void logThrottledError(String action, Throwable t) {
+        long now = System.currentTimeMillis();
+        Long last = lastErrorLogTime.get(action);
+        if (last == null || (now - last) > 10000L) {
+            lastErrorLogTime.put(action, now);
+            plugin.getLogger().log(Level.WARNING, "§c[IpsecuzPet] Lỗi trong ModelHandler (" + action + "): " + t.getMessage(), t);
+        }
+    }
+
     /**
      * Theo dõi tầm nhìn đa người chơi (Multiplayer Visibility Tracking):
      * Tự động hiển thị model cho người chơi trong phạm vi 48 blocks và ẩn khi ra xa.
@@ -109,7 +120,7 @@ public class ModelHandler {
             org.bukkit.Location petLoc = pet.getLocation();
             double maxDistSq = 48.0 * 48.0;
 
-            for (Player p : pet.getWorld().getPlayers()) {
+            for (Player p : pet.getWorld().getNearbyPlayers(petLoc, 48.0)) {
                 if (!p.isOnline()) continue;
                 double distSq = p.getLocation().distanceSquared(petLoc);
                 if (distSq <= maxDistSq) {
@@ -122,7 +133,9 @@ public class ModelHandler {
                     }
                 }
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            logThrottledError("updateMultiplayerVisibility", t);
+        }
     }
 
     public void handlePlayerQuit(Player player) {
@@ -138,18 +151,21 @@ public class ModelHandler {
 
     /**
      * Chuyển trạng thái hoạt ảnh bền vững (Locomotion, Idle, v.v.).
-     * Không khởi động lại hoạt ảnh nếu trạng thái không đổi, và không ghi đè hoạt ảnh tạm thời (transient).
+     * Không khởi động lại hoạt ảnh nếu trạng thái không đổi, và không ghi đè hoạt ảnh tạm thời (transient) có độ ưu tiên cao hơn.
      */
     public void playAnimation(Entity pet, PetAnimationState state) {
         if (!isBetterModelInstalled() || pet == null || state == null) return;
         UUID uuid = pet.getUniqueId();
 
+        PetAnimationState current = currentStates.get(uuid);
         Long expire = stateExpirationMs.get(uuid);
         if (expire != null && System.currentTimeMillis() < expire) {
-            return; // Đang chạy animation tạm thời ưu tiên cao hơn (feed, evolve, hurt,...)
+            if (current != null && current.getPriority() > state.getPriority()) {
+                return; // Đang chạy animation tạm thời ưu tiên cao hơn (evolve, skill, hurt,...)
+            }
         }
 
-        if (currentStates.get(uuid) == state) {
+        if (current == state) {
             return; // Tránh restart animation liên tục mỗi tick!
         }
 
@@ -159,18 +175,28 @@ public class ModelHandler {
 
     /**
      * Kích hoạt hoạt ảnh tạm thời với thời lượng xác định (Ticks), sau đó tự động chuyển về returnState.
+     * Tôn trọng thứ tự ưu tiên (Priority).
      */
     public void playTransientAnimation(Entity pet, PetAnimationState state, long durationTicks, PetAnimationState returnState) {
         if (!isBetterModelInstalled() || pet == null || state == null) return;
         UUID uuid = pet.getUniqueId();
 
+        PetAnimationState current = currentStates.get(uuid);
+        Long expire = stateExpirationMs.get(uuid);
+        if (expire != null && System.currentTimeMillis() < expire) {
+            if (current != null && current.getPriority() > state.getPriority()) {
+                return; // Không ghi đè hoạt ảnh có mức ưu tiên cao hơn
+            }
+        }
+
         currentStates.put(uuid, state);
-        stateExpirationMs.put(uuid, System.currentTimeMillis() + (durationTicks * 50L));
+        long targetExpiry = System.currentTimeMillis() + (durationTicks * 50L);
+        stateExpirationMs.put(uuid, targetExpiry);
         executeAnimation(uuid, state);
 
         SchedulerUtils.runEntityTaskLater(plugin, pet, () -> {
             if (!pet.isValid()) return;
-            if (currentStates.get(uuid) == state) {
+            if (currentStates.get(uuid) == state && System.currentTimeMillis() >= stateExpirationMs.getOrDefault(uuid, 0L) - 50L) {
                 stateExpirationMs.remove(uuid);
                 playAnimation(pet, returnState != null ? returnState : PetAnimationState.IDLE);
             }
@@ -217,7 +243,9 @@ public class ModelHandler {
                     }
                 }
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable t) {
+            logThrottledError("executeAnimation", t);
+        }
     }
 
     public void updateAnimation(Entity pet) {

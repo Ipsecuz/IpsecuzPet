@@ -557,11 +557,7 @@ public class PetManager {
         // 3. Thưởng / Phạt theo độ vui vẻ (Happiness)
         if (plugin.getFeedingManager() != null) {
             int happy = plugin.getFeedingManager().getHappiness(p.getUniqueId(), petId);
-            if (happy >= 80) {
-                multiplier *= 1.25;
-            } else if (happy < 20) {
-                multiplier *= 0.75;
-            }
+            multiplier *= plugin.getFeedingManager().getExpMultiplier(happy);
         }
 
         // 4. Trait SCHOLAR thưởng thêm 25% EXP

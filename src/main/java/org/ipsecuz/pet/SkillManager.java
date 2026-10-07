@@ -13,6 +13,8 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
+import org.bukkit.persistence.PersistentDataType;
+
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -27,6 +29,49 @@ public class SkillManager {
 
     public SkillManager(IpsecuzPet plugin) {
         this.plugin = plugin;
+    }
+
+    public boolean isValidEnemyTarget(Player owner, Entity entity) {
+        if (entity == null || !entity.isValid() || entity.isDead()) return false;
+        if (owner != null && entity.equals(owner)) return false;
+
+        // Ignore active pets
+        if (entity.getPersistentDataContainer().has(plugin.getPetManager().petKey, PersistentDataType.STRING)) {
+            return false;
+        }
+
+        // Ignore NPCs and ArmorStands
+        if (entity.hasMetadata("NPC") || entity instanceof org.bukkit.entity.ArmorStand) {
+            return false;
+        }
+
+        // Check PvP target setting
+        if (entity instanceof Player targetPlayer) {
+            if (!plugin.getConfig().getBoolean("combat.target_players", false)) {
+                return false;
+            }
+            if (targetPlayer.getGameMode() == org.bukkit.GameMode.SPECTATOR || targetPlayer.getGameMode() == org.bukkit.GameMode.CREATIVE) {
+                return false;
+            }
+            return true;
+        }
+
+        // Monsters are always valid
+        if (entity instanceof Monster) {
+            return true;
+        }
+
+        // Other hostile mobs / Slimes / Ghasts / Bosses
+        if (entity instanceof org.bukkit.entity.Mob mob) {
+            if (mob instanceof org.bukkit.entity.Tameable tameable && tameable.isTamed()) {
+                if (owner != null && owner.getUniqueId().equals(tameable.getOwnerUniqueId())) {
+                    return false;
+                }
+            }
+            return (entity instanceof org.bukkit.entity.Enemy);
+        }
+
+        return false;
     }
 
     public boolean isSkillUnlocked(UUID uuid, String petId, String skillType) {
@@ -182,7 +227,7 @@ public class SkillManager {
                     } catch (Exception ignored) {}
 
                     for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
-                        if (nearby instanceof Monster target) {
+                        if (nearby instanceof org.bukkit.entity.LivingEntity target && isValidEnemyTarget(player, target)) {
                             SchedulerUtils.runEntityTask(plugin, target, () -> {
                                 if (target.isValid()) {
                                     Vector push = target.getLocation().toVector().subtract(loc.toVector()).normalize().multiply(1.8).setY(0.4);
@@ -207,7 +252,7 @@ public class SkillManager {
                     } catch (Exception ignored) {}
 
                     for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
-                        if (nearby instanceof Monster target) {
+                        if (nearby instanceof org.bukkit.entity.LivingEntity target && isValidEnemyTarget(player, target)) {
                             SchedulerUtils.runEntityTask(plugin, target, () -> {
                                 if (target.isValid()) {
                                     target.setVelocity(new Vector(0, 1.25, 0));
@@ -227,7 +272,7 @@ public class SkillManager {
                     } catch (Exception ignored) {}
 
                     for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
-                        if (nearby instanceof Monster target) {
+                        if (nearby instanceof org.bukkit.entity.LivingEntity target && isValidEnemyTarget(player, target)) {
                             SchedulerUtils.runEntityTask(plugin, target, () -> {
                                 if (target.isValid()) {
                                     Vector push = target.getLocation().toVector().subtract(loc.toVector()).normalize().multiply(1.3).setY(0.35);
@@ -262,7 +307,7 @@ public class SkillManager {
                     } catch (Exception ignored) {}
 
                     for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
-                        if (nearby instanceof Monster target) {
+                        if (nearby instanceof org.bukkit.entity.LivingEntity target && isValidEnemyTarget(player, target)) {
                             SchedulerUtils.runEntityTask(plugin, target, () -> {
                                 if (target.isValid()) {
                                     target.damage(damage, player);
@@ -278,7 +323,7 @@ public class SkillManager {
     }
 
     // --- HỆ THỐNG NỘI TẠI (PASSIVES) ---
-    private final Map<UUID, Long> lastPassiveTick = new ConcurrentHashMap<>();
+    private final Map<String, Long> lastPassiveTick = new ConcurrentHashMap<>();
 
     public void handlePetTick(Player owner, Entity pet, String petId) {
         if (!plugin.getModuleManager().isSkillsEnabled() || owner == null || pet == null || petId == null) return;
@@ -288,9 +333,10 @@ public class SkillManager {
             FileConfiguration config = plugin.getModuleManager().getSkillsConfig();
             int intervalSec = config.getInt("skills.allay_pet.passive.regen_interval_seconds", 5);
             double healAmt = config.getDouble("skills.allay_pet.passive.heal_amount", 2.0);
-            long last = lastPassiveTick.getOrDefault(owner.getUniqueId(), 0L);
+            String passiveKey = owner.getUniqueId() + ":" + petId + ":regen";
+            long last = lastPassiveTick.getOrDefault(passiveKey, 0L);
             if (now - last >= intervalSec * 1000L) {
-                lastPassiveTick.put(owner.getUniqueId(), now);
+                lastPassiveTick.put(passiveKey, now);
                 SchedulerUtils.runEntityTask(plugin, owner, () -> {
                     if (owner.isOnline()) {
                         double maxHp = 20.0;
@@ -310,15 +356,15 @@ public class SkillManager {
             FileConfiguration config = plugin.getModuleManager().getSkillsConfig();
             int intervalSec = config.getInt("skills.warden_pet.passive.detect_interval_seconds", 3);
             double radius = config.getDouble("skills.warden_pet.passive.detect_invisible_radius", 10.0);
-            long last = lastPassiveTick.getOrDefault(owner.getUniqueId(), 0L);
+            String passiveKey = owner.getUniqueId() + ":" + petId + ":detect";
+            long last = lastPassiveTick.getOrDefault(passiveKey, 0L);
             if (now - last >= intervalSec * 1000L) {
-                lastPassiveTick.put(owner.getUniqueId(), now);
+                lastPassiveTick.put(passiveKey, now);
                 SchedulerUtils.runEntityTask(plugin, pet, () -> {
                     if (!pet.isValid()) return;
                     boolean foundInvisible = false;
                     for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
-                        if (nearby.equals(owner) || nearby.equals(pet)) continue;
-                        if (nearby instanceof org.bukkit.entity.LivingEntity living) {
+                        if (nearby instanceof org.bukkit.entity.LivingEntity living && isValidEnemyTarget(owner, living)) {
                             if (living.isInvisible() || living.hasPotionEffect(PotionEffectType.INVISIBILITY)) {
                                 living.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 80, 0, false, false, true));
                                 foundInvisible = true;
@@ -383,9 +429,15 @@ public class SkillManager {
         return config.getDouble("skills." + petId + ".passive.bonus_damage_percent", 0.0);
     }
 
+    public void clearPassiveState(UUID ownerId) {
+        if (ownerId == null) return;
+        String prefix = ownerId.toString() + ":";
+        lastPassiveTick.keySet().removeIf(k -> k.startsWith(prefix));
+    }
+
     public void clearCooldown(UUID uuid) {
         cooldowns.remove(uuid);
-        lastPassiveTick.remove(uuid);
+        clearPassiveState(uuid);
     }
 
     public void clearAllCooldowns() {

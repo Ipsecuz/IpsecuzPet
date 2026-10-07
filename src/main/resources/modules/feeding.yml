@@ -13,7 +13,14 @@ decay_amount: 5
 # Khi độ vui vẻ >= 80%, nhận được Buff Hạnh Phúc
 bonus_threshold: 80
 bonus_exp_multiplier: 1.25 # Nhận thêm 25% EXP
+bonus_stat_multiplier: 1.10 # Tăng 10% các chỉ số (Máu, Công, Thủ)
 bonus_speed_multiplier: 1.15 # Pet chạy nhanh hơn 15%
+
+# Khi độ vui vẻ < 20%, nhận hình phạt mệt mỏi
+penalty_threshold: 20
+penalty_exp_multiplier: 0.75 # Giảm 25% EXP
+penalty_stat_multiplier: 0.90 # Giảm 10% các chỉ số
+penalty_speed_multiplier: 0.85 # Pet chạy chậm hơn 15%
 
 # Danh sách món ăn được chấp nhận cho Pet
 foods:

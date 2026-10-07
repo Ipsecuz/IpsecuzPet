@@ -203,11 +203,7 @@ public class PetCommand implements CommandExecutor {
                     return true;
                 }
 
-                if (p.getInventory().firstEmpty() == -1) {
-                    p.sendMessage(lang.getMessage("general.inventory_full"));
-                    return true;
-                }
-
+                ItemStack[] snapshot = p.getInventory().getStorageContents().clone();
                 int wdLvl = conf.getData().getInt(p.getUniqueId() + ".pets." + wdId + ".level", 1);
                 int wdExp = conf.getData().getInt(p.getUniqueId() + ".pets." + wdId + ".exp", 0);
                 int stars = (plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStar(p.getUniqueId(), wdId) : 1;
@@ -216,13 +212,15 @@ public class PetCommand implements CommandExecutor {
                 String wdName = plugin.getConfig().getString("pets." + wdId + ".name", wdId);
                 List<String> unlockedSkills = conf.getData().getStringList(p.getUniqueId() + ".pets." + wdId + ".unlocked_skills");
 
-                ItemStack item = PetCardSecurity.createPetCard(plugin, wdId, wdLvl, wdExp, stars, trait, customName, unlockedSkills);
-                HashMap<Integer, ItemStack> overflow = p.getInventory().addItem(item);
+                ItemStack cardItem = PetCardSecurity.createPetCard(plugin, wdId, wdLvl, wdExp, stars, trait, customName, unlockedSkills);
+                HashMap<Integer, ItemStack> overflow = p.getInventory().addItem(cardItem);
                 if (!overflow.isEmpty()) {
+                    p.getInventory().setStorageContents(snapshot);
                     p.sendMessage(lang.getMessage("general.inventory_full"));
                     return true;
                 }
                 conf.deletePetData(p.getUniqueId(), wdId);
+                conf.forceSave();
                 p.sendMessage(lang.getMessage("pet.withdraw_success", "%pet_name%", wdName));
                 break;
 

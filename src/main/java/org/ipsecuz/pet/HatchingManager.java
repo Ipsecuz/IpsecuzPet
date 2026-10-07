@@ -53,23 +53,46 @@ public class HatchingManager {
         public void setFinished(boolean finished) { this.finished = finished; }
     }
 
+    public enum HatchState {
+        PENDING,
+        PROCESSING,
+        COMPLETED,
+        FAILED
+    }
+
     public static class PendingHatchSession {
         private final UUID playerUuid;
         private final String eggId;
         private final String winningPetId;
-        private final java.util.concurrent.atomic.AtomicBoolean committed = new java.util.concurrent.atomic.AtomicBoolean(false);
+        private volatile HatchState state = HatchState.PENDING;
+        private final long timestamp;
 
         public PendingHatchSession(UUID playerUuid, String eggId, String winningPetId) {
+            this(playerUuid, eggId, winningPetId, HatchState.PENDING, System.currentTimeMillis());
+        }
+
+        public PendingHatchSession(UUID playerUuid, String eggId, String winningPetId, HatchState state, long timestamp) {
             this.playerUuid = playerUuid;
             this.eggId = eggId;
             this.winningPetId = winningPetId;
+            this.state = state;
+            this.timestamp = timestamp;
         }
 
         public UUID getPlayerUuid() { return playerUuid; }
         public String getEggId() { return eggId; }
         public String getWinningPetId() { return winningPetId; }
-        public boolean markCommitted() { return committed.compareAndSet(false, true); }
-        public boolean isCommitted() { return committed.get(); }
+        public HatchState getState() { return state; }
+        public void setState(HatchState state) { this.state = state; }
+        public long getTimestamp() { return timestamp; }
+
+        public synchronized boolean markCommitted() {
+            if (this.state == HatchState.COMPLETED) {
+                return false;
+            }
+            this.state = HatchState.COMPLETED;
+            return true;
+        }
     }
 
     private final Map<UUID, PendingHatchSession> pendingHatchSessions = new java.util.concurrent.ConcurrentHashMap<>();
@@ -77,14 +100,59 @@ public class HatchingManager {
     public HatchingManager(IpsecuzPet plugin) {
         this.plugin = plugin;
         this.eggKey = new NamespacedKey(plugin, "pet_egg_id");
+        loadPendingSessions();
+    }
+
+    public void loadPendingSessions() {
+        var sec = plugin.getConfigManager().getData().getConfigurationSection("pending_hatch");
+        if (sec != null) {
+            for (String key : sec.getKeys(false)) {
+                try {
+                    UUID u = UUID.fromString(key);
+                    String eggId = sec.getString(key + ".egg_id");
+                    String winPet = sec.getString(key + ".winning_pet_id");
+                    String stStr = sec.getString(key + ".state", "PENDING");
+                    long time = sec.getLong(key + ".timestamp", System.currentTimeMillis());
+                    HatchState st = HatchState.valueOf(stStr);
+                    pendingHatchSessions.put(u, new PendingHatchSession(u, eggId, winPet, st, time));
+                } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    public void recordPendingHatch(UUID uuid, String eggId, String winningPetId) {
+        PendingHatchSession session = new PendingHatchSession(uuid, eggId, winningPetId);
+        pendingHatchSessions.put(uuid, session);
+        String path = "pending_hatch." + uuid;
+        plugin.getConfigManager().getData().set(path + ".egg_id", eggId);
+        plugin.getConfigManager().getData().set(path + ".winning_pet_id", winningPetId);
+        plugin.getConfigManager().getData().set(path + ".state", HatchState.PENDING.name());
+        plugin.getConfigManager().getData().set(path + ".timestamp", System.currentTimeMillis());
+        plugin.getConfigManager().saveData();
+    }
+
+    public void resolvePendingHatchOnJoin(Player player) {
+        if (player == null) return;
+        PendingHatchSession session = pendingHatchSessions.get(player.getUniqueId());
+        if (session != null && (session.getState() == HatchState.PENDING || session.getState() == HatchState.FAILED)) {
+            plugin.getLogger().info("§e[IpsecuzPet] Đang tự động trao thưởng ấp trứng chưa nhận cho: " + player.getName());
+            completeHatchReward(player.getUniqueId(), session.getWinningPetId(), true);
+        }
     }
 
     public void handlePlayerQuit(Player player) {
-        if (player == null) return;
-        PendingHatchSession session = pendingHatchSessions.remove(player.getUniqueId());
-        if (session != null && session.markCommitted()) {
-            completeHatchReward(player, session.getWinningPetId(), false);
+        // Giữ nguyên phiên giao dịch chưa hoàn tất để bảo toàn phần thưởng an toàn
+    }
+
+    public void saveAllPendingTransactions() {
+        for (PendingHatchSession s : pendingHatchSessions.values()) {
+            String path = "pending_hatch." + s.getPlayerUuid();
+            plugin.getConfigManager().getData().set(path + ".egg_id", s.getEggId());
+            plugin.getConfigManager().getData().set(path + ".winning_pet_id", s.getWinningPetId());
+            plugin.getConfigManager().getData().set(path + ".state", s.getState().name());
+            plugin.getConfigManager().getData().set(path + ".timestamp", s.getTimestamp());
         }
+        plugin.getConfigManager().forceSave();
     }
 
     public ItemStack createEggItem(String eggId, int amount) {
@@ -277,7 +345,7 @@ public class HatchingManager {
         }
 
         // 4. Bắt đầu vòng quay Roulette với phiên theo dõi an toàn
-        pendingHatchSessions.put(player.getUniqueId(), new PendingHatchSession(player.getUniqueId(), eggId, winningPetId));
+        recordPendingHatch(player.getUniqueId(), eggId, winningPetId);
         startGachaRoulette(player, eggId, eggSec, candidatePetIds, winningPetId);
     }
 
@@ -454,45 +522,62 @@ public class HatchingManager {
     }
 
     public void completeHatchReward(Player player, String winningPetId, boolean showTitleAndEffects) {
-        PendingHatchSession session = pendingHatchSessions.get(player.getUniqueId());
+        if (player == null) return;
+        completeHatchReward(player.getUniqueId(), winningPetId, showTitleAndEffects);
+    }
+
+    public void completeHatchReward(UUID playerUuid, String winningPetId, boolean showTitleAndEffects) {
+        PendingHatchSession session = pendingHatchSessions.get(playerUuid);
         if (session != null) {
             if (!session.markCommitted()) return; // Đã commit trước đó, chặn duplicate reward tuyệt đối!
-            pendingHatchSessions.remove(player.getUniqueId());
+            pendingHatchSessions.remove(playerUuid);
         }
+        plugin.getConfigManager().getData().set("pending_hatch." + playerUuid, null);
+        plugin.getConfigManager().forceSave();
 
+        Player player = Bukkit.getPlayer(playerUuid);
         String petDisplayName = plugin.getConfig().getString("pets." + winningPetId + ".name", winningPetId);
         PetRarity rarity = PetRarity.fromPetId(plugin, winningPetId);
 
-        if (plugin.getConfigManager().getData().contains(player.getUniqueId() + ".pets." + winningPetId)) {
+        if (plugin.getConfigManager().getData().contains(playerUuid + ".pets." + winningPetId)) {
             // ĐÃ SỞ HỮU TRƯỚC ĐÓ -> CHUYỂN ĐỔI THÀNH MẢNH SHARDS & EXP
-            plugin.getShardManager().convertDuplicateToShards(player, winningPetId);
-        } else if (!plugin.getOwnershipManager().canAcquirePet(player)) {
+            plugin.getShardManager().processDuplicateReward(playerUuid, winningPetId);
+            if (player != null && player.isOnline()) {
+                player.sendMessage("§e[IpsecuzPet] Bạn đã sở hữu Pet này! Đã tự động quy đổi thành Mảnh Pet và Kinh Nghiệm.");
+            }
+        } else if (!plugin.getOwnershipManager().canAcquirePet(playerUuid)) {
             // ĐÃ ĐẦY KHO PET TẠI THỜI ĐIỂM COMMIT -> CHUYỂN ĐỔI AN TOÀN SANG MẢNH SHARDS & EXP
-            plugin.getShardManager().convertDuplicateToShards(player, winningPetId);
-            player.sendMessage("§e[Kho Thú Cưng Đã Đầy] Bạn đã đạt giới hạn tối đa số Pet, phần thưởng được chuyển thành Mảnh Pet!");
+            plugin.getShardManager().processDuplicateReward(playerUuid, winningPetId);
+            if (player != null && player.isOnline()) {
+                player.sendMessage("§e[Kho Thú Cưng Đã Đầy] Bạn đã đạt giới hạn tối đa số Pet, phần thưởng được chuyển thành Mảnh Pet!");
+            }
         } else {
             // PET MỚI -> TẠO DỮ LIỆU, ROLL TRAIT VÀ LƯU CODEX
-            plugin.getConfigManager().createPetDataIfMissing(player.getUniqueId(), winningPetId);
+            plugin.getConfigManager().createPetDataIfMissing(playerUuid, winningPetId);
             PetTrait trait = PetTrait.rollRandomTrait();
-            plugin.getConfigManager().getData().set(player.getUniqueId() + ".pets." + winningPetId + ".trait", trait.name());
-            plugin.getConfigManager().saveData();
+            plugin.getConfigManager().getData().set(playerUuid + ".pets." + winningPetId + ".trait", trait.name());
+            plugin.getConfigManager().forceSave();
 
-            plugin.getCodexManager().discover(player.getUniqueId(), winningPetId);
+            plugin.getCodexManager().discover(playerUuid, winningPetId);
 
-            player.sendMessage(ChatColor.translateAlternateColorCodes('&',
-                    "§a§lCHÚC MỪNG! §fBạn vừa ấp nở thành công Pet: " + petDisplayName +
-                            " §7(Độ hiếm: " + rarity.getFormattedName() + "§7, Đặc chất: " + trait.getFormattedName() + "§7)"));
+            if (player != null && player.isOnline()) {
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                        "§a§lCHÚC MỪNG! §fBạn vừa ấp nở thành công Pet: " + petDisplayName +
+                                " §7(Độ hiếm: " + rarity.getFormattedName() + "§7, Đặc chất: " + trait.getFormattedName() + "§7)"));
+            }
 
             // Thông báo toàn server nếu mở được Pet cấp cao
             if (rarity == PetRarity.LEGENDARY || rarity == PetRarity.MYTHIC || rarity == PetRarity.SECRET || rarity == PetRarity.ETERNAL) {
+                String pName = (player != null && player.isOnline()) ? player.getName() : Bukkit.getOfflinePlayer(playerUuid).getName();
+                if (pName == null) pName = "Người chơi";
                 String cleanPetName = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', petDisplayName));
                 Bukkit.broadcast(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&',
-                        "&6&l[IPSECUZ PET] &eNgười chơi &f" + player.getName() + " &evừa ấp nở thành công Pet " +
+                        "&6&l[IPSECUZ PET] &eNgười chơi &f" + pName + " &evừa ấp nở thành công Pet " +
                                 rarity.getFormattedName() + " &e" + cleanPetName + "&e!")));
             }
         }
 
-        if (showTitleAndEffects) {
+        if (player != null && player.isOnline() && showTitleAndEffects) {
             String titleText;
             String subtitleText = "&eNhận được: " + petDisplayName;
 

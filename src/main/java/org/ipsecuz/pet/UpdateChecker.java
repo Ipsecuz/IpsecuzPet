@@ -4,6 +4,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Scanner;
 import java.util.function.Consumer;
@@ -21,13 +22,25 @@ public class UpdateChecker {
     public void getVersion(final Consumer<String> consumer) {
         // Sử dụng SchedulerUtils.runAsync để tương thích với Folia
         SchedulerUtils.runAsync(plugin, () -> {
-            try (InputStream inputStream = new URL("https://api.spigotmc.org/legacy/update.php?resource=" + this.resourceId).openStream();
-                 Scanner scanner = new Scanner(inputStream)) {
-                if (scanner.hasNext()) {
-                    consumer.accept(scanner.next());
+            HttpURLConnection connection = null;
+            try {
+                URL url = new URL("https://api.spigotmc.org/legacy/update.php?resource=" + this.resourceId);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+                connection.setRequestMethod("GET");
+                try (InputStream inputStream = connection.getInputStream();
+                     Scanner scanner = new Scanner(inputStream)) {
+                    if (scanner.hasNext()) {
+                        consumer.accept(scanner.next());
+                    }
                 }
             } catch (IOException exception) {
                 plugin.getLogger().warning("Không thể kiểm tra cập nhật: " + exception.getMessage());
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
             }
         });
     }

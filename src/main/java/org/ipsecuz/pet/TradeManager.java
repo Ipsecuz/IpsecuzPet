@@ -26,8 +26,46 @@ public class TradeManager {
         }
     }
 
+    public static class TradeCommitRecord {
+        private final UUID tradeId;
+        private final UUID playerA;
+        private final UUID playerB;
+        private final java.util.List<org.bukkit.inventory.ItemStack> itemsFromA;
+        private final java.util.List<org.bukkit.inventory.ItemStack> itemsFromB;
+        private final long timestamp;
+
+        public TradeCommitRecord(UUID tradeId, UUID playerA, UUID playerB, java.util.List<org.bukkit.inventory.ItemStack> itemsFromA, java.util.List<org.bukkit.inventory.ItemStack> itemsFromB) {
+            this.tradeId = tradeId;
+            this.playerA = playerA;
+            this.playerB = playerB;
+            this.itemsFromA = itemsFromA;
+            this.itemsFromB = itemsFromB;
+            this.timestamp = System.currentTimeMillis();
+        }
+
+        public UUID getTradeId() { return tradeId; }
+        public UUID getPlayerA() { return playerA; }
+        public UUID getPlayerB() { return playerB; }
+        public java.util.List<org.bukkit.inventory.ItemStack> getItemsFromA() { return itemsFromA; }
+        public java.util.List<org.bukkit.inventory.ItemStack> getItemsFromB() { return itemsFromB; }
+        public long getTimestamp() { return timestamp; }
+    }
+
     private final Map<UUID, TradeRequest> pendingTrades = new ConcurrentHashMap<>();
+    private final Map<UUID, TradeCommitRecord> committingTrades = new ConcurrentHashMap<>();
     private final Set<TradeSession> activeSessions = ConcurrentHashMap.newKeySet();
+
+    public void recordCommittingTrade(UUID tradeId, UUID a, UUID b, java.util.List<org.bukkit.inventory.ItemStack> fromA, java.util.List<org.bukkit.inventory.ItemStack> fromB) {
+        committingTrades.put(tradeId, new TradeCommitRecord(tradeId, a, b, fromA, fromB));
+    }
+
+    public void removeCommittingTrade(UUID tradeId) {
+        committingTrades.remove(tradeId);
+    }
+
+    public Map<UUID, TradeCommitRecord> getCommittingTrades() {
+        return committingTrades;
+    }
 
     public TradeManager(IpsecuzPet plugin) {
         this.plugin = plugin;

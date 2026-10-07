@@ -47,7 +47,7 @@ public final class PetCardSecurity {
         if (consumedCards.add(cardUuid)) {
             List<String> list = new ArrayList<>(consumedCards);
             plugin.getConfigManager().getData().set("security.consumed_cards", list);
-            plugin.getConfigManager().saveData();
+            plugin.getConfigManager().forceSave(); // Bắt buộc lưu ngay lập tức xuống đĩa (Durable write)
         }
     }
 
@@ -170,17 +170,24 @@ public final class PetCardSecurity {
         return item;
     }
 
-    public static boolean isPetCard(ItemStack item) {
+    public static boolean isPetCard(org.bukkit.plugin.Plugin plugin, ItemStack item) {
         if (item == null || !item.hasItemMeta()) return false;
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return false;
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        String expectedNamespace = (plugin != null) ? plugin.getName().toLowerCase() : "ipsecuzpet";
         for (NamespacedKey key : pdc.getKeys()) {
-            if (key.getKey().equals("pet_item_id") || key.getKey().equals("card_pet_id")) {
-                return true;
+            if (key.getNamespace().equalsIgnoreCase(expectedNamespace)) {
+                if (key.getKey().equals("pet_item_id") || key.getKey().equals("card_pet_id")) {
+                    return true;
+                }
             }
         }
         return false;
+    }
+
+    public static boolean isPetCard(ItemStack item) {
+        return isPetCard(null, item);
     }
 
     public static class CardValidationResult {

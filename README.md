@@ -36,7 +36,7 @@ IpsecuzPet is a Minecraft Paper/Folia pet RPG plugin with collectible pets, pet 
 ## Requirements
 
 - Java 21
-- Paper/Folia-compatible Minecraft server
+- Paper/Purpur/Folia-compatible Minecraft server (1.20 - 1.21.x)
 - Plugin API version: `1.19`
 - Built against Paper API `1.20.4` and Folia API `1.20.1`
 
@@ -442,9 +442,9 @@ Toàn bộ các tính năng lớn đã được tách biệt thành từng file 
 - `modules/evolution.yml`: Cấu hình tăng cấp sao (1⭐ -> 5⭐), điều kiện level và nguyên liệu.
 - `modules/trade.yml`: Cấu hình giao dịch thú cưng an toàn giữa 2 người chơi.
 
-### 5. 🌐 Hỗ trợ Đa Phiên Bản Động (1.20 -> 1.21.x -> 26.x Auto-Detection)
+### 5. 🌐 Hỗ trợ Đa Phiên Bản Động (Paper/Purpur/Folia 1.20 - 1.21.x Auto-Detection)
 - Tích hợp lớp `DynamicPetRegistry`: Tự động quét `EntityType` của server lúc khởi động.
-- Khi server chạy trên 1.21+ hoặc các phiên bản tương lai (1.22 ... 26.x), plugin tự động phát hiện các loài mob mới (như `Breeze`, `Bogged`, `Armadillo`...) và tự động đăng ký vào hệ thống Pet với chỉ số cân bằng, không cần phải nhập tay vào config.
+- Khi server chạy trên 1.20 - 1.21.x (Paper/Purpur/Folia), plugin tự động phát hiện các loài mob mới (như `Breeze`, `Bogged`, `Armadillo`...) và tự động đăng ký vào hệ thống Pet với chỉ số cân bằng, không cần phải nhập tay vào config.
 - Hoàn toàn an toàn, không gây lỗi `ClassNotFoundException` hay `NoSuchFieldError` trên các phiên bản thấp hơn.
 
 ### 6. ⚡ Tối ưu An Toàn Tuyệt Đối Cho Folia & Multi-Threading

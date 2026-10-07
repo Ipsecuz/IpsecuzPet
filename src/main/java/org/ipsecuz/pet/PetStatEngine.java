@@ -76,12 +76,8 @@ public final class PetStatEngine {
                     break;
             }
         }
-        if (happiness >= 80) {
-            if ("speed".equalsIgnoreCase(statName)) {
-                stat *= 1.15;
-            }
-        } else if (happiness < 20) {
-            stat *= 0.85;
+        if (plugin.getFeedingManager() != null) {
+            stat *= plugin.getFeedingManager().getStatMultiplier(happiness, statName);
         }
         return Math.max(0.0, stat);
     }
@@ -125,13 +121,7 @@ public final class PetStatEngine {
         // Apply Happiness multiplier
         if (plugin.getFeedingManager() != null && ownerId != null) {
             int happy = plugin.getFeedingManager().getHappiness(ownerId, petId);
-            if (happy >= 80) {
-                if ("speed".equalsIgnoreCase(statName)) {
-                    stat *= 1.15;
-                }
-            } else if (happy < 20) {
-                stat *= 0.85;
-            }
+            stat *= plugin.getFeedingManager().getStatMultiplier(happy, statName);
         }
 
         return Math.max(0.0, stat);

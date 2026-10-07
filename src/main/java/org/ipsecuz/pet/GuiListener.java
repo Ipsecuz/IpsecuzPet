@@ -836,7 +836,14 @@ public class GuiListener implements Listener {
         ConfigurationSection sec = plugin.getConfig().getConfigurationSection("pets");
         if (sec == null) return;
 
-        List<String> allKeys = new ArrayList<>(sec.getKeys(false));
+        List<String> allKeys = new ArrayList<>();
+        for (String k : sec.getKeys(false)) {
+            boolean enabled = plugin.getConfig().getBoolean("pets." + k + ".enabled", true);
+            boolean visibleInShop = plugin.getConfig().getBoolean("pets." + k + ".visible_in_shop", true);
+            if (enabled && visibleInShop) {
+                allKeys.add(k);
+            }
+        }
         int pageSize = 45;
         int totalPages = Math.max(1, (int) Math.ceil((double) allKeys.size() / pageSize));
         int curPage = Math.max(1, Math.min(page, totalPages));
@@ -864,11 +871,13 @@ public class GuiListener implements Listener {
             PetRarity rarity = PetRarity.fromPetId(plugin, key);
 
             lore.add(Component.text("§7Độ hiếm: " + rarity.getFormattedName()));
-            double hp = plugin.getConfig().getDouble("pets." + key + ".stats.health", 20.0);
-            double dmg = plugin.getConfig().getDouble("pets." + key + ".stats.damage", 5.0);
-            double def = plugin.getConfig().getDouble("pets." + key + ".stats.defense", 0.0);
-            lore.add(Component.text("§7Máu: §a" + hp + " ❤ §7| Sát thương: §c" + dmg + " ⚔"));
-            lore.add(Component.text("§7Giáp: §9" + def + " 🛡"));
+            double hp = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "health");
+            double dmg = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "damage");
+            double def = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "defense");
+            double spd = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "speed");
+            lore.add(Component.text("§7Chỉ số cơ bản (Lv.1):"));
+            lore.add(Component.text("§7Máu: §a" + String.format("%.1f", hp) + " ❤ §7| Sát thương: §c" + String.format("%.1f", dmg) + " ⚔"));
+            lore.add(Component.text("§7Giáp: §9" + String.format("%.1f", def) + " 🛡 §7| Tốc độ: §f" + String.format("%.3f", spd)));
             lore.add(Component.text("§7--------------------"));
 
             if (cm.getData().contains(p.getUniqueId() + ".pets." + key)) {
@@ -976,9 +985,11 @@ public class GuiListener implements Listener {
                 }
                 if (affectsTop) {
                     ItemStack dragged = e.getOldCursor();
-                    if (!PetCardSecurity.isPetCard(dragged)) {
+                    PetCardSecurity.CardValidationResult res = PetCardSecurity.validateAndExtractCard(plugin, dragged);
+                    if (!res.isValid() || (res.getCardData().getCardUniqueId() != null && PetCardSecurity.isCardConsumed(plugin, res.getCardData().getCardUniqueId()))) {
                         e.setCancelled(true);
-                        p.sendMessage("§cChỉ có thể đặt Thẻ Pet vào khung giao dịch!");
+                        p.sendMessage("§cChỉ có thể đặt Thẻ Pet hợp lệ (chưa bị tiêu hao) vào khung giao dịch!");
+                        p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                         return;
                     }
                     session.resetLocks();
@@ -1046,9 +1057,10 @@ public class GuiListener implements Listener {
                 // Nếu đang đặt item vào slot của mình (cursor không rỗng)
                 ItemStack cursor = e.getCursor();
                 if (cursor != null && cursor.getType() != Material.AIR) {
-                    if (!PetCardSecurity.isPetCard(cursor)) {
+                    PetCardSecurity.CardValidationResult res = PetCardSecurity.validateAndExtractCard(plugin, cursor);
+                    if (!res.isValid() || (res.getCardData().getCardUniqueId() != null && PetCardSecurity.isCardConsumed(plugin, res.getCardData().getCardUniqueId()))) {
                         e.setCancelled(true);
-                        p.sendMessage("§cChỉ có thể đặt Thẻ Pet hợp lệ vào khung giao dịch!");
+                        p.sendMessage("§cChỉ có thể đặt Thẻ Pet hợp lệ (chưa bị tiêu hao) vào khung giao dịch!");
                         p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                         return;
                     }
@@ -1062,8 +1074,9 @@ public class GuiListener implements Listener {
                     e.setCancelled(true); // Chặn shift-click mặc định để tránh chèn nhầm ô hệ thống
                     ItemStack clicked = e.getCurrentItem();
                     if (clicked != null && clicked.getType() != Material.AIR) {
-                        if (!PetCardSecurity.isPetCard(clicked)) {
-                            p.sendMessage("§cChỉ có thể đưa Thẻ Pet vào khung giao dịch!");
+                        PetCardSecurity.CardValidationResult res = PetCardSecurity.validateAndExtractCard(plugin, clicked);
+                        if (!res.isValid() || (res.getCardData().getCardUniqueId() != null && PetCardSecurity.isCardConsumed(plugin, res.getCardData().getCardUniqueId()))) {
+                            p.sendMessage("§cChỉ có thể đưa Thẻ Pet hợp lệ (chưa bị tiêu hao) vào khung giao dịch!");
                             p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                             return;
                         }
@@ -1167,6 +1180,10 @@ public class GuiListener implements Listener {
                     } else if (payload != null && payload.startsWith("confirm_withdraw:")) {
                         String petId = payload.substring("confirm_withdraw:".length());
                         p.closeInventory();
+                        if (!p.hasPermission("ipsecuzpet.withdraw")) {
+                            p.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
+                            return;
+                        }
                         p.performCommand("pet withdraw " + petId);
                     } else if (payload != null && payload.startsWith("confirm_evolve:")) {
                         String petId = payload.substring("confirm_evolve:".length());
@@ -1210,14 +1227,30 @@ public class GuiListener implements Listener {
         if (meta.getPersistentDataContainer().has(btnKey, PersistentDataType.STRING)) {
             String action = meta.getPersistentDataContainer().get(btnKey, PersistentDataType.STRING);
             if ("open_shop".equals(action)) {
+                if (!p.hasPermission("ipsecuzpet.shop")) {
+                    p.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
+                    return;
+                }
                 openShopMenu(p, 1);
             } else if ("open_hatch".equals(action)) {
+                if (!p.hasPermission("ipsecuzpet.hatch")) {
+                    p.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
+                    return;
+                }
                 plugin.getHatchingManager().openHatchingGui(p);
             } else if ("open_pet_menu".equals(action)) {
                 openPetMenu(p, 1);
             } else if ("open_codex".equals(action)) {
+                if (!p.hasPermission("ipsecuzpet.codex")) {
+                    p.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
+                    return;
+                }
                 openCodexMenu(p, 1);
             } else if ("open_shards".equals(action)) {
+                if (!p.hasPermission("ipsecuzpet.shards")) {
+                    p.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
+                    return;
+                }
                 openShardsMenu(p);
             }
             return;
@@ -1226,11 +1259,16 @@ public class GuiListener implements Listener {
         // 3.5 Ghép Mảnh Pet (craft_shard_id)
         NamespacedKey craftShardKey = new NamespacedKey(plugin, "craft_shard_id");
         if (meta.getPersistentDataContainer().has(craftShardKey, PersistentDataType.STRING)) {
+            if (!p.hasPermission("ipsecuzpet.shards")) {
+                p.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
+                return;
+            }
             String petId = meta.getPersistentDataContainer().get(craftShardKey, PersistentDataType.STRING);
             if (petId != null) {
                 int shards = plugin.getShardManager().getShards(p.getUniqueId(), petId);
-                if (shards < 50) {
-                    p.sendMessage("§cBạn chưa đủ 50 mảnh! Hiện có: §e" + shards + "/50");
+                int reqShards = plugin.getShardManager().getRequiredShardsToCraft(petId);
+                if (shards < reqShards) {
+                    p.sendMessage("§cBạn chưa đủ " + reqShards + " mảnh! Hiện có: §e" + shards + "/" + reqShards);
                     p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                     return;
                 }
@@ -1238,14 +1276,14 @@ public class GuiListener implements Listener {
                     p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                     return;
                 }
-                plugin.getShardManager().takeShards(p.getUniqueId(), petId, 50);
+                plugin.getShardManager().takeShards(p.getUniqueId(), petId, reqShards);
                 plugin.getConfigManager().createPetDataIfMissing(p.getUniqueId(), petId);
                 PetTrait trait = PetTrait.rollRandomTrait();
                 plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".trait", trait.name());
                 plugin.getConfigManager().saveData();
                 plugin.getCodexManager().discover(p.getUniqueId(), petId);
 
-                p.sendMessage("§a§lTHÀNH CÔNG! §fĐã ghép thành công 50 mảnh thành Pet mới!");
+                p.sendMessage("§a§lTHÀNH CÔNG! §fĐã ghép thành công " + reqShards + " mảnh thành Pet mới!");
                 p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
                 openShardsMenu(p);
             }
@@ -1293,6 +1331,10 @@ public class GuiListener implements Listener {
                     openPetDetailMenu(p, petId);
                 }
             } else if ("ultimate".equals(action)) {
+                if (!p.hasPermission("ipsecuzpet.skill")) {
+                    p.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
+                    return;
+                }
                 String petId = (parts.length > 1) ? parts[1] : null;
                 String active = plugin.getPetManager().getActivePetId(p.getUniqueId());
                 if (petId != null && (active == null || !active.equals(petId))) {
@@ -1303,15 +1345,27 @@ public class GuiListener implements Listener {
                 plugin.getSkillManager().triggerUltimate(p);
                 p.closeInventory();
             } else if ("learn_skill".equals(action) && parts.length > 2) {
+                if (!p.hasPermission("ipsecuzpet.skill")) {
+                    p.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
+                    return;
+                }
                 String skillType = parts[1];
                 String petId = parts[2];
                 if (plugin.getSkillManager().unlockSkill(p, petId, skillType)) {
                     openPetDetailMenu(p, petId);
                 }
             } else if ("open_evolution".equals(action) && parts.length > 1) {
+                if (!p.hasPermission("ipsecuzpet.evolution")) {
+                    p.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
+                    return;
+                }
                 String petId = parts[1];
                 openEvolutionMenu(p, petId);
             } else if ("confirm_withdraw_prompt".equals(action) && parts.length > 1) {
+                if (!p.hasPermission("ipsecuzpet.withdraw")) {
+                    p.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
+                    return;
+                }
                 String petId = parts[1];
                 ItemStack wdIcon = clickedItem.clone();
                 openConfirmDialog(p, "&0Xác Nhận Rút Thẻ Pet", wdIcon, "confirm_withdraw:" + petId);

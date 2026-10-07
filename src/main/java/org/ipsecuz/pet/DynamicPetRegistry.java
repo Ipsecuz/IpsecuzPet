@@ -9,7 +9,7 @@ import org.bukkit.entity.LivingEntity;
 import java.util.*;
 
 /**
- * Tự động phát hiện phiên bản server (1.20 -> 1.21.x -> 26.x)
+ * Tự động phát hiện phiên bản server (1.20 -> 1.21.x -> các phiên bản mới)
  * và tự động bổ sung các Mob mới xuất hiện ở phiên bản đó vào danh sách Pet.
  */
 public class DynamicPetRegistry {
@@ -63,6 +63,8 @@ public class DynamicPetRegistry {
         String path = "pets." + petId;
         String formattedName = formatName(type.name());
 
+        config.set(path + ".enabled", false);
+        config.set(path + ".visible_in_shop", false);
         config.set(path + ".type", type.name());
         config.set(path + ".name", "&e" + formattedName + " Pet");
         config.set(path + ".icon", guessIcon(type).name());
@@ -71,7 +73,8 @@ public class DynamicPetRegistry {
         config.set(path + ".rarity", "COMMON");
         config.set(path + ".catchable", false);
         config.set(path + ".particle", "VILLAGER_HAPPY");
-        config.set(path + ".effects", Collections.singletonList("SPEED:0"));
+        config.set(path + ".effects", Collections.emptyList());
+        config.set(path + ".skills", Collections.emptyMap());
         config.set(path + ".stats.damage", 5.0);
         config.set(path + ".stats.health", 25.0);
         config.set(path + ".stats.defense", 2.0);

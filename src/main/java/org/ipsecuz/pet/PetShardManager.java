@@ -1,5 +1,6 @@
 package org.ipsecuz.pet;
 
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
@@ -48,8 +49,28 @@ public class PetShardManager {
         return result;
     }
 
+    public int getRequiredShardsToCraft(String petId) {
+        return plugin.getConfig().getInt("shards.required_shards", 50);
+    }
+
     public void convertDuplicateToShards(Player player, String petId) {
         processDuplicateReward(player, petId);
+    }
+
+    public void processDuplicateReward(UUID uuid, String petId) {
+        if (uuid == null || petId == null) return;
+        Player online = Bukkit.getPlayer(uuid);
+        if (online != null && online.isOnline()) {
+            processDuplicateReward(online, petId);
+            return;
+        }
+        PetRarity rarity = PetRarity.getPetRarity(plugin, petId);
+        int shardYield = rarity.getShardValue();
+        int bonusExp = shardYield * 25;
+        addShards(uuid, petId, shardYield);
+        int curExp = plugin.getConfigManager().getData().getInt(uuid + ".pets." + petId + ".exp", 0);
+        plugin.getConfigManager().getData().set(uuid + ".pets." + petId + ".exp", curExp + bonusExp);
+        plugin.getConfigManager().saveData();
     }
 
     public void processDuplicateReward(Player player, String petId) {

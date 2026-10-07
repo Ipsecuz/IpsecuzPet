@@ -22,6 +22,8 @@ rpg_system:
 
   # Số lượng quặng Kim Cương cần đào để hồi sinh 1 con Pet chết
   revive_cost_diamonds: 32
+  # Chế độ hồi sinh: "SINGLE" (hồi sinh từng con) hoặc "ALL" (hồi sinh tất cả con chết)
+  revive_mode: "SINGLE"
 
   # Chỉ số cộng thêm mỗi khi Pet lên 1 Level
   # Công thức: Chỉ số gốc + (Level * Giá trị này)
@@ -99,6 +101,7 @@ pets:
     price: 32
     currency: ITEM
     material: WHEAT_SEEDS
+    rarity: COMMON
     catchable: true
     particle: "VILLAGER_HAPPY"
     effects: ["SLOW_FALLING:0"]
@@ -116,6 +119,7 @@ pets:
     price: 16
     currency: ITEM
     material: CARROT
+    rarity: COMMON
     catchable: true
     particle: "HEART"
     effects: []
@@ -133,6 +137,7 @@ pets:
     price: 32
     currency: ITEM
     material: WHEAT
+    rarity: COMMON
     catchable: true
     particle: "CLOUD"
     effects: []
@@ -150,6 +155,7 @@ pets:
     price: 32
     currency: ITEM
     material: WHITE_WOOL
+    rarity: COMMON
     catchable: true
     particle: "CLOUD"
     effects: []
@@ -167,6 +173,7 @@ pets:
     price: 64
     currency: ITEM
     material: ROTTEN_FLESH
+    rarity: COMMON
     catchable: true
     particle: "VILLAGER_ANGRY"
     effects: []
@@ -184,6 +191,7 @@ pets:
     price: 64
     currency: ITEM
     material: BONE
+    rarity: COMMON
     catchable: true
     particle: "SMOKE_NORMAL"
     effects: []
@@ -201,6 +209,7 @@ pets:
     price: 32
     currency: ITEM
     material: SPIDER_EYE
+    rarity: COMMON
     catchable: true
     particle: "CRIT"
     effects: []
@@ -218,6 +227,7 @@ pets:
     price: 64
     currency: ITEM
     material: GUNPOWDER
+    rarity: COMMON
     catchable: true
     particle: "EXPLOSION_NORMAL"
     effects: []
@@ -235,6 +245,7 @@ pets:
     price: 32
     currency: ITEM
     material: SLIME_BALL
+    rarity: COMMON
     catchable: true
     particle: "SLIME"
     effects: ["JUMP:1"]
@@ -252,6 +263,7 @@ pets:
     price: 10
     currency: ITEM
     material: HONEY_BOTTLE
+    rarity: COMMON
     catchable: true
     particle: "WAX_ON"
     effects: []
@@ -271,6 +283,7 @@ pets:
     icon: BONE
     price: 5000
     currency: MONEY
+    rarity: UNCOMMON
     catchable: true # Pet xịn phải mua
     particle: "ANGRY_VILLAGER"
     effects: ["SPEED:0", "INCREASE_DAMAGE:0"]
@@ -287,6 +300,7 @@ pets:
     icon: STRING
     price: 3000
     currency: MONEY
+    rarity: UNCOMMON
     catchable: true
     particle: "NOTE"
     effects: ["SPEED:0"]
@@ -303,6 +317,7 @@ pets:
     icon: SWEET_BERRIES
     price: 4500
     currency: MONEY
+    rarity: UNCOMMON
     catchable: true
     particle: "SNOWBALL"
     effects: ["SPEED:1"]
@@ -319,6 +334,7 @@ pets:
     icon: BAMBOO
     price: 6000
     currency: MONEY
+    rarity: UNCOMMON
     catchable: true
     particle: "SNEEZE"
     effects: []
@@ -335,6 +351,7 @@ pets:
     icon: IRON_BLOCK
     price: 15000
     currency: MONEY
+    rarity: RARE
     catchable: true
     particle: "BLOCK_CRACK"
     effects: ["DAMAGE_RESISTANCE:0"]
@@ -351,6 +368,7 @@ pets:
     icon: BLAZE_ROD
     price: 8000
     currency: MONEY
+    rarity: UNCOMMON
     catchable: true
     particle: "FLAME"
     effects: ["FIRE_RESISTANCE:0"]
@@ -367,6 +385,7 @@ pets:
     icon: MAGMA_CREAM
     price: 7500
     currency: MONEY
+    rarity: UNCOMMON
     catchable: true
     particle: "DRIP_LAVA"
     effects: ["FIRE_RESISTANCE:0"]
@@ -383,6 +402,7 @@ pets:
     icon: ENDER_PEARL
     price: 10000
     currency: MONEY
+    rarity: RARE
     catchable: true
     particle: "PORTAL"
     effects: []
@@ -399,6 +419,7 @@ pets:
     icon: POTION
     price: 12000
     currency: MONEY
+    rarity: RARE
     catchable: true
     particle: "SPELL_WITCH"
     effects: []
@@ -415,6 +436,7 @@ pets:
     icon: WATER_BUCKET
     price: 5000
     currency: MONEY
+    rarity: RARE
     catchable: true
     particle: "HEART"
     effects: ["REGENERATION:0"]
@@ -431,6 +453,7 @@ pets:
     icon: TURTLE_SCUTE
     price: 9000
     currency: MONEY
+    rarity: RARE
     catchable: true
     particle: "WATER_BUBBLE"
     effects: ["WATER_BREATHING:0"]
@@ -523,6 +546,7 @@ pets:
     icon: SADDLE
     price: 80
     currency: POINTS
+    rarity: EPIC
     catchable: true
     particle: "DAMAGE_INDICATOR"
     effects: ["INCREASE_DAMAGE:0"]
@@ -539,6 +563,7 @@ pets:
     icon: AMETHYST_SHARD
     price: 50
     currency: POINTS
+    rarity: RARE
     catchable: true
     particle: "END_ROD"
     effects: ["LUCK:0"]
@@ -555,6 +580,7 @@ pets:
     icon: TORCHFLOWER
     price: 70
     currency: POINTS
+    rarity: EPIC
     catchable: true
     particle: "CHERRY_LEAVES"
     effects: []
@@ -571,6 +597,7 @@ pets:
     icon: CACTUS
     price: 40
     currency: POINTS
+    rarity: UNCOMMON
     catchable: true
     particle: "SAND"
     effects: []
@@ -587,6 +614,7 @@ pets:
     icon: LILY_PAD
     price: 20
     currency: POINTS
+    rarity: COMMON
     catchable: true
     particle: "VILLAGER_HAPPY"
     effects: ["JUMP:2"]
@@ -603,6 +631,7 @@ pets:
     icon: GOLDEN_SWORD
     price: 30
     currency: POINTS
+    rarity: UNCOMMON
     catchable: true
     particle: "SOUL_FIRE_FLAME"
     effects: []
@@ -619,6 +648,7 @@ pets:
     icon: GOAT_HORN
     price: 25
     currency: POINTS
+    rarity: COMMON
     catchable: true
     particle: "CLOUD"
     effects: ["JUMP:1"]
@@ -639,6 +669,7 @@ pets:
     icon: SNOWBALL
     price: 5000
     currency: MONEY
+    rarity: UNCOMMON
     catchable: true
     particle: "SNOW_SHOVEL"
     effects: ["DAMAGE_RESISTANCE:0"]
@@ -656,6 +687,7 @@ pets:
     price: 32
     currency: ITEM
     material: COD
+    rarity: RARE
     catchable: true
     particle: "WATER_SPLASH"
     effects: ["DOLPHINS_GRACE:0"]
@@ -673,6 +705,7 @@ pets:
     price: 16
     currency: ITEM
     material: SNOW_BLOCK
+    rarity: COMMON
     catchable: true
     particle: "SNOWBALL"
     effects: []
@@ -689,6 +722,7 @@ pets:
     icon: GLOW_INK_SAC
     price: 2000
     currency: MONEY
+    rarity: UNCOMMON
     catchable: true
     particle: "GLOW"
     effects: ["NIGHT_VISION:0"]
@@ -706,6 +740,7 @@ pets:
     price: 32
     currency: ITEM
     material: WARPED_FUNGUS
+    rarity: UNCOMMON
     catchable: true
     particle: "DRIP_LAVA"
     effects: ["FIRE_RESISTANCE:0"]
@@ -722,6 +757,7 @@ pets:
     icon: CRIMSON_FUNGUS
     price: 6000
     currency: MONEY
+    rarity: RARE
     catchable: true # Con này hung dữ, phải mua
     particle: "CRIMSON_SPORE"
     effects: ["INCREASE_DAMAGE:0"]
@@ -738,6 +774,7 @@ pets:
     icon: PHANTOM_MEMBRANE
     price: 50
     currency: POINTS # Pet bay nên bán bằng Points
+    rarity: RARE
     catchable: true
     particle: "SOUL"
     effects: ["SLOW_FALLING:0"]
@@ -754,6 +791,7 @@ pets:
     icon: IRON_SWORD
     price: 80
     currency: POINTS
+    rarity: EPIC
     catchable: true
     particle: "ANGRY_VILLAGER"
     effects: []
@@ -771,6 +809,7 @@ pets:
     price: 64
     currency: ITEM
     material: SHULKER_SHELL
+    rarity: EPIC
     catchable: true
     particle: "END_ROD"
     effects: ["DAMAGE_RESISTANCE:1"]
@@ -787,6 +826,7 @@ pets:
     icon: CROSSBOW
     price: 4000
     currency: MONEY
+    rarity: UNCOMMON
     catchable: true
     particle: "SMOKE_NORMAL"
     effects: []
@@ -803,6 +843,7 @@ pets:
     icon: TRIDENT
     price: 4500
     currency: MONEY
+    rarity: UNCOMMON
     catchable: true
     particle: "WATER_BUBBLE"
     effects: ["WATER_BREATHING:0"]
@@ -820,6 +861,7 @@ pets:
     price: 16
     currency: ITEM
     material: COOKIE
+    rarity: UNCOMMON
     catchable: true
     particle: "NOTE"
     effects: ["JUMP:1"]

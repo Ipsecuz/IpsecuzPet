@@ -107,7 +107,7 @@ skills:
   iron_golem_pet:
     passive:
       name: "&7Khiên Thép Khổng Lồ"
-      desc: "&7Tăng 15% giáp cơ bản cho chủ nhân."
+      desc: "&7Giảm 15% sát thương nhận vào cho chủ nhân."
       damage_reduction_percent: 15.0
     ultimate:
       name: "&6Địa Chấn Dập Nát"

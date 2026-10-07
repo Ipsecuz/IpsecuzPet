@@ -219,8 +219,13 @@ public class TradeSession {
         for (int slot : SLOTS_A) {
             ItemStack item = inventory.getItem(slot);
             if (item != null && item.getType() != Material.AIR) {
-                if (!PetCardSecurity.isPetCard(item)) {
-                    cancel("Phát hiện vật phẩm không phải Thẻ Pet hợp lệ trong khung giao dịch!");
+                PetCardSecurity.CardValidationResult res = PetCardSecurity.validateAndExtractCard(plugin, item);
+                if (!res.isValid()) {
+                    cancel("Thẻ của người chơi " + playerA.getName() + " không hợp lệ: " + res.getErrorMessage());
+                    return;
+                }
+                if (res.getCardData().getCardUniqueId() != null && PetCardSecurity.isCardConsumed(plugin, res.getCardData().getCardUniqueId())) {
+                    cancel("Thẻ của người chơi " + playerA.getName() + " đã bị tiêu hao trước đó (chống clone)!");
                     return;
                 }
                 itemsFromA.add(item.clone());
@@ -231,8 +236,13 @@ public class TradeSession {
         for (int slot : SLOTS_B) {
             ItemStack item = inventory.getItem(slot);
             if (item != null && item.getType() != Material.AIR) {
-                if (!PetCardSecurity.isPetCard(item)) {
-                    cancel("Phát hiện vật phẩm không phải Thẻ Pet hợp lệ trong khung giao dịch!");
+                PetCardSecurity.CardValidationResult res = PetCardSecurity.validateAndExtractCard(plugin, item);
+                if (!res.isValid()) {
+                    cancel("Thẻ của người chơi " + playerB.getName() + " không hợp lệ: " + res.getErrorMessage());
+                    return;
+                }
+                if (res.getCardData().getCardUniqueId() != null && PetCardSecurity.isCardConsumed(plugin, res.getCardData().getCardUniqueId())) {
+                    cancel("Thẻ của người chơi " + playerB.getName() + " đã bị tiêu hao trước đó (chống clone)!");
                     return;
                 }
                 itemsFromB.add(item.clone());
@@ -253,28 +263,55 @@ public class TradeSession {
             return;
         }
 
-        // Dọn sạch các slot giao dịch để tránh duplicate
+        // Pha 3: Giao dịch nguyên tử (Atomic Commit, Verification & Zero-Drop Rollback)
+        ItemStack[] snapshotA = playerA.getInventory().getStorageContents().clone();
+        ItemStack[] snapshotB = playerB.getInventory().getStorageContents().clone();
+
+        UUID tradeTxId = UUID.randomUUID();
+        plugin.getTradeManager().recordCommittingTrade(tradeTxId, playerA.getUniqueId(), playerB.getUniqueId(), itemsFromA, itemsFromB);
+
+        // Dọn sạch các slot giao dịch để chuẩn bị bàn giao
         for (int slot : SLOTS_A) inventory.setItem(slot, null);
         for (int slot : SLOTS_B) inventory.setItem(slot, null);
 
-        // Pha 3: Giao dịch nguyên tử (Atomic Commit & Rollback)
+        boolean commitSuccess = false;
         try {
-            // Chuyển đồ từ A sang B
+            HashMap<Integer, ItemStack> overflowB = new HashMap<>();
             for (ItemStack item : itemsFromA) {
-                playerB.getInventory().addItem(item);
+                overflowB.putAll(playerB.getInventory().addItem(item));
             }
 
-            // Chuyển đồ từ B sang A
+            HashMap<Integer, ItemStack> overflowA = new HashMap<>();
             for (ItemStack item : itemsFromB) {
-                playerA.getInventory().addItem(item);
+                overflowA.putAll(playerA.getInventory().addItem(item));
             }
-        } catch (Exception ex) {
+
+            if (!overflowB.isEmpty() || !overflowA.isEmpty()) {
+                throw new IllegalStateException("Phát hiện tràn ô lưu trữ không mong muốn trong khi trao đổi!");
+            }
+            commitSuccess = true;
+        } catch (Throwable ex) {
             plugin.getLogger().severe("Lỗi nghiêm trọng trong quá trình chuyển giao dịch Pet: " + ex.getMessage());
-            // Rollback lập tức về chủ sở hữu ban đầu
-            for (ItemStack item : itemsFromA) giveItemSafely(playerA, item);
-            for (ItemStack item : itemsFromB) giveItemSafely(playerB, item);
-            cancel("Giao dịch gặp lỗi kỹ thuật ngoại lệ và đã hoàn trả đồ về chủ cũ an toàn.");
+            // Rollback ngay lập tức về snapshot
+            playerA.getInventory().setStorageContents(snapshotA);
+            playerB.getInventory().setStorageContents(snapshotB);
+
+            // Phục hồi lại đồ vào GUI để cancel hoàn trả an toàn
+            int idxA = 0;
+            for (int slot : SLOTS_A) {
+                if (idxA < itemsFromA.size()) inventory.setItem(slot, itemsFromA.get(idxA++));
+            }
+            int idxB = 0;
+            for (int slot : SLOTS_B) {
+                if (idxB < itemsFromB.size()) inventory.setItem(slot, itemsFromB.get(idxB++));
+            }
+
+            cancel("Giao dịch gặp lỗi kỹ thuật ngoại lệ và đã hoàn tác nguyên tử (Atomic Rollback). Không có vật phẩm nào bị rơi hay mất mát.");
             return;
+        } finally {
+            if (commitSuccess) {
+                plugin.getTradeManager().removeCommittingTrade(tradeTxId);
+            }
         }
 
         state = TradeState.COMPLETED;

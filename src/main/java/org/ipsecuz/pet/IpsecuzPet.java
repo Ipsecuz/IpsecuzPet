@@ -113,6 +113,9 @@ public class IpsecuzPet extends JavaPlugin {
         if (captureManager != null) {
             captureManager.refundAllPending();
         }
+        if (hatchingManager != null) {
+            hatchingManager.saveAllPendingTransactions();
+        }
         if (configManager != null) {
             configManager.forceSave();
         }
