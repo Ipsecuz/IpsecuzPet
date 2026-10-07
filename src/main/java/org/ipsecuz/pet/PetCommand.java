@@ -31,12 +31,42 @@ public class PetCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String label, @NotNull String[] args) {
-        if (!(sender instanceof Player p)) {
-            sender.sendMessage(plugin.getLanguage().getMessage("general.player_only"));
+        LanguageManager lang = plugin.getLanguage();
+
+        // 1. Điều hướng trực tiếp bí danh /pethatch
+        if (label.equalsIgnoreCase("pethatch")) {
+            if (!(sender instanceof Player p)) {
+                sender.sendMessage(lang.getMessage("general.player_only"));
+                return true;
+            }
+            if (!p.hasPermission("ipsecuzpet.hatch")) {
+                p.sendMessage(lang.getMessage("general.no_permission"));
+                return true;
+            }
+            plugin.getHatchingManager().openHatchingGui(p);
             return true;
         }
 
-        LanguageManager lang = plugin.getLanguage();
+        // 2. Hỗ trợ thực thi lệnh Quản trị viên từ máy chủ (Console)
+        if (args.length > 0) {
+            String sub = args[0].toLowerCase();
+            switch (sub) {
+                case "reload":
+                    return handleReload(sender, lang);
+                case "give":
+                    return handleGive(sender, args, lang);
+                case "giveball":
+                    return handleGiveBall(sender, args, lang);
+                case "giveegg":
+                    return handleGiveEgg(sender, args, lang);
+            }
+        }
+
+        // 3. Các lệnh người chơi yêu cầu Player
+        if (!(sender instanceof Player p)) {
+            sender.sendMessage(lang.getMessage("general.player_only"));
+            return true;
+        }
 
         if (args.length == 0) {
             GuiListener.openPetMenu(p);
@@ -148,6 +178,10 @@ public class PetCommand implements CommandExecutor {
                 break;
 
             case "withdraw":
+                if (!p.hasPermission("ipsecuzpet.withdraw")) {
+                    p.sendMessage(lang.getMessage("general.no_permission"));
+                    return true;
+                }
                 if (args.length < 2) {
                     p.sendMessage(lang.getMessage("pet.withdraw_usage"));
                     return true;
@@ -183,7 +217,11 @@ public class PetCommand implements CommandExecutor {
                 List<String> unlockedSkills = conf.getData().getStringList(p.getUniqueId() + ".pets." + wdId + ".unlocked_skills");
 
                 ItemStack item = PetCardSecurity.createPetCard(plugin, wdId, wdLvl, wdExp, stars, trait, customName, unlockedSkills);
-                p.getInventory().addItem(item);
+                HashMap<Integer, ItemStack> overflow = p.getInventory().addItem(item);
+                if (!overflow.isEmpty()) {
+                    p.sendMessage(lang.getMessage("general.inventory_full"));
+                    return true;
+                }
                 conf.deletePetData(p.getUniqueId(), wdId);
                 p.sendMessage(lang.getMessage("pet.withdraw_success", "%pet_name%", wdName));
                 break;
@@ -247,142 +285,13 @@ public class PetCommand implements CommandExecutor {
                 break;
 
             case "give":
-                if (!p.hasPermission("ipsecuzpet.admin")) {
-                    p.sendMessage(lang.getMessage("general.no_permission"));
-                    return true;
-                }
-                if (args.length < 3) {
-                    p.sendMessage("§cCú pháp: /pet give <player> <pet_id>");
-                    return true;
-                }
-                Player receiver = Bukkit.getPlayer(args[1]);
-                if (receiver == null) {
-                    p.sendMessage(lang.getMessage("duel.invalid_target"));
-                    return true;
-                }
-                String petIdToGive = args[2];
-                if (!plugin.getConfig().contains("pets." + petIdToGive)) {
-                    p.sendMessage(lang.getMessage("admin.invalid_id"));
-                    return true;
-                }
-                if (plugin.getConfigManager().getData().contains(receiver.getUniqueId() + ".pets." + petIdToGive)) {
-                    p.sendMessage(lang.getMessage("admin.already_owned"));
-                    return true;
-                }
-                if (!plugin.getOwnershipManager().canAcquirePet(receiver)) {
-                    p.sendMessage("§cNgười chơi " + receiver.getName() + " đã đạt giới hạn số lượng Pet!");
-                    return true;
-                }
-                plugin.getConfigManager().createPetDataIfMissing(receiver.getUniqueId(), petIdToGive);
-                PetTrait giveTrait = PetTrait.rollRandomTrait();
-                plugin.getConfigManager().getData().set(receiver.getUniqueId() + ".pets." + petIdToGive + ".trait", giveTrait.name());
-                plugin.getConfigManager().saveData();
-                plugin.getCodexManager().discover(receiver.getUniqueId(), petIdToGive);
-                p.sendMessage(lang.getMessage("admin.give_success", "%pet_id%", petIdToGive, "%player%", receiver.getName()));
-                receiver.sendMessage(lang.getMessage("admin.give_received", "%pet_id%", petIdToGive));
-                break;
+                return handleGive(p, args, lang);
 
             case "giveball":
-                if (!p.hasPermission("ipsecuzpet.admin")) {
-                    p.sendMessage(lang.getMessage("general.no_permission"));
-                    return true;
-                }
-                if (args.length < 3) {
-                    p.sendMessage("§cCú pháp: /pet giveball <player> <ball_id> [amount]");
-                    return true;
-                }
-                Player targetP = Bukkit.getPlayer(args[1]);
-                if (targetP == null) {
-                    p.sendMessage(lang.getMessage("duel.invalid_target"));
-                    return true;
-                }
-                String ballId = args[2];
-                int amount = 1;
-                if (args.length >= 4) {
-                    try {
-                        amount = Integer.parseInt(args[3]);
-                    } catch (NumberFormatException e) {
-                        p.sendMessage("§cSố lượng phải là một con số nguyên hợp lệ!");
-                        return true;
-                    }
-                }
-                if (amount <= 0 || amount > 2304) {
-                    p.sendMessage("§cSố lượng không hợp lệ! Vui lòng nhập từ 1 đến 2304.");
-                    return true;
-                }
-
-                if (!plugin.getCaptureManager().getBallIds().contains(ballId)) {
-                    p.sendMessage(lang.getMessage("admin.invalid_ball_id"));
-                    return true;
-                }
-
-                int remainingBalls = amount;
-                while (remainingBalls > 0) {
-                    int batch = Math.min(remainingBalls, 64);
-                    ItemStack ballItem = plugin.getCaptureManager().getBallItem(ballId, batch);
-                    if (ballItem != null) {
-                        HashMap<Integer, ItemStack> overflow = targetP.getInventory().addItem(ballItem);
-                        for (ItemStack left : overflow.values()) {
-                            targetP.getWorld().dropItemNaturally(targetP.getLocation(), left);
-                        }
-                    }
-                    remainingBalls -= batch;
-                }
-
-                p.sendMessage(lang.getMessage("admin.giveball_success", "%amount%", String.valueOf(amount), "%ball_id%", ballId, "%player%", targetP.getName()));
-                targetP.sendMessage(lang.getMessage("admin.giveball_received"));
-                break;
+                return handleGiveBall(p, args, lang);
 
             case "giveegg":
-                if (!p.hasPermission("ipsecuzpet.admin")) {
-                    p.sendMessage(lang.getMessage("general.no_permission"));
-                    return true;
-                }
-                if (args.length < 3) {
-                    p.sendMessage("§cCú pháp: /pet giveegg <player> <egg_id> [amount]");
-                    return true;
-                }
-                Player targetEggP = Bukkit.getPlayer(args[1]);
-                if (targetEggP == null) {
-                    p.sendMessage(lang.getMessage("duel.invalid_target"));
-                    return true;
-                }
-                String eggId = args[2];
-                int eggAmount = 1;
-                if (args.length >= 4) {
-                    try {
-                        eggAmount = Integer.parseInt(args[3]);
-                    } catch (NumberFormatException e) {
-                        p.sendMessage("§cSố lượng phải là một con số nguyên hợp lệ!");
-                        return true;
-                    }
-                }
-                if (eggAmount <= 0 || eggAmount > 2304) {
-                    p.sendMessage("§cSố lượng không hợp lệ! Vui lòng nhập từ 1 đến 2304.");
-                    return true;
-                }
-
-                if (plugin.getModuleManager() == null || !plugin.getModuleManager().getHatchingConfig().contains("eggs." + eggId)) {
-                    p.sendMessage("§cKhông tìm thấy ID trứng: " + eggId + "! Kiểm tra modules/hatching.yml");
-                    return true;
-                }
-
-                int remainingEggs = eggAmount;
-                while (remainingEggs > 0) {
-                    int batch = Math.min(remainingEggs, 64);
-                    ItemStack eggItem = plugin.getHatchingManager().createEggItem(eggId, batch);
-                    if (eggItem != null) {
-                        HashMap<Integer, ItemStack> overflow = targetEggP.getInventory().addItem(eggItem);
-                        for (ItemStack left : overflow.values()) {
-                            targetEggP.getWorld().dropItemNaturally(targetEggP.getLocation(), left);
-                        }
-                    }
-                    remainingEggs -= batch;
-                }
-
-                p.sendMessage("§aĐã gửi §e" + eggAmount + "x " + eggId + " §acho người chơi §e" + targetEggP.getName() + "§a.");
-                targetEggP.sendMessage("§aBạn vừa nhận được §e" + eggAmount + "x Trứng Thú Cưng §atừ Admin!");
-                break;
+                return handleGiveEgg(p, args, lang);
 
             case "baby":
             case "form":
@@ -399,6 +308,10 @@ public class PetCommand implements CommandExecutor {
 
             case "hatch":
             case "incubator":
+                if (!p.hasPermission("ipsecuzpet.hatch")) {
+                    p.sendMessage(lang.getMessage("general.no_permission"));
+                    return true;
+                }
                 plugin.getHatchingManager().openHatchingGui(p);
                 break;
 
@@ -423,6 +336,10 @@ public class PetCommand implements CommandExecutor {
                 break;
 
             case "trade":
+                if (!p.hasPermission("ipsecuzpet.trade")) {
+                    p.sendMessage(lang.getMessage("general.no_permission"));
+                    return true;
+                }
                 if (args.length < 2) {
                     p.sendMessage("§cCú pháp: /pet trade <player> hoặc /pet trade accept");
                     return true;
@@ -436,23 +353,168 @@ public class PetCommand implements CommandExecutor {
                 break;
 
             case "reload":
-                if (p.hasPermission("ipsecuzpet.admin")) {
-                    plugin.reloadConfig();
-                    plugin.getLanguage().loadMessages();
-                    plugin.getConfigManager().loadDataFile();
-                    plugin.getCaptureManager().loadBalls();
-                    if (plugin.getModuleManager() != null) {
-                        plugin.getModuleManager().reloadAllModules();
-                    }
-                    if (plugin.getDynamicPetRegistry() != null) {
-                        plugin.getDynamicPetRegistry().detectAndRegisterNewMobs();
-                    }
-                    p.sendMessage(lang.getMessage("general.config_reloaded"));
-                } else {
-                    p.sendMessage(lang.getMessage("general.no_permission"));
-                }
-                break;
+                return handleReload(p, lang);
         }
+        return true;
+    }
+
+    private boolean handleReload(CommandSender sender, LanguageManager lang) {
+        if (!sender.hasPermission("ipsecuzpet.admin")) {
+            sender.sendMessage(lang.getMessage("general.no_permission"));
+            return true;
+        }
+        plugin.reloadConfig();
+        plugin.getLanguage().loadMessages();
+        plugin.getConfigManager().loadDataFile();
+        plugin.getCaptureManager().loadBalls();
+        if (plugin.getModuleManager() != null) {
+            plugin.getModuleManager().reloadAllModules();
+        }
+        if (plugin.getDynamicPetRegistry() != null) {
+            plugin.getDynamicPetRegistry().detectAndRegisterNewMobs();
+        }
+        sender.sendMessage(lang.getMessage("general.config_reloaded"));
+        return true;
+    }
+
+    private boolean handleGive(CommandSender sender, String[] args, LanguageManager lang) {
+        if (!sender.hasPermission("ipsecuzpet.admin")) {
+            sender.sendMessage(lang.getMessage("general.no_permission"));
+            return true;
+        }
+        if (args.length < 3) {
+            sender.sendMessage("§cCú pháp: /pet give <player> <pet_id>");
+            return true;
+        }
+        Player receiver = Bukkit.getPlayer(args[1]);
+        if (receiver == null) {
+            sender.sendMessage(lang.getMessage("duel.invalid_target"));
+            return true;
+        }
+        String petIdToGive = args[2];
+        if (!plugin.getConfig().contains("pets." + petIdToGive)) {
+            sender.sendMessage(lang.getMessage("admin.invalid_id"));
+            return true;
+        }
+        if (plugin.getConfigManager().getData().contains(receiver.getUniqueId() + ".pets." + petIdToGive)) {
+            sender.sendMessage(lang.getMessage("admin.already_owned"));
+            return true;
+        }
+        if (!plugin.getOwnershipManager().canAcquirePet(receiver)) {
+            sender.sendMessage("§cNgười chơi " + receiver.getName() + " đã đạt giới hạn số lượng Pet!");
+            return true;
+        }
+        plugin.getConfigManager().createPetDataIfMissing(receiver.getUniqueId(), petIdToGive);
+        PetTrait giveTrait = PetTrait.rollRandomTrait();
+        plugin.getConfigManager().getData().set(receiver.getUniqueId() + ".pets." + petIdToGive + ".trait", giveTrait.name());
+        plugin.getConfigManager().saveData();
+        plugin.getCodexManager().discover(receiver.getUniqueId(), petIdToGive);
+        sender.sendMessage(lang.getMessage("admin.give_success", "%pet_id%", petIdToGive, "%player%", receiver.getName()));
+        receiver.sendMessage(lang.getMessage("admin.give_received", "%pet_id%", petIdToGive));
+        return true;
+    }
+
+    private boolean handleGiveBall(CommandSender sender, String[] args, LanguageManager lang) {
+        if (!sender.hasPermission("ipsecuzpet.admin")) {
+            sender.sendMessage(lang.getMessage("general.no_permission"));
+            return true;
+        }
+        if (args.length < 3) {
+            sender.sendMessage("§cCú pháp: /pet giveball <player> <ball_id> [amount]");
+            return true;
+        }
+        Player targetP = Bukkit.getPlayer(args[1]);
+        if (targetP == null) {
+            sender.sendMessage(lang.getMessage("duel.invalid_target"));
+            return true;
+        }
+        String ballId = args[2];
+        int amount = 1;
+        if (args.length >= 4) {
+            try {
+                amount = Integer.parseInt(args[3]);
+            } catch (NumberFormatException e) {
+                sender.sendMessage("§cSố lượng phải là một con số nguyên hợp lệ!");
+                return true;
+            }
+        }
+        if (amount <= 0 || amount > 2304) {
+            sender.sendMessage("§cSố lượng không hợp lệ! Vui lòng nhập từ 1 đến 2304.");
+            return true;
+        }
+
+        if (!plugin.getCaptureManager().getBallIds().contains(ballId)) {
+            sender.sendMessage(lang.getMessage("admin.invalid_ball_id"));
+            return true;
+        }
+
+        int remainingBalls = amount;
+        while (remainingBalls > 0) {
+            int batch = Math.min(remainingBalls, 64);
+            ItemStack ballItem = plugin.getCaptureManager().getBallItem(ballId, batch);
+            if (ballItem != null) {
+                HashMap<Integer, ItemStack> overflow = targetP.getInventory().addItem(ballItem);
+                for (ItemStack left : overflow.values()) {
+                    targetP.getWorld().dropItemNaturally(targetP.getLocation(), left);
+                }
+            }
+            remainingBalls -= batch;
+        }
+
+        sender.sendMessage(lang.getMessage("admin.giveball_success", "%amount%", String.valueOf(amount), "%ball_id%", ballId, "%player%", targetP.getName()));
+        targetP.sendMessage(lang.getMessage("admin.giveball_received"));
+        return true;
+    }
+
+    private boolean handleGiveEgg(CommandSender sender, String[] args, LanguageManager lang) {
+        if (!sender.hasPermission("ipsecuzpet.admin")) {
+            sender.sendMessage(lang.getMessage("general.no_permission"));
+            return true;
+        }
+        if (args.length < 3) {
+            sender.sendMessage("§cCú pháp: /pet giveegg <player> <egg_id> [amount]");
+            return true;
+        }
+        Player targetEggP = Bukkit.getPlayer(args[1]);
+        if (targetEggP == null) {
+            sender.sendMessage(lang.getMessage("duel.invalid_target"));
+            return true;
+        }
+        String eggId = args[2];
+        int eggAmount = 1;
+        if (args.length >= 4) {
+            try {
+                eggAmount = Integer.parseInt(args[3]);
+            } catch (NumberFormatException e) {
+                sender.sendMessage("§cSố lượng phải là một con số nguyên hợp lệ!");
+                return true;
+            }
+        }
+        if (eggAmount <= 0 || eggAmount > 2304) {
+            sender.sendMessage("§cSố lượng không hợp lệ! Vui lòng nhập từ 1 đến 2304.");
+            return true;
+        }
+
+        if (plugin.getModuleManager() == null || !plugin.getModuleManager().getHatchingConfig().contains("eggs." + eggId)) {
+            sender.sendMessage("§cKhông tìm thấy ID trứng: " + eggId + "! Kiểm tra modules/hatching.yml");
+            return true;
+        }
+
+        int remainingEggs = eggAmount;
+        while (remainingEggs > 0) {
+            int batch = Math.min(remainingEggs, 64);
+            ItemStack eggItem = plugin.getHatchingManager().createEggItem(eggId, batch);
+            if (eggItem != null) {
+                HashMap<Integer, ItemStack> overflow = targetEggP.getInventory().addItem(eggItem);
+                for (ItemStack left : overflow.values()) {
+                    targetEggP.getWorld().dropItemNaturally(targetEggP.getLocation(), left);
+                }
+            }
+            remainingEggs -= batch;
+        }
+
+        sender.sendMessage("§aĐã gửi §e" + eggAmount + "x " + eggId + " §acho người chơi §e" + targetEggP.getName() + "§a.");
+        targetEggP.sendMessage("§aBạn vừa nhận được §e" + eggAmount + "x Trứng Thú Cưng §atừ Admin!");
         return true;
     }
 }

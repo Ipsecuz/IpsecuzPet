@@ -53,9 +53,38 @@ public class HatchingManager {
         public void setFinished(boolean finished) { this.finished = finished; }
     }
 
+    public static class PendingHatchSession {
+        private final UUID playerUuid;
+        private final String eggId;
+        private final String winningPetId;
+        private final java.util.concurrent.atomic.AtomicBoolean committed = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+        public PendingHatchSession(UUID playerUuid, String eggId, String winningPetId) {
+            this.playerUuid = playerUuid;
+            this.eggId = eggId;
+            this.winningPetId = winningPetId;
+        }
+
+        public UUID getPlayerUuid() { return playerUuid; }
+        public String getEggId() { return eggId; }
+        public String getWinningPetId() { return winningPetId; }
+        public boolean markCommitted() { return committed.compareAndSet(false, true); }
+        public boolean isCommitted() { return committed.get(); }
+    }
+
+    private final Map<UUID, PendingHatchSession> pendingHatchSessions = new java.util.concurrent.ConcurrentHashMap<>();
+
     public HatchingManager(IpsecuzPet plugin) {
         this.plugin = plugin;
         this.eggKey = new NamespacedKey(plugin, "pet_egg_id");
+    }
+
+    public void handlePlayerQuit(Player player) {
+        if (player == null) return;
+        PendingHatchSession session = pendingHatchSessions.remove(player.getUniqueId());
+        if (session != null && session.markCommitted()) {
+            completeHatchReward(player, session.getWinningPetId(), false);
+        }
     }
 
     public ItemStack createEggItem(String eggId, int amount) {
@@ -247,7 +276,8 @@ public class HatchingManager {
             return;
         }
 
-        // 4. Bắt đầu vòng quay Roulette
+        // 4. Bắt đầu vòng quay Roulette với phiên theo dõi an toàn
+        pendingHatchSessions.put(player.getUniqueId(), new PendingHatchSession(player.getUniqueId(), eggId, winningPetId));
         startGachaRoulette(player, eggId, eggSec, candidatePetIds, winningPetId);
     }
 
@@ -424,12 +454,22 @@ public class HatchingManager {
     }
 
     public void completeHatchReward(Player player, String winningPetId, boolean showTitleAndEffects) {
+        PendingHatchSession session = pendingHatchSessions.get(player.getUniqueId());
+        if (session != null) {
+            if (!session.markCommitted()) return; // Đã commit trước đó, chặn duplicate reward tuyệt đối!
+            pendingHatchSessions.remove(player.getUniqueId());
+        }
+
         String petDisplayName = plugin.getConfig().getString("pets." + winningPetId + ".name", winningPetId);
         PetRarity rarity = PetRarity.fromPetId(plugin, winningPetId);
 
         if (plugin.getConfigManager().getData().contains(player.getUniqueId() + ".pets." + winningPetId)) {
             // ĐÃ SỞ HỮU TRƯỚC ĐÓ -> CHUYỂN ĐỔI THÀNH MẢNH SHARDS & EXP
             plugin.getShardManager().convertDuplicateToShards(player, winningPetId);
+        } else if (!plugin.getOwnershipManager().canAcquirePet(player)) {
+            // ĐÃ ĐẦY KHO PET TẠI THỜI ĐIỂM COMMIT -> CHUYỂN ĐỔI AN TOÀN SANG MẢNH SHARDS & EXP
+            plugin.getShardManager().convertDuplicateToShards(player, winningPetId);
+            player.sendMessage("§e[Kho Thú Cưng Đã Đầy] Bạn đã đạt giới hạn tối đa số Pet, phần thưởng được chuyển thành Mảnh Pet!");
         } else {
             // PET MỚI -> TẠO DỮ LIỆU, ROLL TRAIT VÀ LƯU CODEX
             plugin.getConfigManager().createPetDataIfMissing(player.getUniqueId(), winningPetId);

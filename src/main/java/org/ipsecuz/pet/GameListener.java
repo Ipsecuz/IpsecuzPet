@@ -36,7 +36,12 @@ public class GameListener implements Listener {
 
     private UUID getOwnerId(Entity e) {
         String s = e.getPersistentDataContainer().get(plugin.getPetManager().petKey, PersistentDataType.STRING);
-        return (s == null) ? null : UUID.fromString(s);
+        if (s == null) return null;
+        try {
+            return UUID.fromString(s);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     @EventHandler
@@ -58,41 +63,61 @@ public class GameListener implements Listener {
         }
 
         // 2. Kiểm tra nếu là Thẻ Pet rút từ /pet withdraw
-        NamespacedKey keyId = new NamespacedKey(plugin, "pet_item_id");
-        if (item.getItemMeta().getPersistentDataContainer().has(keyId, PersistentDataType.STRING)) {
+        if (PetCardSecurity.isPetCard(item)) {
             e.setCancelled(true);
             if (e.getAction().toString().contains("RIGHT")) {
                 Player p = e.getPlayer();
                 LanguageManager lang = plugin.getLanguage();
-                String petId = item.getItemMeta().getPersistentDataContainer().get(keyId, PersistentDataType.STRING);
-                int lvl = item.getItemMeta().getPersistentDataContainer().getOrDefault(new NamespacedKey(plugin, "pet_item_lvl"), PersistentDataType.INTEGER, 1);
-                int exp = item.getItemMeta().getPersistentDataContainer().getOrDefault(new NamespacedKey(plugin, "pet_item_exp"), PersistentDataType.INTEGER, 0);
-                int stars = item.getItemMeta().getPersistentDataContainer().getOrDefault(new NamespacedKey(plugin, "pet_item_stars"), PersistentDataType.INTEGER, 1);
-                String trait = item.getItemMeta().getPersistentDataContainer().getOrDefault(new NamespacedKey(plugin, "pet_item_trait"), PersistentDataType.STRING, "NONE");
-                String customName = item.getItemMeta().getPersistentDataContainer().get(new NamespacedKey(plugin, "pet_item_name"), PersistentDataType.STRING);
+
+                PetCardSecurity.CardValidationResult result = PetCardSecurity.validateAndExtractCard(plugin, item);
+                if (!result.isValid()) {
+                    p.sendMessage("§c§l[LỖI THẺ PET] §c" + result.getErrorMessage());
+                    p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                    return;
+                }
+
+                PetCardSecurity.PetCardData cardData = result.getCardData();
+                String petId = cardData.getPetId();
 
                 if (plugin.getConfigManager().getData().contains(p.getUniqueId() + ".pets." + petId)) {
                     p.sendMessage(lang.getMessage("pet.already_owned"));
+                    p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                     return;
                 }
 
                 if (!plugin.getOwnershipManager().canAcquirePet(p)) {
+                    p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                     return;
                 }
 
+                String cardUuid = cardData.getCardUniqueId();
+                if (cardUuid != null && PetCardSecurity.isCardConsumed(plugin, cardUuid)) {
+                    p.sendMessage("§c§l[CẢNH BÁO] §cThẻ Thú Cưng này đã được kích hoạt trước đó (Chống nhân bản)!");
+                    p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                    return;
+                }
+
+                // Tiêu hao vật phẩm thành công trước khi ghi nhận pet (Transactional consume)
+                item.setAmount(item.getAmount() - 1);
+
                 plugin.getConfigManager().createPetDataIfMissing(p.getUniqueId(), petId);
-                plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".level", lvl);
-                plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".exp", exp);
-                plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".stars", stars);
-                plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".trait", trait);
-                if (customName != null && !customName.isEmpty()) {
-                    plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".custom_name", customName);
+                plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".level", cardData.getLevel());
+                plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".exp", cardData.getExp());
+                plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".stars", cardData.getStars());
+                plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".trait", cardData.getTrait());
+                if (cardData.getCustomName() != null && !cardData.getCustomName().isEmpty()) {
+                    plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".custom_name", cardData.getCustomName());
+                }
+                if (cardData.getUnlockedSkills() != null && !cardData.getUnlockedSkills().isEmpty()) {
+                    plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + petId + ".unlocked_skills", cardData.getUnlockedSkills());
                 }
                 plugin.getConfigManager().saveData();
 
-                plugin.getCodexManager().discover(p.getUniqueId(), petId);
+                if (cardUuid != null) {
+                    PetCardSecurity.markCardConsumed(plugin, cardUuid);
+                }
 
-                item.setAmount(item.getAmount() - 1);
+                plugin.getCodexManager().discover(p.getUniqueId(), petId);
                 p.sendMessage(lang.getMessage("pet.redeem_success", "%pet_id%", petId));
                 p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
             }
@@ -197,6 +222,10 @@ public class GameListener implements Listener {
             UUID ownerId = getOwnerId(e.getRightClicked());
             if (ownerId != null && ownerId.equals(p.getUniqueId())) {
                 e.setCancelled(true);
+                if (!p.hasPermission("ipsecuzpet.ride")) {
+                    p.sendMessage(lang.getMessage("general.no_permission"));
+                    return;
+                }
                 Entity pet = e.getRightClicked();
                 if (pet.getPassengers().contains(p)) return;
                 ArmorStand seat = (ArmorStand) pet.getWorld().spawnEntity(pet.getLocation(), EntityType.ARMOR_STAND);
@@ -224,11 +253,29 @@ public class GameListener implements Listener {
     public void onEntityTarget(EntityTargetEvent e) {
         if (!isPet(e.getEntity())) return;
         UUID ownerId = getOwnerId(e.getEntity());
-        if (e.getTarget() != null && e.getTarget().getUniqueId().equals(ownerId)) {
+        Entity target = e.getTarget();
+
+        // 1. Chặn nhắm vào chủ nhân & dọn dẹp Warden anger đúng cách
+        if (target != null && target.getUniqueId().equals(ownerId)) {
             e.setCancelled(true);
             e.setTarget(null);
-            if (e.getEntity() instanceof Warden warden && e.getTarget() instanceof LivingEntity) {
-                warden.clearAnger((LivingEntity) e.getTarget());
+            if (e.getEntity() instanceof Warden warden && target instanceof LivingEntity livingTarget) {
+                warden.clearAnger(livingTarget);
+            }
+            return;
+        }
+
+        // 2. Chặn tự động tấn công người chơi khác trừ khi trong quyết đấu hoặc bật cấu hình target_players
+        if (target instanceof Player playerTarget && ownerId != null) {
+            boolean allowPlayerTarget = plugin.getConfig().getBoolean("combat.target_players", false);
+            boolean isDuel = plugin.getPetManager().activeDuels.containsKey(ownerId)
+                    && playerTarget.getUniqueId().equals(plugin.getPetManager().activeDuels.get(ownerId));
+            if (!allowPlayerTarget && !isDuel) {
+                e.setCancelled(true);
+                e.setTarget(null);
+                if (e.getEntity() instanceof Warden warden) {
+                    warden.clearAnger(playerTarget);
+                }
             }
         }
     }
@@ -257,7 +304,16 @@ public class GameListener implements Listener {
         if (e.getDamager() instanceof Player p && plugin.getPetManager().hasPet(p.getUniqueId())) {
             Entity pet = plugin.getPetManager().getPet(p.getUniqueId());
             if (pet instanceof Mob mob && !e.getEntity().equals(pet) && e.getEntity() instanceof LivingEntity target) {
-                mob.setTarget(target);
+                if (target instanceof Player victimPlayer) {
+                    boolean allowPlayerTarget = plugin.getConfig().getBoolean("combat.target_players", false);
+                    boolean isDuel = plugin.getPetManager().activeDuels.containsKey(p.getUniqueId())
+                            && victimPlayer.getUniqueId().equals(plugin.getPetManager().activeDuels.get(p.getUniqueId()));
+                    if (allowPlayerTarget || isDuel) {
+                        mob.setTarget(target);
+                    }
+                } else {
+                    mob.setTarget(target);
+                }
             }
 
             // Kỹ năng nội tại: Sát thương cộng thêm (Warden) & Chí mạng (Wolf)
@@ -291,19 +347,21 @@ public class GameListener implements Listener {
             }
         }
 
-        // Quyết Đấu Pet (Pet Duel)
+        // Quyết Đấu Pet (Pet Duel) với chỉ số thực tế (Effective Stats)
         if (isPet(e.getDamager()) && isPet(e.getEntity())) {
             UUID p1 = getOwnerId(e.getDamager());
             UUID p2 = getOwnerId(e.getEntity());
-            if (plugin.getPetManager().activeDuels.containsKey(p1) && plugin.getPetManager().activeDuels.get(p1).equals(p2)) {
+            if (p1 != null && p2 != null && plugin.getPetManager().activeDuels.containsKey(p1) && p2.equals(plugin.getPetManager().activeDuels.get(p1))) {
                 e.setCancelled(false);
                 ConfigManager cm = plugin.getConfigManager();
                 String petId1 = plugin.getPetManager().getActivePetId(p1);
                 int lvl1 = cm.getData().getInt(p1 + ".pets." + petId1 + ".level", 1);
-                double damage = cm.getPetStat(petId1, lvl1, "damage");
+                double damage = PetStatEngine.calculateEffectiveStat(plugin, p1, petId1, lvl1, "damage");
+
                 String petId2 = plugin.getPetManager().getActivePetId(p2);
                 int lvl2 = cm.getData().getInt(p2 + ".pets." + petId2 + ".level", 1);
-                double defense = cm.getPetStat(petId2, lvl2, "defense");
+                double defense = PetStatEngine.calculateEffectiveStat(plugin, p2, petId2, lvl2, "defense");
+
                 double finalDamage = damage - (defense * 0.5);
                 if (finalDamage < 1.0) finalDamage = 1.0;
                 e.setDamage(finalDamage);
@@ -494,10 +552,50 @@ public class GameListener implements Listener {
     }
 
     @EventHandler
+    public void onPetExplosion(org.bukkit.event.entity.EntityExplodeEvent e) {
+        Entity entity = e.getEntity();
+        if (entity != null) {
+            if (isPet(entity)) {
+                e.blockList().clear();
+                e.setYield(0f);
+                e.setCancelled(true);
+                return;
+            }
+            if (entity instanceof org.bukkit.entity.Projectile proj && proj.getShooter() instanceof Entity shooter && isPet(shooter)) {
+                e.blockList().clear();
+                e.setYield(0f);
+                e.setCancelled(true);
+            }
+        }
+    }
+
+    @EventHandler
+    public void onPetChangeBlock(org.bukkit.event.entity.EntityChangeBlockEvent e) {
+        if (e.getEntity() != null && isPet(e.getEntity())) {
+            e.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerKick(org.bukkit.event.player.PlayerKickEvent e) {
+        handleDisconnect(e.getPlayer());
+    }
+
+    @EventHandler
     public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent e) {
-        Player p = e.getPlayer();
+        handleDisconnect(e.getPlayer());
+    }
+
+    private void handleDisconnect(Player p) {
+        if (p == null) return;
         java.util.UUID uuid = p.getUniqueId();
 
+        if (plugin.getTradeManager() != null) {
+            plugin.getTradeManager().handlePlayerQuit(p);
+        }
+        if (plugin.getHatchingManager() != null) {
+            plugin.getHatchingManager().handlePlayerQuit(p);
+        }
         if (plugin.getPetManager() != null) {
             plugin.getPetManager().removePet(uuid);
             plugin.getPetManager().clearPlayerDuels(uuid);

@@ -981,8 +981,8 @@ public class GuiListener implements Listener {
                         p.sendMessage("§cChỉ có thể đặt Thẻ Pet vào khung giao dịch!");
                         return;
                     }
+                    session.resetLocks();
                 }
-                session.resetLocks();
             } else {
                 e.setCancelled(true);
             }
@@ -1289,10 +1289,17 @@ public class GuiListener implements Listener {
             } else if ("feed".equals(action) && parts.length > 1) {
                 String petId = parts[1];
                 ItemStack hand = p.getInventory().getItemInMainHand();
-                if (plugin.getFeedingManager().feedPet(p, hand)) {
+                if (plugin.getFeedingManager().feedPet(p, petId, hand)) {
                     openPetDetailMenu(p, petId);
                 }
             } else if ("ultimate".equals(action)) {
+                String petId = (parts.length > 1) ? parts[1] : null;
+                String active = plugin.getPetManager().getActivePetId(p.getUniqueId());
+                if (petId != null && (active == null || !active.equals(petId))) {
+                    p.sendMessage("§cBạn cần triệu hồi pet này trước để kích hoạt tuyệt chiêu chiến đấu!");
+                    p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                    return;
+                }
                 plugin.getSkillManager().triggerUltimate(p);
                 p.closeInventory();
             } else if ("learn_skill".equals(action) && parts.length > 2) {

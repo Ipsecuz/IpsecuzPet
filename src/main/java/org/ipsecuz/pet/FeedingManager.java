@@ -92,13 +92,24 @@ public class FeedingManager {
     }
 
     public boolean feedPet(Player player, ItemStack foodItem) {
+        if (!plugin.getPetManager().hasPet(player.getUniqueId())) {
+            player.sendMessage(plugin.getLanguage().getMessage("pet.no_pet"));
+            return false;
+        }
+        String petId = plugin.getPetManager().getActivePetId(player.getUniqueId());
+        return feedPet(player, petId, foodItem);
+    }
+
+    public boolean feedPet(Player player, String petId, ItemStack foodItem) {
         if (!plugin.getModuleManager().isFeedingEnabled()) {
             player.sendMessage("§cTính năng Cho Ăn & Thân Thiết hiện đang bị tắt bởi máy chủ!");
             return false;
         }
 
-        if (!plugin.getPetManager().hasPet(player.getUniqueId())) {
-            player.sendMessage(plugin.getLanguage().getMessage("pet.no_pet"));
+        if (player == null || petId == null) return false;
+
+        if (!plugin.getConfigManager().getData().contains(player.getUniqueId() + ".pets." + petId)) {
+            player.sendMessage(plugin.getLanguage().getMessage("pet.not_owned", "%pet_id%", petId));
             return false;
         }
 
@@ -116,9 +127,6 @@ public class FeedingManager {
             return false;
         }
 
-        String petId = plugin.getPetManager().getActivePetId(player.getUniqueId());
-        Entity pet = plugin.getPetManager().getPet(player.getUniqueId());
-
         int curHappy = getHappiness(player.getUniqueId(), petId);
         int maxHappy = config.getInt("max_happiness", 100);
         if (curHappy >= maxHappy) {
@@ -134,8 +142,8 @@ public class FeedingManager {
         int newHappy = Math.min(maxHappy, curHappy + addHappy);
         setHappiness(player.getUniqueId(), petId, newHappy);
 
-        // Cộng kinh nghiệm từ thức ăn
-        plugin.getPetManager().givePetExp(player, addExp);
+        // Cộng kinh nghiệm cụ thể cho pet này
+        plugin.getPetManager().giveSpecificPetExp(player, petId, addExp);
 
         HappinessState state = getHappinessState(newHappy);
         player.sendActionBar(net.kyori.adventure.text.Component.text(
@@ -144,8 +152,13 @@ public class FeedingManager {
         player.sendMessage("§aĐã cho thú cưng ăn §e" + matName + "§a! Độ vui vẻ: §e" + newHappy + "/" + maxHappy +
                 " §7(" + state.getDisplay() + "§7) §a(+§b" + addExp + " EXP§a)");
 
-        // Làm mới chỉ số pet nếu có thay đổi ngưỡng
-        plugin.getPetManager().refreshPetStats(player);
+        String activeId = plugin.getPetManager().getActivePetId(player.getUniqueId());
+        boolean isActive = petId.equals(activeId);
+        Entity pet = isActive ? plugin.getPetManager().getPet(player.getUniqueId()) : null;
+
+        if (isActive) {
+            plugin.getPetManager().refreshPetStats(player);
+        }
 
         if (pet != null && pet.isValid()) {
             SchedulerUtils.runEntityTask(plugin, pet, () -> {
@@ -171,6 +184,11 @@ public class FeedingManager {
                     pet.getWorld().spawnParticle(Particle.HEART, pet.getLocation().add(0, pet.getHeight() + 0.3, 0), 8, 0.35, 0.35, 0.35, 0.05);
                 } catch (Exception ignored) {}
             });
+        } else {
+            try {
+                player.getWorld().playSound(player.getLocation(), Sound.valueOf(soundName), 1.2f, 1f);
+                player.getWorld().spawnParticle(Particle.HEART, player.getLocation().add(0, 1.2, 0), 6, 0.3, 0.3, 0.3, 0.05);
+            } catch (Exception ignored) {}
         }
         return true;
     }

@@ -20,9 +20,18 @@ public class TradeSession {
     private final Player playerB;
     private final Inventory inventory;
 
+    public enum TradeState {
+        OPEN,
+        LOCKED,
+        CONFIRMED,
+        COMMITTING,
+        COMPLETED,
+        CANCELLED
+    }
+
     private boolean lockedA = false;
     private boolean lockedB = false;
-    private boolean finished = false;
+    private volatile TradeState state = TradeState.OPEN;
     private int countdown = -1;
 
     // Các slot đề nghị trao đổi (3x3 cho mỗi bên)
@@ -126,10 +135,12 @@ public class TradeSession {
     }
 
     public void resetLocks() {
+        if (isFinished()) return;
         if (lockedA || lockedB || countdown > 0) {
             lockedA = false;
             lockedB = false;
             countdown = -1;
+            state = TradeState.OPEN;
             updateStatusButtons();
             playerA.playSound(playerA.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.8f, 0.8f);
             playerB.playSound(playerB.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.8f, 0.8f);
@@ -139,6 +150,8 @@ public class TradeSession {
     }
 
     public void toggleLock(Player player) {
+        if (isFinished()) return;
+
         if (player.equals(playerA)) {
             lockedA = !lockedA;
         } else if (player.equals(playerB)) {
@@ -149,8 +162,10 @@ public class TradeSession {
         updateStatusButtons();
 
         if (lockedA && lockedB) {
+            state = TradeState.LOCKED;
             startCountdown();
         } else {
+            state = TradeState.OPEN;
             countdown = -1;
             updateStatusButtons();
         }
@@ -165,9 +180,10 @@ public class TradeSession {
     }
 
     private void runCountdownStep() {
-        if (finished || !lockedA || !lockedB) return;
+        if (isFinished() || state != TradeState.LOCKED || !lockedA || !lockedB) return;
 
         if (countdown <= 0) {
+            state = TradeState.CONFIRMED;
             completeTrade();
             return;
         }
@@ -177,9 +193,10 @@ public class TradeSession {
         updateStatusButtons();
 
         SchedulerUtils.runGlobalTaskLater(plugin, () -> {
-            if (finished || !lockedA || !lockedB) return;
+            if (isFinished() || state != TradeState.LOCKED || !lockedA || !lockedB) return;
             countdown--;
             if (countdown <= 0) {
+                state = TradeState.CONFIRMED;
                 completeTrade();
             } else {
                 updateStatusButtons();
@@ -189,8 +206,8 @@ public class TradeSession {
     }
 
     private synchronized void completeTrade() {
-        if (finished) return;
-        finished = true;
+        if (state != TradeState.CONFIRMED) return;
+        state = TradeState.COMMITTING;
 
         if (!playerA.isOnline() || !playerB.isOnline()) {
             cancel("Một trong hai người chơi đã thoát game trước khi hoàn tất giao dịch.");
@@ -222,20 +239,34 @@ public class TradeSession {
             }
         }
 
+        // Pha 2: Kiểm tra dung lượng kho đồ (Inventory Capacity Pre-Validation)
+        int freeSlotsA = getFreeStorageSlots(playerA);
+        int freeSlotsB = getFreeStorageSlots(playerB);
+
+        if (freeSlotsA < itemsFromB.size()) {
+            cancel("Người chơi " + playerA.getName() + " không đủ ô trống trong kho đồ (cần " + itemsFromB.size() + " ô, hiện có " + freeSlotsA + " ô)!");
+            return;
+        }
+
+        if (freeSlotsB < itemsFromA.size()) {
+            cancel("Người chơi " + playerB.getName() + " không đủ ô trống trong kho đồ (cần " + itemsFromA.size() + " ô, hiện có " + freeSlotsB + " ô)!");
+            return;
+        }
+
         // Dọn sạch các slot giao dịch để tránh duplicate
         for (int slot : SLOTS_A) inventory.setItem(slot, null);
         for (int slot : SLOTS_B) inventory.setItem(slot, null);
 
-        // Pha 2: Giao dịch nguyên tử (Atomic Commit & Rollback)
+        // Pha 3: Giao dịch nguyên tử (Atomic Commit & Rollback)
         try {
             // Chuyển đồ từ A sang B
             for (ItemStack item : itemsFromA) {
-                giveItemSafely(playerB, item);
+                playerB.getInventory().addItem(item);
             }
 
             // Chuyển đồ từ B sang A
             for (ItemStack item : itemsFromB) {
-                giveItemSafely(playerA, item);
+                playerA.getInventory().addItem(item);
             }
         } catch (Exception ex) {
             plugin.getLogger().severe("Lỗi nghiêm trọng trong quá trình chuyển giao dịch Pet: " + ex.getMessage());
@@ -245,6 +276,8 @@ public class TradeSession {
             cancel("Giao dịch gặp lỗi kỹ thuật ngoại lệ và đã hoàn trả đồ về chủ cũ an toàn.");
             return;
         }
+
+        state = TradeState.COMPLETED;
 
         playerA.playSound(playerA.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
         playerB.playSound(playerB.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
@@ -259,8 +292,8 @@ public class TradeSession {
     }
 
     public synchronized void cancel(String reason) {
-        if (finished) return;
-        finished = true;
+        if (state == TradeState.COMPLETED || state == TradeState.CANCELLED) return;
+        state = TradeState.CANCELLED;
 
         // Hoàn trả toàn bộ đồ về cho người đề nghị ban đầu
         for (int slot : SLOTS_A) {
@@ -294,6 +327,17 @@ public class TradeSession {
         plugin.getTradeManager().removeActiveSession(this);
     }
 
+    public static int getFreeStorageSlots(Player player) {
+        if (player == null) return 0;
+        int count = 0;
+        for (ItemStack item : player.getInventory().getStorageContents()) {
+            if (item == null || item.getType() == Material.AIR) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private void giveItemSafely(Player player, ItemStack item) {
         if (player == null || item == null) return;
         HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(item);
@@ -319,6 +363,7 @@ public class TradeSession {
 
     public Player getPlayerA() { return playerA; }
     public Player getPlayerB() { return playerB; }
-    public boolean isFinished() { return finished; }
+    public boolean isFinished() { return state == TradeState.COMPLETED || state == TradeState.CANCELLED; }
+    public TradeState getState() { return state; }
 }
 

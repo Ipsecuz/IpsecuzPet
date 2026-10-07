@@ -25,6 +25,32 @@ public final class PetCardSecurity {
 
     private PetCardSecurity() {}
 
+    private static final Set<String> consumedCards = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final java.util.concurrent.atomic.AtomicBoolean cardsLoaded = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    private static void ensureCardsLoaded(IpsecuzPet plugin) {
+        if (cardsLoaded.compareAndSet(false, true)) {
+            List<String> list = plugin.getConfigManager().getData().getStringList("security.consumed_cards");
+            consumedCards.addAll(list);
+        }
+    }
+
+    public static boolean isCardConsumed(IpsecuzPet plugin, String cardUuid) {
+        if (cardUuid == null || cardUuid.isEmpty()) return false;
+        ensureCardsLoaded(plugin);
+        return consumedCards.contains(cardUuid);
+    }
+
+    public static void markCardConsumed(IpsecuzPet plugin, String cardUuid) {
+        if (cardUuid == null || cardUuid.isEmpty()) return;
+        ensureCardsLoaded(plugin);
+        if (consumedCards.add(cardUuid)) {
+            List<String> list = new ArrayList<>(consumedCards);
+            plugin.getConfigManager().getData().set("security.consumed_cards", list);
+            plugin.getConfigManager().saveData();
+        }
+    }
+
     private static String getServerSalt(IpsecuzPet plugin) {
         String salt = plugin.getConfigManager().getData().getString("security.server_salt");
         if (salt == null || salt.trim().isEmpty()) {
@@ -35,7 +61,35 @@ public final class PetCardSecurity {
         return salt;
     }
 
-    public static String computeSignature(IpsecuzPet plugin, String uniqueId, String petId, int level, int exp, int stars, String trait) {
+    public static String computeHmacSha256(String key, String data) {
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            javax.crypto.spec.SecretKeySpec secretKey = new javax.crypto.spec.SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(secretKey);
+            byte[] hash = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString().substring(0, 32);
+        } catch (Exception e) {
+            return Integer.toHexString((data + ":" + key).hashCode());
+        }
+    }
+
+    public static String computeCanonicalSignature(IpsecuzPet plugin, int schema, String uniqueId, String petId, int level, int exp, int stars, String trait, String customName, List<String> skills) {
+        String salt = getServerSalt(plugin);
+        List<String> sortedSkills = (skills != null) ? new ArrayList<>(skills) : new ArrayList<>();
+        Collections.sort(sortedSkills);
+        String skillsStr = String.join(",", sortedSkills);
+        String cName = (customName != null) ? customName : "";
+        String payload = schema + ":" + uniqueId + ":" + petId + ":" + level + ":" + exp + ":" + stars + ":" + trait + ":" + cName + ":" + skillsStr;
+        return computeHmacSha256(salt, payload);
+    }
+
+    public static String computeLegacySignature(IpsecuzPet plugin, String uniqueId, String petId, int level, int exp, int stars, String trait) {
         String salt = getServerSalt(plugin);
         String payload = uniqueId + ":" + petId + ":" + level + ":" + exp + ":" + stars + ":" + trait + ":" + salt;
         try {
@@ -51,6 +105,10 @@ public final class PetCardSecurity {
         } catch (NoSuchAlgorithmException e) {
             return Integer.toHexString(payload.hashCode());
         }
+    }
+
+    public static String computeSignature(IpsecuzPet plugin, String uniqueId, String petId, int level, int exp, int stars, String trait) {
+        return computeCanonicalSignature(plugin, CURRENT_SCHEMA, uniqueId, petId, level, exp, stars, trait, null, null);
     }
 
     public static ItemStack createPetCard(IpsecuzPet plugin, String petId, int level, int exp, int stars, String trait, String customName, List<String> unlockedSkills) {
@@ -80,7 +138,7 @@ public final class PetCardSecurity {
         meta.lore(lore);
 
         String cardUuid = UUID.randomUUID().toString();
-        String signature = computeSignature(plugin, cardUuid, petId, level, exp, stars, trait);
+        String signature = computeCanonicalSignature(plugin, CURRENT_SCHEMA, cardUuid, petId, level, exp, stars, trait, customName, unlockedSkills);
         String skillsSerialized = (unlockedSkills != null) ? String.join(",", unlockedSkills) : "";
 
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
@@ -142,6 +200,7 @@ public final class PetCardSecurity {
     }
 
     public static class PetCardData {
+        private final String cardUniqueId;
         private final String petId;
         private final int level;
         private final int exp;
@@ -150,7 +209,8 @@ public final class PetCardSecurity {
         private final String customName;
         private final List<String> unlockedSkills;
 
-        public PetCardData(String petId, int level, int exp, int stars, String trait, String customName, List<String> unlockedSkills) {
+        public PetCardData(String cardUniqueId, String petId, int level, int exp, int stars, String trait, String customName, List<String> unlockedSkills) {
+            this.cardUniqueId = cardUniqueId;
             this.petId = petId;
             this.level = level;
             this.exp = exp;
@@ -160,6 +220,11 @@ public final class PetCardSecurity {
             this.unlockedSkills = unlockedSkills;
         }
 
+        public PetCardData(String petId, int level, int exp, int stars, String trait, String customName, List<String> unlockedSkills) {
+            this(null, petId, level, exp, stars, trait, customName, unlockedSkills);
+        }
+
+        public String getCardUniqueId() { return cardUniqueId; }
         public String getPetId() { return petId; }
         public int getLevel() { return level; }
         public int getExp() { return exp; }
@@ -245,18 +310,36 @@ public final class PetCardSecurity {
             }
         }
 
-        // 7. Xác thực chữ ký an toàn nếu có Schema v2
+        // 7. Chống nhân bản (Anti-cloning): Kiểm tra thẻ đã từng bị tiêu hao chưa
+        String cardUuid = pdc.get(new NamespacedKey(plugin, "card_unique_id"), PersistentDataType.STRING);
+        if (cardUuid != null && isCardConsumed(plugin, cardUuid)) {
+            return new CardValidationResult(false, "Thẻ Thú Cưng này đã được sử dụng trước đó (đã bị tiêu hao / chống nhân bản)!", null);
+        }
+
+        // 8. Xác thực chữ ký an toàn nếu có Schema v2
         Integer schemaVersion = pdc.get(new NamespacedKey(plugin, "card_schema_version"), PersistentDataType.INTEGER);
         String signature = pdc.get(new NamespacedKey(plugin, "card_signature"), PersistentDataType.STRING);
-        String cardUuid = pdc.get(new NamespacedKey(plugin, "card_unique_id"), PersistentDataType.STRING);
 
         if (schemaVersion != null && schemaVersion >= 2 && signature != null && cardUuid != null) {
-            String expectedSig = computeSignature(plugin, cardUuid, petId, level, exp, stars, trait);
-            if (!signature.equals(expectedSig)) {
-                return new CardValidationResult(false, "Chữ ký xác thực bị giả mạo! Dữ liệu thẻ đã bị chỉnh sửa bất hợp pháp.", null);
+            String expectedCanonical = computeCanonicalSignature(plugin, schemaVersion, cardUuid, petId, level, exp, stars, trait, customName, unlockedSkills);
+            if (!signature.equals(expectedCanonical)) {
+                // Hỗ trợ kiểm tra dự phòng chuẩn SHA-256 cũ
+                String expectedLegacy = computeLegacySignature(plugin, cardUuid, petId, level, exp, stars, trait);
+                if (!signature.equals(expectedLegacy)) {
+                    return new CardValidationResult(false, "Chữ ký xác thực bị giả mạo! Dữ liệu thẻ đã bị chỉnh sửa bất hợp pháp.", null);
+                }
+            }
+        } else {
+            // Thẻ v1 cũ không có chữ ký
+            boolean allowLegacy = plugin.getConfig().getBoolean("security.allow_legacy_unsigned_cards", true);
+            if (!allowLegacy) {
+                return new CardValidationResult(false, "Máy chủ đã tắt chế độ chấp nhận Thẻ Pet phiên bản cũ không có chữ ký bảo mật.", null);
+            }
+            if (cardUuid == null) {
+                cardUuid = UUID.randomUUID().toString();
             }
         }
 
-        return new CardValidationResult(true, null, new PetCardData(petId, level, exp, stars, trait, customName, unlockedSkills));
+        return new CardValidationResult(true, null, new PetCardData(cardUuid, petId, level, exp, stars, trait, customName, unlockedSkills));
     }
 }

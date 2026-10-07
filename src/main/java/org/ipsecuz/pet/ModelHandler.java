@@ -21,6 +21,7 @@ public class ModelHandler {
     private final Map<UUID, EntityTracker> activeTrackers = new ConcurrentHashMap<>();
     private final Map<UUID, PetAnimationState> currentStates = new ConcurrentHashMap<>();
     private final Map<UUID, Long> stateExpirationMs = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> lastVisibilityCheck = new ConcurrentHashMap<>();
     private Boolean betterModelAvailable = null;
 
     public ModelHandler(IpsecuzPet plugin) {
@@ -89,10 +90,19 @@ public class ModelHandler {
     /**
      * Theo dõi tầm nhìn đa người chơi (Multiplayer Visibility Tracking):
      * Tự động hiển thị model cho người chơi trong phạm vi 48 blocks và ẩn khi ra xa.
+     * Throttled: kiểm tra tối đa 2 lần/giây cho mỗi thú cưng để tối ưu hiệu năng.
      */
     public void updateMultiplayerVisibility(Entity pet) {
         if (!isBetterModelInstalled() || pet == null) return;
-        EntityTracker tracker = activeTrackers.get(pet.getUniqueId());
+        UUID uuid = pet.getUniqueId();
+        long now = System.currentTimeMillis();
+        Long lastCheck = lastVisibilityCheck.get(uuid);
+        if (lastCheck != null && (now - lastCheck) < 500L) {
+            return;
+        }
+        lastVisibilityCheck.put(uuid, now);
+
+        EntityTracker tracker = activeTrackers.get(uuid);
         if (tracker == null || tracker.isClosed()) return;
 
         try {
@@ -220,6 +230,7 @@ public class ModelHandler {
         if (!isBetterModelInstalled()) return;
         currentStates.remove(baseEntityUuid);
         stateExpirationMs.remove(baseEntityUuid);
+        lastVisibilityCheck.remove(baseEntityUuid);
         EntityTracker tracker = activeTrackers.remove(baseEntityUuid);
         if (tracker != null && !tracker.isClosed()) {
             try {
@@ -232,6 +243,7 @@ public class ModelHandler {
         if (!isBetterModelInstalled()) return;
         currentStates.clear();
         stateExpirationMs.clear();
+        lastVisibilityCheck.clear();
         for (EntityTracker tracker : activeTrackers.values()) {
             if (tracker != null && !tracker.isClosed()) {
                 try {

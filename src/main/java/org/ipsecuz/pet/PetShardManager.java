@@ -65,7 +65,7 @@ public class PetShardManager {
                 "§eBạn đã sở hữu §f" + petName + "§e! Trứng chuyển hóa thành §b+" + shardYield + " Mảnh Pet " +
                         rarity.getFormattedName() + " §evà §a+" + bonusExp + " EXP§e!"));
 
-        plugin.getPetManager().givePetExp(player, bonusExp);
+        plugin.getPetManager().giveSpecificPetExp(player, petId, bonusExp);
         player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1f, 1.2f);
     }
 }

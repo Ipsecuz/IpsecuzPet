@@ -61,4 +61,48 @@ public class PetCardSecurityTest {
         String wrongSalt = computeTestSignature(cardUuid, petId, level, exp, stars, trait, "foreign-server-salt");
         assertNotEquals(validSig, wrongSalt, "Cards forged on a different server must fail signature check");
     }
+
+    @Test
+    public void testComputeHmacSha256DeterminismAndLength() {
+        String key = "secure-server-salt-key-999";
+        String data = "2:uuid-1234:dragon:50:500:3:TITAN:Shadow:skill1,skill2";
+
+        String sig1 = PetCardSecurity.computeHmacSha256(key, data);
+        String sig2 = PetCardSecurity.computeHmacSha256(key, data);
+
+        assertNotNull(sig1);
+        assertEquals(32, sig1.length(), "HMAC signature should be 32 hex characters");
+        assertEquals(sig1, sig2, "Identical key and data must yield identical HMAC signature");
+    }
+
+    @Test
+    public void testComputeHmacSha256DifferentKeysProduceDistinctOutputs() {
+        String data = "2:uuid-1234:dragon:50:500:3:TITAN:Shadow:skill1,skill2";
+        String keyA = "server-salt-alpha";
+        String keyB = "server-salt-beta";
+
+        String sigA = PetCardSecurity.computeHmacSha256(keyA, data);
+        String sigB = PetCardSecurity.computeHmacSha256(keyB, data);
+
+        assertNotEquals(sigA, sigB, "Different server salt keys must produce different signatures");
+    }
+
+    @Test
+    public void testCanonicalPayloadTamperSensitivity() {
+        String key = "secure-salt";
+        String base = "2:uuid-card-1:fire_dragon:10:200:1:NONE:Sparky:slash";
+        String sigBase = PetCardSecurity.computeHmacSha256(key, base);
+
+        // Schema version tamper
+        String tamperedSchema = PetCardSecurity.computeHmacSha256(key, "1:uuid-card-1:fire_dragon:10:200:1:NONE:Sparky:slash");
+        assertNotEquals(sigBase, tamperedSchema);
+
+        // Custom name tamper
+        String tamperedName = PetCardSecurity.computeHmacSha256(key, "2:uuid-card-1:fire_dragon:10:200:1:NONE:HackedName:slash");
+        assertNotEquals(sigBase, tamperedName);
+
+        // Skill list tamper
+        String tamperedSkills = PetCardSecurity.computeHmacSha256(key, "2:uuid-card-1:fire_dragon:10:200:1:NONE:Sparky:slash,god_mode");
+        assertNotEquals(sigBase, tamperedSkills);
+    }
 }

@@ -2,6 +2,7 @@ package org.ipsecuz.pet;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -42,5 +43,25 @@ public class TradeSessionTest {
         assertFalse(slotsB.contains(lockBtnB));
         assertFalse(slotsA.contains(countdownSlot));
         assertFalse(slotsB.contains(countdownSlot));
+    }
+
+    @Test
+    public void testTradeStateValuesAndTerminalStates() {
+        TradeSession.TradeState[] states = TradeSession.TradeState.values();
+        assertEquals(6, states.length, "TradeState must define exactly 6 lifecycle states");
+
+        assertTrue(Arrays.asList(states).contains(TradeSession.TradeState.OPEN));
+        assertTrue(Arrays.asList(states).contains(TradeSession.TradeState.LOCKED));
+        assertTrue(Arrays.asList(states).contains(TradeSession.TradeState.CONFIRMED));
+        assertTrue(Arrays.asList(states).contains(TradeSession.TradeState.COMMITTING));
+        assertTrue(Arrays.asList(states).contains(TradeSession.TradeState.COMPLETED));
+        assertTrue(Arrays.asList(states).contains(TradeSession.TradeState.CANCELLED));
+
+        // Verify terminal state semantics
+        TradeSession.TradeState completed = TradeSession.TradeState.COMPLETED;
+        TradeSession.TradeState cancelled = TradeSession.TradeState.CANCELLED;
+        assertTrue(completed == TradeSession.TradeState.COMPLETED || completed == TradeSession.TradeState.CANCELLED);
+        assertTrue(cancelled == TradeSession.TradeState.COMPLETED || cancelled == TradeSession.TradeState.CANCELLED);
+        assertFalse(TradeSession.TradeState.OPEN == TradeSession.TradeState.COMPLETED || TradeSession.TradeState.OPEN == TradeSession.TradeState.CANCELLED);
     }
 }

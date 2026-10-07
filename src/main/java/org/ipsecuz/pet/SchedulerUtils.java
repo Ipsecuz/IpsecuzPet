@@ -51,6 +51,15 @@ public class SchedulerUtils {
         }
     }
 
+    // 2.5 Chạy Async với độ trễ (delayTicks)
+    public static void runAsyncLater(Plugin plugin, Runnable task, long delayTicks) {
+        if (isFolia) {
+            Bukkit.getAsyncScheduler().runDelayed(plugin, (st) -> task.run(), delayTicks * 50L, java.util.concurrent.TimeUnit.MILLISECONDS);
+        } else {
+            Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, task, delayTicks);
+        }
+    }
+
     // 3. Chạy Task trên Entity
     public static void runEntityTask(Plugin plugin, Entity entity, Runnable task) {
         if (entity == null || !entity.isValid()) return;

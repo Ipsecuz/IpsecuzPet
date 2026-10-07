@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class ConfigManager {
     public static final int CURRENT_SCHEMA_VERSION = 2;
@@ -18,6 +19,7 @@ public class ConfigManager {
     private File dataFile;
     private FileConfiguration dataConfig;
     private final Object saveLock = new Object();
+    private final ReentrantLock diskLock = new ReentrantLock();
     private final AtomicBoolean isDirty = new AtomicBoolean(false);
     private boolean saveScheduled = false;
 
@@ -65,12 +67,8 @@ public class ConfigManager {
             saveScheduled = true;
         }
 
-        // Lên lịch lưu sau 2.5 giây
-        SchedulerUtils.runAsync(plugin, () -> {
-            try {
-                Thread.sleep(2500L);
-            } catch (InterruptedException ignored) {}
-
+        // Lên lịch lưu sau 2.5 giây không gây block worker thread
+        SchedulerUtils.runAsyncLater(plugin, () -> {
             String snapshotContent = null;
             synchronized (saveLock) {
                 saveScheduled = false;
@@ -81,7 +79,7 @@ public class ConfigManager {
             if (snapshotContent != null) {
                 performDiskWrite(snapshotContent);
             }
-        });
+        }, 50L);
     }
 
     /**
@@ -102,6 +100,7 @@ public class ConfigManager {
 
     private void performDiskWrite(String content) {
         if (content == null || dataFile == null) return;
+        diskLock.lock();
         try {
             // Tạo bản sao lưu an toàn trước khi ghi
             if (dataFile.exists() && dataFile.length() > 0) {
@@ -111,6 +110,8 @@ public class ConfigManager {
             Files.writeString(dataFile.toPath(), content, java.nio.charset.StandardCharsets.UTF_8);
         } catch (IOException e) {
             plugin.getLogger().severe("Lỗi nghiêm trọng khi ghi file data.yml: " + e.getMessage());
+        } finally {
+            diskLock.unlock();
         }
     }
 

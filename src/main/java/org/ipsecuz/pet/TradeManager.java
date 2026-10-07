@@ -11,7 +11,22 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class TradeManager {
     private final IpsecuzPet plugin;
-    private final Map<UUID, UUID> pendingTrades = new ConcurrentHashMap<>();
+    public static class TradeRequest {
+        private final UUID senderId;
+        private final long timestamp;
+
+        public TradeRequest(UUID senderId, long timestamp) {
+            this.senderId = senderId;
+            this.timestamp = timestamp;
+        }
+
+        public UUID getSenderId() { return senderId; }
+        public boolean isExpired(long timeoutMs) {
+            return (System.currentTimeMillis() - timestamp) > timeoutMs;
+        }
+    }
+
+    private final Map<UUID, TradeRequest> pendingTrades = new ConcurrentHashMap<>();
     private final Set<TradeSession> activeSessions = ConcurrentHashMap.newKeySet();
 
     public TradeManager(IpsecuzPet plugin) {
@@ -21,6 +36,11 @@ public class TradeManager {
     public void sendTradeRequest(Player sender, Player target) {
         if (!plugin.getModuleManager().isTradeEnabled()) {
             sender.sendMessage("§cTính năng Giao Dịch Pet hiện đang bị tắt bởi máy chủ!");
+            return;
+        }
+
+        if (!sender.hasPermission("ipsecuzpet.trade")) {
+            sender.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
             return;
         }
 
@@ -34,8 +54,9 @@ public class TradeManager {
             return;
         }
 
-        pendingTrades.put(target.getUniqueId(), sender.getUniqueId());
-        sender.sendMessage("§aĐã gửi lời mời giao dịch Pet tới §e" + target.getName() + "§a.");
+        long timeoutMs = plugin.getModuleManager().getTradeConfig().getInt("trade_request_timeout_seconds", 60) * 1000L;
+        pendingTrades.put(target.getUniqueId(), new TradeRequest(sender.getUniqueId(), System.currentTimeMillis()));
+        sender.sendMessage("§aĐã gửi lời mời giao dịch Pet tới §e" + target.getName() + "§a (Hết hạn sau 60s).");
         target.sendMessage("§e" + sender.getName() + " §7muốn giao dịch Pet với bạn! Nhập §b/pet trade accept §7để chấp nhận.");
         target.playSound(target.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
     }
@@ -46,13 +67,19 @@ public class TradeManager {
             return;
         }
 
-        UUID senderId = pendingTrades.remove(accepter.getUniqueId());
-        if (senderId == null) {
-            accepter.sendMessage("§cBạn không có lời mời giao dịch Pet nào.");
+        if (!accepter.hasPermission("ipsecuzpet.trade")) {
+            accepter.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
             return;
         }
 
-        Player sender = Bukkit.getPlayer(senderId);
+        TradeRequest req = pendingTrades.remove(accepter.getUniqueId());
+        long timeoutMs = plugin.getModuleManager().getTradeConfig().getInt("trade_request_timeout_seconds", 60) * 1000L;
+        if (req == null || req.isExpired(timeoutMs)) {
+            accepter.sendMessage("§cBạn không có lời mời giao dịch Pet nào (hoặc lời mời đã hết hạn).");
+            return;
+        }
+
+        Player sender = Bukkit.getPlayer(req.getSenderId());
         if (sender == null || !sender.isOnline()) {
             accepter.sendMessage("§cNgười gửi lời mời hiện đã offline!");
             return;
@@ -66,6 +93,17 @@ public class TradeManager {
         TradeSession session = new TradeSession(plugin, sender, accepter);
         activeSessions.add(session);
         session.open();
+    }
+
+    public void handlePlayerQuit(Player player) {
+        if (player == null) return;
+        UUID uuid = player.getUniqueId();
+        TradeSession session = getSession(player);
+        if (session != null) {
+            session.cancel(player.getName() + " đã thoát game.");
+        }
+        pendingTrades.remove(uuid);
+        pendingTrades.entrySet().removeIf(entry -> entry.getValue().getSenderId().equals(uuid));
     }
 
     public boolean isInTrade(Player player) {
