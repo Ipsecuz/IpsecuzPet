@@ -174,7 +174,7 @@ public final class PetCardSecurity {
             }
             return hexString.toString();
         } catch (NoSuchAlgorithmException e) {
-            return Integer.toHexString(payload.hashCode());
+            throw new SecurityException("Không thể khởi tạo thuật toán SHA-256 cho chữ ký cũ", e);
         }
     }
 
@@ -188,6 +188,7 @@ public final class PetCardSecurity {
         PetRarity rarity = PetRarity.fromPetId(plugin, petId);
 
         ItemStack item = new ItemStack(Material.DRAGON_EGG);
+        item.setAmount(1);
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
 
@@ -326,6 +327,10 @@ public final class PetCardSecurity {
     public static CardValidationResult validateAndExtractCard(IpsecuzPet plugin, ItemStack item) {
         if (item == null || !item.hasItemMeta()) {
             return new CardValidationResult(false, "Vật phẩm không hợp lệ hoặc không có dữ liệu meta.", null);
+        }
+
+        if (item.getAmount() != 1) {
+            return new CardValidationResult(false, "Số lượng thẻ Pet phải chính xác là 1 (chống nhân bản/gộp stack).", null);
         }
 
         ItemMeta meta = item.getItemMeta();

@@ -116,6 +116,9 @@ trade:
   ready_desc: "&7Preparing confirmation..."
   waiting_lock: "&c&lWAITING FOR LOCK"
   waiting_lock_desc: "&7Both players must lock their offers to proceed."
+  invalid_card: "&cOnly valid, unconsumed Pet Cards can be placed in trade!"
+  not_enough_space: "&cNot enough inventory space to complete trade!"
+  atomic_rollback: "&cTrade encountered an exception and was atomically rolled back."
 
 skills:
   disabled: "&cPet Skills are currently disabled on this server!"
@@ -132,6 +135,7 @@ skills:
 feeding:
   not_holding_food: "&cYou must hold valid pet food in your main hand to feed your pet!"
   full: "&eYour pet is completely full (%happiness%%)!"
+  feed_success: "&aSuccessfully fed pet! Happiness: &e%happiness%%"
 
 evolution:
   max_stars: "&ePet has reached maximum star tier (%stars% ⭐)!"
@@ -218,6 +222,9 @@ card:
   nickname: "&7Nickname: &f%nickname%"
   skills: "&7Unlocked Skills: &e%amount% skill(s)"
   click_redeem: "&e[Right-click to Summon]"
+  invalid_amount: "&cPet Card must have an amount of exactly 1."
+  consumed: "&cThis card has already been consumed (anti-clone)!"
+  invalid_signature: "&cInvalid card security signature or data modified!"
 
 hatching:
   disabled: "&cThe Hatching & Gacha system is currently disabled by the server!"
@@ -228,6 +235,14 @@ hatching:
   full_storage_reward: "&e[Pet Storage Full] You reached the pet limit! Converted reward to Pet Shards."
   success: "&a&lCONGRATULATIONS! &fYou hatched: %pet% &7(Rarity: %rarity%&7, Trait: %trait%&7)"
   broadcast: "&6&l[IPSECUZ PET] &ePlayer &f%player% &ejust hatched a %rarity% &e%pet%&e!"
+  title_secret: "&5&l??? MYSTERIOUS ???"
+  subtitle_secret: "&d✦ SECRET TREASURE: %pet%"
+  title_eternal: "&4&l⚔ IMMORTAL MYTHIC ⚔"
+  subtitle_eternal: "&c&l%pet%"
+  title_legendary: "&6&l★ LEGENDARY APPEARED! ★"
+  title_rare: "&d&l✦ HATCH SUCCESS! ✦"
+  title_default: "&a&lHATCH SUCCESS!"
+  subtitle_default: "&eObtained: %pet%"
 
 help:
   header: "&8&m------------------------"

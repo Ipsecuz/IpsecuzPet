@@ -30,7 +30,9 @@ public class TradeManager {
 
     public enum TradeCommitStatus {
         PREPARED,
-        COMMITTED
+        COMMITTING,
+        COMMITTED,
+        ROLLED_BACK
     }
 
     public static class TradeCommitRecord {
@@ -81,7 +83,7 @@ public class TradeManager {
         plugin.getConfigManager().forceSave();
     }
 
-    public void markTradeCommitted(UUID tradeId) {
+    public void markTradeStatus(UUID tradeId, TradeCommitStatus newStatus) {
         TradeCommitRecord current = committingTrades.get(tradeId);
         if (current != null) {
             committingTrades.put(tradeId, new TradeCommitRecord(
@@ -90,15 +92,23 @@ public class TradeManager {
                     current.getPlayerB(),
                     current.getItemsFromA(),
                     current.getItemsFromB(),
-                    TradeCommitStatus.COMMITTED,
+                    newStatus,
                     current.getTimestamp()
             ));
         }
         String path = "pending_trade." + tradeId;
         if (plugin.getConfigManager().getData().contains(path)) {
-            plugin.getConfigManager().getData().set(path + ".status", TradeCommitStatus.COMMITTED.name());
+            plugin.getConfigManager().getData().set(path + ".status", newStatus.name());
             plugin.getConfigManager().forceSave();
         }
+    }
+
+    public void markTradeCommitted(UUID tradeId) {
+        markTradeStatus(tradeId, TradeCommitStatus.COMMITTED);
+    }
+
+    public void markTradeRolledBack(UUID tradeId) {
+        markTradeStatus(tradeId, TradeCommitStatus.ROLLED_BACK);
     }
 
     public void removeCommittingTrade(UUID tradeId) {
@@ -129,9 +139,10 @@ public class TradeManager {
                     status = TradeCommitStatus.PREPARED;
                 }
 
-                // Nếu đã COMMITTED trước khi tắt server, việc chuyển đồ đã thành công hoàn tất -> TUYỆT ĐỐI không hoàn trả tránh nhân bản đồ!
-                if (status == TradeCommitStatus.COMMITTED) {
-                    plugin.getLogger().info("§a[IpsecuzPet] Giao dịch " + tradeId + " đã hoàn tất bàn giao trước khi tắt server. Dọn dẹp nhật ký.");
+                // CHỈ hoàn trả nếu trạng thái là PREPARED (chưa bắt đầu commit bàn giao).
+                // Nếu COMMITTED, ROLLED_BACK hoặc COMMITTING: tuyệt đối không hoàn trả tránh nhân bản đồ!
+                if (status != TradeCommitStatus.PREPARED) {
+                    plugin.getLogger().info("§a[IpsecuzPet] Giao dịch " + tradeId + " (" + status + ") không cần hoàn trả. Dọn dẹp nhật ký.");
                     sec.set(key, null);
                     continue;
                 }

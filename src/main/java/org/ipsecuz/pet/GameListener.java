@@ -18,6 +18,7 @@ import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.*;
@@ -32,10 +33,22 @@ public class GameListener implements Listener {
     }
 
     private boolean isPet(Entity e) {
-        return e.getPersistentDataContainer().has(plugin.getPetManager().petKey, PersistentDataType.STRING);
+        if (e == null) return false;
+        PersistentDataContainer pdc = e.getPersistentDataContainer();
+        if (!pdc.has(plugin.getPetManager().petKey, PersistentDataType.STRING)) return false;
+        if (!pdc.has(plugin.getPetManager().petIdKey, PersistentDataType.STRING)) return false;
+        String s = pdc.get(plugin.getPetManager().petKey, PersistentDataType.STRING);
+        if (s == null) return false;
+        try {
+            UUID.fromString(s);
+            return true;
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
     }
 
     private UUID getOwnerId(Entity e) {
+        if (e == null) return null;
         String s = e.getPersistentDataContainer().get(plugin.getPetManager().petKey, PersistentDataType.STRING);
         if (s == null) return null;
         try {
@@ -43,6 +56,17 @@ public class GameListener implements Listener {
         } catch (IllegalArgumentException ex) {
             return null;
         }
+    }
+
+    private String getPetId(Entity e) {
+        if (e == null) return null;
+        PersistentDataContainer pdc = e.getPersistentDataContainer();
+        String id = pdc.get(plugin.getPetManager().petIdKey, PersistentDataType.STRING);
+        if (id != null && !id.trim().isEmpty()) {
+            return id;
+        }
+        UUID ownerId = getOwnerId(e);
+        return ownerId != null ? plugin.getPetManager().getActivePetId(ownerId) : null;
     }
 
     @EventHandler
@@ -69,6 +93,12 @@ public class GameListener implements Listener {
             if (e.getAction().toString().contains("RIGHT")) {
                 Player p = e.getPlayer();
                 LanguageManager lang = plugin.getLanguage();
+
+                if (item.getAmount() != 1) {
+                    p.sendMessage("§c§l[LỖI THẺ PET] §cSố lượng thẻ Pet phải chính xác là 1 (chống nhân bản/gộp stack).");
+                    p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                    return;
+                }
 
                 PetCardSecurity.CardValidationResult result = PetCardSecurity.validateAndExtractCard(plugin, item);
                 if (!result.isValid()) {
@@ -409,21 +439,11 @@ public class GameListener implements Listener {
                     }
                 }
 
-                String petId = plugin.getPetManager().getActivePetId(ownerId);
+                String petId = getPetId(e.getDamager());
                 if (petId != null) {
                     ConfigManager cm = plugin.getConfigManager();
                     int lvl = cm.getData().getInt(ownerId + ".pets." + petId + ".level", 1);
-                    double baseDamage = PetStatEngine.calculateEffectiveStat(plugin, ownerId, petId, lvl, "damage");
-
-                    String traitName = cm.getData().getString(ownerId + ".pets." + petId + ".trait", "NONE");
-                    PetTrait trait = PetTrait.fromString(traitName);
-                    double traitMultiplier = trait.getDamageMultiplier();
-
-                    int happy = cm.getData().getInt(ownerId + ".pets." + petId + ".happiness", 100);
-                    double happyMultiplier = (plugin.getHappinessModifierEngine() != null)
-                            ? plugin.getHappinessModifierEngine().getDamageMultiplier(happy) : 1.0;
-
-                    double finalPetDamage = baseDamage * traitMultiplier * happyMultiplier;
+                    double finalPetDamage = PetStatEngine.calculateEffectiveStat(plugin, ownerId, petId, lvl, "damage");
 
                     Player petOwner = Bukkit.getPlayer(ownerId);
                     if (petOwner != null && plugin.getSkillManager() != null) {
@@ -454,11 +474,11 @@ public class GameListener implements Listener {
             if (p1 != null && p2 != null && plugin.getPetManager().activeDuels.containsKey(p1) && p2.equals(plugin.getPetManager().activeDuels.get(p1))) {
                 e.setCancelled(false);
                 ConfigManager cm = plugin.getConfigManager();
-                String petId1 = plugin.getPetManager().getActivePetId(p1);
+                String petId1 = getPetId(e.getDamager());
                 int lvl1 = cm.getData().getInt(p1 + ".pets." + petId1 + ".level", 1);
                 double damage = PetStatEngine.calculateEffectiveStat(plugin, p1, petId1, lvl1, "damage");
 
-                String petId2 = plugin.getPetManager().getActivePetId(p2);
+                String petId2 = getPetId(e.getEntity());
                 int lvl2 = cm.getData().getInt(p2 + ".pets." + petId2 + ".level", 1);
                 double defense = PetStatEngine.calculateEffectiveStat(plugin, p2, petId2, lvl2, "defense");
 
@@ -508,7 +528,7 @@ public class GameListener implements Listener {
         Entity pet = e.getEntity();
         UUID ownerId = getOwnerId(pet);
         if (ownerId == null) return;
-        String petId = plugin.getPetManager().getActivePetId(ownerId);
+        String petId = getPetId(pet);
 
         // Phát hoạt ảnh và hiệu ứng DEATH cinematic
         try {

@@ -1,7 +1,7 @@
 name: IpsecuzPet
 version: 2.1
 main: org.ipsecuz.pet.IpsecuzPet
-api-version: 1.19
+api-version: 1.20
 folia-supported: true
 authors: [Ipsecuz]
 description: Plugin Pet RPG System - Stats, Duel, Mount, Shop, Hatching, Skills, Modules.

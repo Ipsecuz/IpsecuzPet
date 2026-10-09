@@ -15,7 +15,7 @@ public class HatchingSessionSecurityTest {
         UUID playerId = UUID.randomUUID();
         HatchingManager.PendingHatchSession session = new HatchingManager.PendingHatchSession(playerId, "legendary_egg", "dragon_pet");
 
-        assertEquals(HatchingManager.HatchState.PENDING, session.getState());
+        assertEquals(HatchingManager.HatchState.CREATED, session.getState());
 
         // First commit succeeds
         boolean firstCommit = session.markCommitted();

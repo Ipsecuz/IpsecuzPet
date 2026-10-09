@@ -54,29 +54,41 @@ public class HatchingManager {
     }
 
     public enum HatchState {
-        PENDING,
+        CREATED,
+        PAYMENT_PROCESSING,
+        PAID,
         PROCESSING,
         COMPLETED,
-        FAILED
+        FAILED,
+        RECOVERABLE
     }
 
     public static class PendingHatchSession {
+        public static final int CURRENT_SCHEMA = 2;
         private final UUID playerUuid;
         private final String eggId;
         private final String winningPetId;
-        private volatile HatchState state = HatchState.PENDING;
+        private volatile HatchState state;
         private final long timestamp;
+        private final int schemaVersion;
+        private final boolean paymentCommitted;
 
         public PendingHatchSession(UUID playerUuid, String eggId, String winningPetId) {
-            this(playerUuid, eggId, winningPetId, HatchState.PENDING, System.currentTimeMillis());
+            this(playerUuid, eggId, winningPetId, HatchState.CREATED, System.currentTimeMillis(), CURRENT_SCHEMA, false);
         }
 
         public PendingHatchSession(UUID playerUuid, String eggId, String winningPetId, HatchState state, long timestamp) {
+            this(playerUuid, eggId, winningPetId, state, timestamp, CURRENT_SCHEMA, state == HatchState.PAID || state == HatchState.PROCESSING || state == HatchState.COMPLETED);
+        }
+
+        public PendingHatchSession(UUID playerUuid, String eggId, String winningPetId, HatchState state, long timestamp, int schemaVersion, boolean paymentCommitted) {
             this.playerUuid = playerUuid;
             this.eggId = eggId;
             this.winningPetId = winningPetId;
             this.state = state;
             this.timestamp = timestamp;
+            this.schemaVersion = schemaVersion;
+            this.paymentCommitted = paymentCommitted;
         }
 
         public UUID getPlayerUuid() { return playerUuid; }
@@ -85,6 +97,8 @@ public class HatchingManager {
         public HatchState getState() { return state; }
         public void setState(HatchState state) { this.state = state; }
         public long getTimestamp() { return timestamp; }
+        public int getSchemaVersion() { return schemaVersion; }
+        public boolean isPaymentCommitted() { return paymentCommitted; }
 
         public synchronized boolean markCommitted() {
             if (this.state == HatchState.COMPLETED) {
@@ -106,16 +120,48 @@ public class HatchingManager {
     public void loadPendingSessions() {
         var sec = plugin.getConfigManager().getData().getConfigurationSection("pending_hatch");
         if (sec != null) {
-            for (String key : sec.getKeys(false)) {
+            for (String key : new ArrayList<>(sec.getKeys(false))) {
                 try {
                     UUID u = UUID.fromString(key);
                     String eggId = sec.getString(key + ".egg_id");
                     String winPet = sec.getString(key + ".winning_pet_id");
-                    String stStr = sec.getString(key + ".state", "PENDING");
+                    String stStr = sec.getString(key + ".state", "CREATED");
                     long time = sec.getLong(key + ".timestamp", System.currentTimeMillis());
-                    HatchState st = HatchState.valueOf(stStr);
-                    pendingHatchSessions.put(u, new PendingHatchSession(u, eggId, winPet, st, time));
-                } catch (Exception ignored) {}
+                    int schema = sec.getInt(key + ".schema_version", 1);
+                    boolean paid = sec.getBoolean(key + ".payment_committed", false);
+
+                    if (eggId == null || !plugin.getModuleManager().getHatchingConfig().contains("eggs." + eggId)) {
+                        plugin.getLogger().warning("[Hatching] Rejected pending hatch record with invalid eggId: " + eggId);
+                        sec.set(key, null);
+                        continue;
+                    }
+
+                    if (winPet == null || !plugin.getConfig().contains("pets." + winPet)) {
+                        plugin.getLogger().warning("[Hatching] Rejected pending hatch record with invalid petId: " + winPet);
+                        sec.set(key, null);
+                        continue;
+                    }
+
+                    if (time <= 0 || time > System.currentTimeMillis() + 60_000L) {
+                        plugin.getLogger().warning("[Hatching] Rejected pending hatch record with invalid timestamp: " + time);
+                        sec.set(key, null);
+                        continue;
+                    }
+
+                    HatchState st;
+                    try {
+                        st = HatchState.valueOf(stStr);
+                    } catch (IllegalArgumentException ex) {
+                        plugin.getLogger().warning("[Hatching] Rejected pending hatch record with unknown state: " + stStr);
+                        sec.set(key, null);
+                        continue;
+                    }
+
+                    pendingHatchSessions.put(u, new PendingHatchSession(u, eggId, winPet, st, time, schema, paid));
+                } catch (Exception ex) {
+                    plugin.getLogger().warning("[Hatching] Error loading pending session for key " + key + ": " + ex.getMessage());
+                    sec.set(key, null);
+                }
             }
         }
     }
@@ -127,6 +173,8 @@ public class HatchingManager {
         plugin.getConfigManager().getData().set(path + ".winning_pet_id", session.getWinningPetId());
         plugin.getConfigManager().getData().set(path + ".state", session.getState().name());
         plugin.getConfigManager().getData().set(path + ".timestamp", session.getTimestamp());
+        plugin.getConfigManager().getData().set(path + ".schema_version", session.getSchemaVersion());
+        plugin.getConfigManager().getData().set(path + ".payment_committed", session.isPaymentCommitted());
         plugin.getConfigManager().forceSave();
     }
 
@@ -137,23 +185,24 @@ public class HatchingManager {
     }
 
     public void recordPendingHatch(UUID uuid, String eggId, String winningPetId, HatchState state) {
-        PendingHatchSession session = new PendingHatchSession(uuid, eggId, winningPetId, state, System.currentTimeMillis());
+        boolean paid = (state == HatchState.PAID || state == HatchState.PROCESSING || state == HatchState.COMPLETED);
+        PendingHatchSession session = new PendingHatchSession(uuid, eggId, winningPetId, state, System.currentTimeMillis(), PendingHatchSession.CURRENT_SCHEMA, paid);
         pendingHatchSessions.put(uuid, session);
         persistPendingSession(session);
     }
 
     public void recordPendingHatch(UUID uuid, String eggId, String winningPetId) {
-        recordPendingHatch(uuid, eggId, winningPetId, HatchState.PENDING);
+        recordPendingHatch(uuid, eggId, winningPetId, HatchState.CREATED);
     }
 
     public void resolvePendingHatchOnJoin(Player player) {
         if (player == null) return;
         PendingHatchSession session = pendingHatchSessions.get(player.getUniqueId());
         if (session != null) {
-            if (session.getState() == HatchState.PROCESSING) {
-                plugin.getLogger().info("§e[IpsecuzPet] Đang tự động trao thưởng ấp trứng chưa nhận cho: " + player.getName());
+            if (session.isPaymentCommitted() || session.getState() == HatchState.PAID || session.getState() == HatchState.PROCESSING || session.getState() == HatchState.RECOVERABLE) {
+                plugin.getLogger().info("§e[IpsecuzPet] Đang tự động trao thưởng ấp trứng đã thanh toán cho: " + player.getName());
                 completeHatchReward(player.getUniqueId(), session.getWinningPetId(), true);
-            } else if (session.getState() == HatchState.PENDING || session.getState() == HatchState.FAILED) {
+            } else {
                 pendingHatchSessions.remove(player.getUniqueId());
                 removePersistedPendingSession(player.getUniqueId());
             }
@@ -272,13 +321,13 @@ public class HatchingManager {
         ItemStack info = new ItemStack(Material.BOOK);
         ItemMeta infoMeta = info.getItemMeta();
         if (infoMeta != null) {
-            infoMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&e&lHƯỚNG DẪN ẤP TRỨNG & QUAY PET")));
+            infoMeta.displayName(GuiText.component("&e&lHƯỚNG DẪN ẤP TRỨNG & QUAY PET"));
             List<Component> infoLore = new ArrayList<>();
-            infoLore.add(Component.text("§7- Nhấp chuột phải vào quả trứng trên tay"));
-            infoLore.add(Component.text("§7  hoặc nhấp trực tiếp vào biểu tượng trên GUI."));
-            infoLore.add(Component.text("§7- Vòng quay Roulette sống động với hiệu ứng âm thanh!"));
-            infoLore.add(Component.text("§7- Pet dừng lại ở ô giữa sẽ thuộc về bạn!"));
-            infoLore.add(Component.text("§7- Nếu quay trùng pet: nhận Mảnh Pet & EXP thưởng!"));
+            infoLore.add(GuiText.component("&7- Nhấp chuột phải vào quả trứng trên tay"));
+            infoLore.add(GuiText.component("&7  hoặc nhấp trực tiếp vào biểu tượng trên GUI."));
+            infoLore.add(GuiText.component("&7- Vòng quay Roulette sống động với hiệu ứng âm thanh!"));
+            infoLore.add(GuiText.component("&7- Pet dừng lại ở ô giữa sẽ thuộc về bạn!"));
+            infoLore.add(GuiText.component("&7- Nếu quay trùng pet: nhận Mảnh Pet & EXP thưởng!"));
             infoMeta.lore(infoLore);
             info.setItemMeta(infoMeta);
         }
@@ -369,12 +418,15 @@ public class HatchingManager {
             return;
         }
 
-        // 3. Ghi nhận giao dịch PENDING bền vững TRƯỚC KHI thực hiện trừ phí thanh toán
-        PendingHatchSession session = new PendingHatchSession(player.getUniqueId(), eggId, winningPetId, HatchState.PENDING, System.currentTimeMillis());
+        // 3. Ghi nhận giao dịch CREATED bền vững
+        PendingHatchSession session = new PendingHatchSession(player.getUniqueId(), eggId, winningPetId, HatchState.CREATED, System.currentTimeMillis(), PendingHatchSession.CURRENT_SCHEMA, false);
         pendingHatchSessions.put(player.getUniqueId(), session);
         persistPendingSession(session);
 
-        // 4. Khấu trừ chi phí giao dịch sau khi mọi điều kiện hợp lệ
+        // 4. Khấu trừ chi phí giao dịch với trạng thái PAYMENT_PROCESSING
+        session.setState(HatchState.PAYMENT_PROCESSING);
+        persistPendingSession(session);
+
         if (!checkAndDeductRequirements(player, eggSec, consumedItem)) {
             session.setState(HatchState.FAILED);
             pendingHatchSessions.remove(player.getUniqueId());
@@ -383,9 +435,13 @@ public class HatchingManager {
             return;
         }
 
-        // 5. Nâng cấp trạng thái lên PROCESSING sau khi đã thanh toán thành công
-        session.setState(HatchState.PROCESSING);
-        persistPendingSession(session);
+        // 5. Nâng cấp trạng thái lên PAID (đã thanh toán bền vững) rồi PROCESSING
+        PendingHatchSession paidSession = new PendingHatchSession(player.getUniqueId(), eggId, winningPetId, HatchState.PAID, System.currentTimeMillis(), PendingHatchSession.CURRENT_SCHEMA, true);
+        pendingHatchSessions.put(player.getUniqueId(), paidSession);
+        persistPendingSession(paidSession);
+
+        paidSession.setState(HatchState.PROCESSING);
+        persistPendingSession(paidSession);
 
         // 6. Bắt đầu vòng quay Roulette với phiên theo dõi an toàn
         startGachaRoulette(player, eggId, eggSec, candidatePetIds, winningPetId);
@@ -433,10 +489,10 @@ public class HatchingManager {
             meta.displayName(LegacyComponentSerializer.legacySection().deserialize(
                     ChatColor.translateAlternateColorCodes('&', (isWinner ? "&6&l★ " : "&f") + name)));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.text("§7Mã Pet: §e" + petId));
-            lore.add(Component.text("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
+            lore.add(GuiText.component("&7Mã Pet: &e" + petId));
+            lore.add(GuiText.component("&7Độ hiếm: " + rarity.getLocalizedName(plugin)));
             if (isWinner) {
-                lore.add(Component.text("§a§l✔ PHẦN THƯỞNG CỦA BẠN!"));
+                lore.add(GuiText.component("&a&l✔ PHẦN THƯỞNG CỦA BẠN!"));
             }
             meta.lore(lore);
             item.setItemMeta(meta);
@@ -658,8 +714,10 @@ public class HatchingManager {
             String subtitleText = "&eNhận được: " + petDisplayName;
 
             if (rarity == PetRarity.SECRET) {
-                titleText = "&5&l??? HUYỀN BÍ ???";
-                subtitleText = "&d✦ KHO BÁU BÍ MẬT: " + petDisplayName;
+                titleText = (lang != null && !lang.getMessage("hatching.title_secret").startsWith("§cMissing"))
+                        ? lang.getMessage("hatching.title_secret") : "&5&l??? HUYỀN BÍ ???";
+                subtitleText = (lang != null && !lang.getMessage("hatching.subtitle_secret").startsWith("§cMissing"))
+                        ? lang.getMessage("hatching.subtitle_secret", "%pet%", petDisplayName) : "&d✦ KHO BÁU BÍ MẬT: " + petDisplayName;
                 player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 1.2f, 0.8f);
                 player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1.2f, 1.1f);
                 try {
@@ -668,8 +726,10 @@ public class HatchingManager {
                 } catch (Exception ignored) {}
 
             } else if (rarity == PetRarity.ETERNAL) {
-                titleText = "&4&l⚔ THẦN THOẠI BẤT TỬ ⚔";
-                subtitleText = "&c&l" + petDisplayName;
+                titleText = (lang != null && !lang.getMessage("hatching.title_eternal").startsWith("§cMissing"))
+                        ? lang.getMessage("hatching.title_eternal") : "&4&l⚔ THẦN THOẠI BẤT TỬ ⚔";
+                subtitleText = (lang != null && !lang.getMessage("hatching.subtitle_eternal").startsWith("§cMissing"))
+                        ? lang.getMessage("hatching.subtitle_eternal", "%pet%", petDisplayName) : "&c&l" + petDisplayName;
                 player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1.5f, 1f);
                 player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.5f, 1.2f);
                 try {
@@ -678,7 +738,10 @@ public class HatchingManager {
                 } catch (Exception ignored) {}
 
             } else if (rarity == PetRarity.MYTHIC || rarity == PetRarity.LEGENDARY) {
-                titleText = "&6&l★ SIÊU PHẨM XUẤT HIỆN! ★";
+                titleText = (lang != null && !lang.getMessage("hatching.title_legendary").startsWith("§cMissing"))
+                        ? lang.getMessage("hatching.title_legendary") : "&6&l★ SIÊU PHẨM XUẤT HIỆN! ★";
+                subtitleText = (lang != null && !lang.getMessage("hatching.subtitle_default").startsWith("§cMissing"))
+                        ? lang.getMessage("hatching.subtitle_default", "%pet%", petDisplayName) : "&eNhận được: " + petDisplayName;
                 player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1.2f, 1f);
                 try {
                     player.getWorld().spawnParticle(Particle.TOTEM, player.getLocation().add(0, 1.5, 0), 40, 0.5, 0.5, 0.5, 0.1);
@@ -686,26 +749,28 @@ public class HatchingManager {
                 } catch (Exception ignored) {}
 
             } else if (rarity == PetRarity.EPIC || rarity == PetRarity.RARE) {
-                titleText = "&d&l✦ ẤP TRỨNG THÀNH CÔNG! ✦";
+                titleText = (lang != null && !lang.getMessage("hatching.title_rare").startsWith("§cMissing"))
+                        ? lang.getMessage("hatching.title_rare") : "&d&l✦ ẤP TRỨNG THÀNH CÔNG! ✦";
+                subtitleText = (lang != null && !lang.getMessage("hatching.subtitle_default").startsWith("§cMissing"))
+                        ? lang.getMessage("hatching.subtitle_default", "%pet%", petDisplayName) : "&eNhận được: " + petDisplayName;
                 player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.2f, 1f);
                 try {
                     player.getWorld().spawnParticle(Particle.FIREWORKS_SPARK, player.getLocation().add(0, 1.5, 0), 30, 0.4, 0.4, 0.4, 0.08);
                 } catch (Exception ignored) {}
 
             } else {
-                titleText = "&a&lẤP TRỨNG THÀNH CÔNG!";
+                titleText = (lang != null && !lang.getMessage("hatching.title_default").startsWith("§cMissing"))
+                        ? lang.getMessage("hatching.title_default") : "&a&lẤP TRỨNG THÀNH CÔNG!";
+                subtitleText = (lang != null && !lang.getMessage("hatching.subtitle_default").startsWith("§cMissing"))
+                        ? lang.getMessage("hatching.subtitle_default", "%pet%", petDisplayName) : "&eNhận được: " + petDisplayName;
                 player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.2f, 1f);
                 try {
                     player.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, player.getLocation().add(0, 1.2, 0), 20, 0.4, 0.4, 0.4, 0.05);
                 } catch (Exception ignored) {}
             }
 
-            Component titleComp = LegacyComponentSerializer.legacySection().deserialize(
-                    ChatColor.translateAlternateColorCodes('&', titleText)
-            );
-            Component subtitleComp = LegacyComponentSerializer.legacySection().deserialize(
-                    ChatColor.translateAlternateColorCodes('&', subtitleText)
-            );
+            Component titleComp = GuiText.component(titleText);
+            Component subtitleComp = GuiText.component(subtitleText);
             Title title = Title.title(
                 titleComp,
                 subtitleComp,

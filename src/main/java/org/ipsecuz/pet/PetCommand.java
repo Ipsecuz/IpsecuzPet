@@ -404,6 +404,8 @@ public class PetCommand implements CommandExecutor {
         String meStatus = me ? lang.getMessage("model.installed") : lang.getMessage("model.not_installed");
         String globalProvider = plugin.getConfig().getString("model.provider", "AUTO");
         String activeProvider = (mm != null) ? mm.getActiveProviderName() : "None";
+        String summary = (mm != null) ? mm.getAvailableRenderersSummary() : "None";
+        int activePetCount = (plugin.getPetManager() != null && plugin.getPetManager().getActivePets() != null) ? plugin.getPetManager().getActivePets().size() : 0;
 
         sender.sendMessage(lang.getMessage("model.status_header"));
         sender.sendMessage(lang.getMessage("model.status_title"));
@@ -411,6 +413,8 @@ public class PetCommand implements CommandExecutor {
         sender.sendMessage(lang.getMessage("model.modelengine_label", "%status%", meStatus));
         sender.sendMessage(lang.getMessage("model.global_provider", "%provider%", globalProvider));
         sender.sendMessage(lang.getMessage("model.active_provider", "%provider%", activeProvider));
+        sender.sendMessage("  §7- Renderers khả dụng: §f" + summary);
+        sender.sendMessage("  §7- Thú cưng đang hiển thị: §e" + activePetCount);
 
         if (args != null && args.length > 2 && mm != null) {
             String petId = args[2];
@@ -440,13 +444,9 @@ public class PetCommand implements CommandExecutor {
         plugin.getCaptureManager().loadBalls();
         if (plugin.getModelHandler() != null && plugin.getModelHandler().getManager() != null) {
             plugin.getModelHandler().getManager().reload();
-            plugin.getModelHandler().getManager().rebindActivePets();
         }
         if (plugin.getModuleManager() != null) {
             plugin.getModuleManager().reloadAllModules();
-        }
-        if (plugin.getDynamicPetRegistry() != null) {
-            plugin.getDynamicPetRegistry().detectAndRegisterNewMobs();
         }
         sender.sendMessage(plugin.getLanguage().getMessage("general.config_reloaded"));
         return true;

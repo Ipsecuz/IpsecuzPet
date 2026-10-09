@@ -49,6 +49,27 @@ public class TradeRecoveryJournalTest {
     }
 
     @Test
+    @DisplayName("TradeCommitRecord correctly supports COMMITTING and ROLLED_BACK statuses")
+    public void testTradeCommitStatusCommittingAndRolledBack() {
+        UUID tradeId = UUID.randomUUID();
+        UUID playerA = UUID.randomUUID();
+        UUID playerB = UUID.randomUUID();
+
+        long now = System.currentTimeMillis();
+        TradeManager.TradeCommitRecord committingRecord = new TradeManager.TradeCommitRecord(
+                tradeId, playerA, playerB, Collections.emptyList(), Collections.emptyList(),
+                TradeManager.TradeCommitStatus.COMMITTING, now
+        );
+        assertEquals(TradeManager.TradeCommitStatus.COMMITTING, committingRecord.getStatus());
+
+        TradeManager.TradeCommitRecord rolledBackRecord = new TradeManager.TradeCommitRecord(
+                tradeId, playerA, playerB, Collections.emptyList(), Collections.emptyList(),
+                TradeManager.TradeCommitStatus.ROLLED_BACK, now
+        );
+        assertEquals(TradeManager.TradeCommitStatus.ROLLED_BACK, rolledBackRecord.getStatus());
+    }
+
+    @Test
     @DisplayName("Trade journal path formatting is deterministic and safe")
     public void testTradeJournalPaths() {
         UUID tradeId = UUID.randomUUID();

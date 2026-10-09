@@ -171,28 +171,28 @@ public class GuiListener implements Listener {
             PetTrait trait = PetTrait.fromString(traitName);
             PetRarity rarity = PetRarity.fromPetId(plugin, petId);
 
-            lore.add(Component.text("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
-            lore.add(Component.text("§7Cấp độ: §6Lv." + lvl + (lvl >= maxLvl ? " §e[TỐI ĐA]" : (" §8(" + exp + "/" + reqExp + ")"))));
+            lore.add(GuiText.component("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
+            lore.add(GuiText.component("§7Cấp độ: §6Lv." + lvl + (lvl >= maxLvl ? " §e[TỐI ĐA]" : (" §8(" + exp + "/" + reqExp + ")"))));
             if (lvl < maxLvl) {
-                lore.add(Component.text("§7Kinh nghiệm: " + buildProgressBar(exp, reqExp, 10)));
+                lore.add(GuiText.component("§7Kinh nghiệm: " + buildProgressBar(exp, reqExp, 10)));
             }
-            lore.add(Component.text("§7Cấp sao: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐"))));
-            lore.add(Component.text("§7Đặc chất: " + trait.getLocalizedName(plugin)));
-            lore.add(Component.text("§7Dạng kích thước: " + (isBaby ? "§b👶 Bé con" : "§6🦁 Trưởng thành")));
+            lore.add(GuiText.component("§7Cấp sao: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐"))));
+            lore.add(GuiText.component("§7Đặc chất: " + trait.getLocalizedName(plugin)));
+            lore.add(GuiText.component("§7Dạng kích thước: " + (isBaby ? "§b👶 Bé con" : "§6🦁 Trưởng thành")));
 
             FeedingManager.HappinessState happyState = (plugin.getFeedingManager() != null)
                     ? plugin.getFeedingManager().getHappinessState(happy) : FeedingManager.HappinessState.CONTENT;
-            lore.add(Component.text("§7Thân thiết: §d♡ " + happy + "% §8(" + happyState.getDisplay() + "§8)"));
+            lore.add(GuiText.component("§7Thân thiết: §d♡ " + happy + "% §8(" + happyState.getDisplay() + "§8)"));
 
-            lore.add(Component.text("§8§m------------------------"));
+            lore.add(GuiText.component("§8§m------------------------"));
             String active = plugin.getPetManager().getActivePetId(p.getUniqueId());
             if (active != null && active.equals(petId)) {
-                lore.add(Component.text("§a● ĐANG ĐƯỢC TRIỆU HỒI [KÍCH HOẠT]"));
+                lore.add(GuiText.component("§a● ĐANG ĐƯỢC TRIỆU HỒI [KÍCH HOẠT]"));
             } else {
-                lore.add(Component.text("§7○ ĐANG NGHỈ NGƠI"));
-                lore.add(Component.text("§e▶ Chuột trái: Triệu hồi"));
+                lore.add(GuiText.component("§7○ ĐANG NGHỈ NGƠI"));
+                lore.add(GuiText.component("§e▶ Chuột trái: Triệu hồi"));
             }
-            lore.add(Component.text("§b▶ Chuột phải: Mở Quản Lý Chi Tiết"));
+            lore.add(GuiText.component("§b▶ Chuột phải: Mở Quản Lý Chi Tiết"));
 
             meta.lore(lore);
             meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_id"), PersistentDataType.STRING, petId);
@@ -210,7 +210,7 @@ public class GuiListener implements Listener {
             ItemStack prev = new ItemStack(Material.ARROW);
             ItemMeta pMeta = prev.getItemMeta();
             if (pMeta != null) {
-                pMeta.displayName(Component.text("§e◀ Trang " + (curPage - 1)));
+                pMeta.displayName(GuiText.component("§e◀ Trang " + (curPage - 1)));
                 pMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "nav_page"), PersistentDataType.INTEGER, curPage - 1);
                 prev.setItemMeta(pMeta);
             }
@@ -221,10 +221,10 @@ public class GuiListener implements Listener {
         ItemStack codexBtn = new ItemStack(Material.KNOWLEDGE_BOOK);
         ItemMeta cMeta = codexBtn.getItemMeta();
         if (cMeta != null) {
-            cMeta.displayName(Component.text("§6§l✦ BÁCH KHOA PET (CODEX) ✦"));
+            cMeta.displayName(GuiText.component("§6§l✦ BÁCH KHOA PET (CODEX) ✦"));
             List<Component> cLore = new ArrayList<>();
-            cLore.add(Component.text("§7Xem toàn bộ danh sách Pet và tiến trình"));
-            cLore.add(Component.text("§e▶ Nhấp để mở Bách Khoa!"));
+            cLore.add(GuiText.component("§7Xem toàn bộ danh sách Pet và tiến trình"));
+            cLore.add(GuiText.component("§e▶ Nhấp để mở Bách Khoa!"));
             cMeta.lore(cLore);
             cMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_codex");
             codexBtn.setItemMeta(cMeta);
@@ -235,10 +235,10 @@ public class GuiListener implements Listener {
         ItemStack shardsBtn = new ItemStack(Material.PRISMARINE_SHARD);
         ItemMeta shMeta = shardsBtn.getItemMeta();
         if (shMeta != null) {
-            shMeta.displayName(Component.text("§b§l✦ KHO MẢNH PET (SHARDS) ✦"));
+            shMeta.displayName(GuiText.component("§b§l✦ KHO MẢNH PET (SHARDS) ✦"));
             List<Component> shLore = new ArrayList<>();
-            shLore.add(Component.text("§7Ghép 50 mảnh để mở khóa Pet mới!"));
-            shLore.add(Component.text("§e▶ Nhấp để kiểm tra mảnh ghép"));
+            shLore.add(GuiText.component("§7Ghép 50 mảnh để mở khóa Pet mới!"));
+            shLore.add(GuiText.component("§e▶ Nhấp để kiểm tra mảnh ghép"));
             shMeta.lore(shLore);
             shMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_shards");
             shardsBtn.setItemMeta(shMeta);
@@ -249,7 +249,7 @@ public class GuiListener implements Listener {
         ItemStack shopBtn = new ItemStack(Material.EMERALD);
         ItemMeta sMeta = shopBtn.getItemMeta();
         if (sMeta != null) {
-            sMeta.displayName(Component.text("§a§lCỬA HÀNG THÚ CƯNG"));
+            sMeta.displayName(GuiText.component("§a§lCỬA HÀNG THÚ CƯNG"));
             sMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_shop");
             shopBtn.setItemMeta(sMeta);
         }
@@ -259,7 +259,7 @@ public class GuiListener implements Listener {
         ItemStack hatchBtn = new ItemStack(Material.DRAGON_EGG);
         ItemMeta hMeta = hatchBtn.getItemMeta();
         if (hMeta != null) {
-            hMeta.displayName(Component.text("§d§lLÒ ẤP TRỨNG PET"));
+            hMeta.displayName(GuiText.component("§d§lLÒ ẤP TRỨNG PET"));
             hMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_hatch");
             hatchBtn.setItemMeta(hMeta);
         }
@@ -269,7 +269,7 @@ public class GuiListener implements Listener {
             ItemStack next = new ItemStack(Material.ARROW);
             ItemMeta nMeta = next.getItemMeta();
             if (nMeta != null) {
-                nMeta.displayName(Component.text("§eTrang " + (curPage + 1) + " ▶"));
+                nMeta.displayName(GuiText.component("§eTrang " + (curPage + 1) + " ▶"));
                 nMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "nav_page"), PersistentDataType.INTEGER, curPage + 1);
                 next.setItemMeta(nMeta);
             }
@@ -314,27 +314,27 @@ public class GuiListener implements Listener {
         if (pMeta != null) {
             pMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&6★ " + name)));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.text("§7Mã định danh: §e" + petId));
-            lore.add(Component.text("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
+            lore.add(GuiText.component("§7Mã định danh: §e" + petId));
+            lore.add(GuiText.component("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
             if (plugin.getModelProviderManager() != null) {
                 var provider = plugin.getModelProviderManager().resolveProviderForPet(petId);
                 if (provider != null && provider.getType() != org.ipsecuz.pet.model.ModelType.NONE) {
-                    lore.add(Component.text(plugin.getLanguage().getMessage("model.model_3d_label", "%provider%", provider.getType().name())));
+                    lore.add(GuiText.component(plugin.getLanguage().getMessage("model.model_3d_label", "%provider%", provider.getType().name())));
                 }
             }
-            lore.add(Component.text("§7Cấp sao: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐"))));
-            lore.add(Component.text("§7Đặc chất: " + trait.getLocalizedName(plugin)));
-            lore.add(Component.text("§7Cấp độ: §aLv." + lvl + " §7(EXP: §b" + exp + "/" + reqExp + "§7)"));
-            lore.add(Component.text("§7Độ vui vẻ: §e" + happy + "%"));
-            lore.add(Component.text("§7--------------------"));
+            lore.add(GuiText.component("§7Cấp sao: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐"))));
+            lore.add(GuiText.component("§7Đặc chất: " + trait.getLocalizedName(plugin)));
+            lore.add(GuiText.component("§7Cấp độ: §aLv." + lvl + " §7(EXP: §b" + exp + "/" + reqExp + "§7)"));
+            lore.add(GuiText.component("§7Độ vui vẻ: §e" + happy + "%"));
+            lore.add(GuiText.component("§7--------------------"));
             double dmg = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "damage");
             double hp = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "health");
             double def = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "defense");
             double spd = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "speed");
-            lore.add(Component.text("§7Máu tối đa: §a" + String.format("%.1f", hp) + " ❤"));
-            lore.add(Component.text("§7Sát thương: §c" + String.format("%.1f", dmg) + " ⚔"));
-            lore.add(Component.text("§7Giáp phòng thủ: §9" + String.format("%.1f", def) + " 🛡"));
-            lore.add(Component.text("§7Tốc độ di chuyển: §f" + String.format("%.3f", spd)));
+            lore.add(GuiText.component("§7Máu tối đa: §a" + String.format("%.1f", hp) + " ❤"));
+            lore.add(GuiText.component("§7Sát thương: §c" + String.format("%.1f", dmg) + " ⚔"));
+            lore.add(GuiText.component("§7Giáp phòng thủ: §9" + String.format("%.1f", def) + " 🛡"));
+            lore.add(GuiText.component("§7Tốc độ di chuyển: §f" + String.format("%.3f", spd)));
             pMeta.lore(lore);
             petIcon.setItemMeta(pMeta);
         }
@@ -346,7 +346,7 @@ public class GuiListener implements Listener {
         ItemStack summonBtn = new ItemStack(isCurrent ? Material.BARRIER : Material.LEAD);
         ItemMeta sMeta = summonBtn.getItemMeta();
         if (sMeta != null) {
-            sMeta.displayName(Component.text(isCurrent ? "§c§l[CẤT THÚ CƯNG]" : "§a§l[TRIỆU HỒI PET]"));
+            sMeta.displayName(GuiText.component(isCurrent ? "§c§l[CẤT THÚ CƯNG]" : "§a§l[TRIỆU HỒI PET]"));
             sMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "toggle_summon:" + petId);
             summonBtn.setItemMeta(sMeta);
         }
@@ -356,10 +356,10 @@ public class GuiListener implements Listener {
         ItemStack sizeBtn = new ItemStack(isBaby ? Material.EGG : Material.TURTLE_HELMET);
         ItemMeta sizeMeta = sizeBtn.getItemMeta();
         if (sizeMeta != null) {
-            sizeMeta.displayName(Component.text(isBaby ? "§b§lKÍCH THƯỚC: [BÉ CON 👶]" : "§6§lKÍCH THƯỚC: [TRƯỞNG THÀNH 🦁]"));
+            sizeMeta.displayName(GuiText.component(isBaby ? "§b§lKÍCH THƯỚC: [BÉ CON 👶]" : "§6§lKÍCH THƯỚC: [TRƯỞNG THÀNH 🦁]"));
             List<Component> sizeLore = new ArrayList<>();
-            sizeLore.add(Component.text("§7Nhấp để chuyển đổi dạng kích thước"));
-            sizeLore.add(Component.text("§e▶ Đổi sang: " + (isBaby ? "Trưởng thành 🦁" : "Bé con 👶")));
+            sizeLore.add(GuiText.component("§7Nhấp để chuyển đổi dạng kích thước"));
+            sizeLore.add(GuiText.component("§e▶ Đổi sang: " + (isBaby ? "Trưởng thành 🦁" : "Bé con 👶")));
             sizeMeta.lore(sizeLore);
             sizeMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "toggle_baby:" + petId);
             sizeBtn.setItemMeta(sizeMeta);
@@ -370,10 +370,10 @@ public class GuiListener implements Listener {
         ItemStack feedBtn = new ItemStack(Material.COOKED_BEEF);
         ItemMeta fMeta = feedBtn.getItemMeta();
         if (fMeta != null) {
-            fMeta.displayName(Component.text("§6§l[CHO ĂN 🍖]"));
+            fMeta.displayName(GuiText.component("§6§l[CHO ĂN 🍖]"));
             List<Component> fLore = new ArrayList<>();
-            fLore.add(Component.text("§7Cầm thức ăn trên tay và nhấp vào đây"));
-            fLore.add(Component.text("§7hoặc dùng lệnh: §e/pet feed"));
+            fLore.add(GuiText.component("§7Cầm thức ăn trên tay và nhấp vào đây"));
+            fLore.add(GuiText.component("§7hoặc dùng lệnh: §e/pet feed"));
             fMeta.lore(fLore);
             fMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "feed:" + petId);
             feedBtn.setItemMeta(fMeta);
@@ -396,23 +396,23 @@ public class GuiListener implements Listener {
                 if (ultSec != null && ultSec.contains("desc")) {
                     skLore.add(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', ultSec.getString("desc", ""))));
                 }
-                skLore.add(Component.text("§a✔ Đã học kỹ năng"));
-                skLore.add(Component.text("§e▶ Nhấp để kích hoạt ngay!"));
+                skLore.add(GuiText.component("§a✔ Đã học kỹ năng"));
+                skLore.add(GuiText.component("§e▶ Nhấp để kích hoạt ngay!"));
                 skMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "ultimate:" + petId);
             } else {
                 skMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&6&l[HỌC KỸ NĂNG: " + skName + " ⚡]")));
                 if (ultSec != null && ultSec.contains("desc")) {
                     skLore.add(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', ultSec.getString("desc", ""))));
                 }
-                skLore.add(Component.text("§c✖ Chưa học kỹ năng này!"));
-                skLore.add(Component.text("§7--- Yêu cầu để học ---"));
+                skLore.add(GuiText.component("§c✖ Chưa học kỹ năng này!"));
+                skLore.add(GuiText.component("§7--- Yêu cầu để học ---"));
                 if (ultSec != null) {
                     org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(ultSec);
                     org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(p, petId, lvl, star, plugin);
                     org.ipsecuz.pet.requirement.RequirementCheckResult result = plugin.getRequirementManager().evaluate(group, ctx);
                     skLore.addAll(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(result));
                 }
-                skLore.add(Component.text("§a▶ Nhấp để Học Kỹ Năng ngay!"));
+                skLore.add(GuiText.component("§a▶ Nhấp để Học Kỹ Năng ngay!"));
                 skMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "learn_skill:ultimate:" + petId);
             }
 
@@ -425,14 +425,14 @@ public class GuiListener implements Listener {
         ItemStack starBtn = new ItemStack(Material.NETHER_STAR);
         ItemMeta starMeta = starBtn.getItemMeta();
         if (starMeta != null) {
-            starMeta.displayName(Component.text("§e§l[TIẾN HÓA & TĂNG SAO ⭐]"));
+            starMeta.displayName(GuiText.component("§e§l[TIẾN HÓA & TĂNG SAO ⭐]"));
             List<Component> stLore = new ArrayList<>();
-            stLore.add(Component.text("§7Cấp sao hiện tại: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐"))));
-            stLore.add(Component.text("§7Gia tăng +15% Máu, Sát thương & Giáp mỗi sao"));
+            stLore.add(GuiText.component("§7Cấp sao hiện tại: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐"))));
+            stLore.add(GuiText.component("§7Gia tăng +15% Máu, Sát thương & Giáp mỗi sao"));
             if (star < 5) {
-                stLore.add(Component.text("§a▶ Nhấp để mở Giao Diện Tiến Hóa Chuyên Sâu ⭐"));
+                stLore.add(GuiText.component("§a▶ Nhấp để mở Giao Diện Tiến Hóa Chuyên Sâu ⭐"));
             } else {
-                stLore.add(Component.text("§6§l✔ ĐÃ ĐẠT CẤP SAO TỐI ĐA!"));
+                stLore.add(GuiText.component("§6§l✔ ĐÃ ĐẠT CẤP SAO TỐI ĐA!"));
             }
             starMeta.lore(stLore);
             starMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "open_evolution:" + petId);
@@ -444,10 +444,10 @@ public class GuiListener implements Listener {
         ItemStack withdrawBtn = new ItemStack(Material.CHEST_MINECART);
         ItemMeta wMeta = withdrawBtn.getItemMeta();
         if (wMeta != null) {
-            wMeta.displayName(Component.text("§d§l[RÚT THÀNH THẺ VẬT PHẨM 📦]"));
+            wMeta.displayName(GuiText.component("§d§l[RÚT THÀNH THẺ VẬT PHẨM 📦]"));
             List<Component> wLore = new ArrayList<>();
-            wLore.add(Component.text("§7Rút thú cưng ra vật phẩm trong rương đồ"));
-            wLore.add(Component.text("§e▶ Nhấp để mở hộp thoại xác nhận rút"));
+            wLore.add(GuiText.component("§7Rút thú cưng ra vật phẩm trong rương đồ"));
+            wLore.add(GuiText.component("§e▶ Nhấp để mở hộp thoại xác nhận rút"));
             wMeta.lore(wLore);
             wMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "confirm_withdraw_prompt:" + petId);
             withdrawBtn.setItemMeta(wMeta);
@@ -458,11 +458,11 @@ public class GuiListener implements Listener {
         ItemStack renameBtn = new ItemStack(Material.NAME_TAG);
         ItemMeta rnMeta = renameBtn.getItemMeta();
         if (rnMeta != null) {
-            rnMeta.displayName(Component.text("§e§l[ĐỔI TÊN THÚ CƯNG 🏷]"));
+            rnMeta.displayName(GuiText.component("§e§l[ĐỔI TÊN THÚ CƯNG 🏷]"));
             List<Component> rnLore = new ArrayList<>();
-            rnLore.add(Component.text("§7Tùy biến biệt danh cho pet của bạn"));
-            rnLore.add(Component.text("§e▶ Dùng lệnh: §6/pet rename <tên_mới>"));
-            rnLore.add(Component.text("§7(Độ dài hợp lệ từ 2 đến 24 ký tự)"));
+            rnLore.add(GuiText.component("§7Tùy biến biệt danh cho pet của bạn"));
+            rnLore.add(GuiText.component("§e▶ Dùng lệnh: §6/pet rename <tên_mới>"));
+            rnLore.add(GuiText.component("§7(Độ dài hợp lệ từ 2 đến 24 ký tự)"));
             rnMeta.lore(rnLore);
             rnMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "rename_info:" + petId);
             renameBtn.setItemMeta(rnMeta);
@@ -473,7 +473,7 @@ public class GuiListener implements Listener {
         ItemStack backBtn = new ItemStack(Material.BARRIER);
         ItemMeta bkMeta = backBtn.getItemMeta();
         if (bkMeta != null) {
-            bkMeta.displayName(Component.text("§c§l◀ QUAY LẠI DANH SÁCH"));
+            bkMeta.displayName(GuiText.component("§c§l◀ QUAY LẠI DANH SÁCH"));
             bkMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "back");
             backBtn.setItemMeta(bkMeta);
         }
@@ -522,24 +522,24 @@ public class GuiListener implements Listener {
         ItemStack preview = new ItemStack(Material.NETHER_STAR);
         ItemMeta prevMeta = preview.getItemMeta();
         if (prevMeta != null) {
-            prevMeta.displayName(Component.text("§e§lSO SÁNH TIẾN HÓA ⭐"));
+            prevMeta.displayName(GuiText.component("§e§lSO SÁNH TIẾN HÓA ⭐"));
             List<Component> pLore = new ArrayList<>();
-            pLore.add(Component.text("§7Cấp sao: " + evo.getStarDisplay(curStar) + " §e➔ " + evo.getStarDisplay(nextStar)));
-            pLore.add(Component.text("§8§m------------------------"));
+            pLore.add(GuiText.component("§7Cấp sao: " + evo.getStarDisplay(curStar) + " §e➔ " + evo.getStarDisplay(nextStar)));
+            pLore.add(GuiText.component("§8§m------------------------"));
             if (curStar < maxStar) {
                 double hpDiff = ((nextHp / curHp) - 1.0) * 100.0;
                 double dmgDiff = ((nextDmg / curDmg) - 1.0) * 100.0;
                 double defDiff = ((nextDef / Math.max(0.1, curDef)) - 1.0) * 100.0;
-                pLore.add(Component.text("§7Máu: §a" + String.format("%.1f", curHp) + " ❤ §e➔ §a" + String.format("%.1f", nextHp) + " ❤ " + (hpDiff > 0 ? "§a(+" + Math.round(hpDiff) + "%)" : "")));
-                pLore.add(Component.text("§7Sát thương: §c" + String.format("%.1f", curDmg) + " ⚔ §e➔ §c" + String.format("%.1f", nextDmg) + " ⚔ " + (dmgDiff > 0 ? "§a(+" + Math.round(dmgDiff) + "%)" : "")));
-                pLore.add(Component.text("§7Giáp: §9" + String.format("%.1f", curDef) + " 🛡 §e➔ §9" + String.format("%.1f", nextDef) + " 🛡 " + (defDiff > 0 ? "§a(+" + Math.round(defDiff) + "%)" : "")));
+                pLore.add(GuiText.component("§7Máu: §a" + String.format("%.1f", curHp) + " ❤ §e➔ §a" + String.format("%.1f", nextHp) + " ❤ " + (hpDiff > 0 ? "§a(+" + Math.round(hpDiff) + "%)" : "")));
+                pLore.add(GuiText.component("§7Sát thương: §c" + String.format("%.1f", curDmg) + " ⚔ §e➔ §c" + String.format("%.1f", nextDmg) + " ⚔ " + (dmgDiff > 0 ? "§a(+" + Math.round(dmgDiff) + "%)" : "")));
+                pLore.add(GuiText.component("§7Giáp: §9" + String.format("%.1f", curDef) + " 🛡 §e➔ §9" + String.format("%.1f", nextDef) + " 🛡 " + (defDiff > 0 ? "§a(+" + Math.round(defDiff) + "%)" : "")));
                 if (nextSpd > curSpd) {
-                    pLore.add(Component.text("§7Tốc độ: §f" + String.format("%.3f", curSpd) + " §e➔ §f" + String.format("%.3f", nextSpd)));
+                    pLore.add(GuiText.component("§7Tốc độ: §f" + String.format("%.3f", curSpd) + " §e➔ §f" + String.format("%.3f", nextSpd)));
                 } else {
-                    pLore.add(Component.text("§7Tốc độ: §f" + String.format("%.3f", curSpd) + " §7(Không đổi)"));
+                    pLore.add(GuiText.component("§7Tốc độ: §f" + String.format("%.3f", curSpd) + " §7(Không đổi)"));
                 }
             } else {
-                pLore.add(Component.text("§6§l✔ ĐÃ ĐẠT CẤP SAO TỐI ĐA!"));
+                pLore.add(GuiText.component("§6§l✔ ĐÃ ĐẠT CẤP SAO TỐI ĐA!"));
             }
             prevMeta.lore(pLore);
             preview.setItemMeta(prevMeta);
@@ -552,11 +552,11 @@ public class GuiListener implements Listener {
         boolean allMet = true;
 
         if (chMeta != null) {
-            chMeta.displayName(Component.text("§6§lDANH SÁCH ĐIỀU KIỆN TIẾN HÓA"));
+            chMeta.displayName(GuiText.component("§6§lDANH SÁCH ĐIỀU KIỆN TIẾN HÓA"));
             List<Component> chLore = new ArrayList<>();
 
             if (curStar >= maxStar) {
-                chLore.add(Component.text("§a✔ Đã đạt cấp sao tối đa!"));
+                chLore.add(GuiText.component("§a✔ Đã đạt cấp sao tối đa!"));
                 allMet = false;
             } else {
                 FileConfiguration config = plugin.getModuleManager().getEvolutionConfig();
@@ -569,7 +569,7 @@ public class GuiListener implements Listener {
                     allMet = result.isSatisfied();
                     chLore.addAll(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(result));
                 } else {
-                    chLore.add(Component.text("§a[✔] Miễn phí tiến hóa!"));
+                    chLore.add(GuiText.component("§a[✔] Miễn phí tiến hóa!"));
                 }
             }
             chMeta.lore(chLore);
@@ -582,12 +582,12 @@ public class GuiListener implements Listener {
             ItemStack actionBtn = new ItemStack(allMet ? Material.LIME_CONCRETE : Material.RED_CONCRETE);
             ItemMeta aMeta = actionBtn.getItemMeta();
             if (aMeta != null) {
-                aMeta.displayName(Component.text(allMet ? "§a§l[TIẾN HÓA NGAY! ⭐]" : "§c§l[CHƯA ĐỦ ĐIỀU KIỆN ✖]"));
+                aMeta.displayName(GuiText.component(allMet ? "§a§l[TIẾN HÓA NGAY! ⭐]" : "§c§l[CHƯA ĐỦ ĐIỀU KIỆN ✖]"));
                 List<Component> aLore = new ArrayList<>();
                 if (allMet) {
-                    aLore.add(Component.text("§e▶ Nhấp để bắt đầu nghi thức tiến hóa MMORPG!"));
+                    aLore.add(GuiText.component("§e▶ Nhấp để bắt đầu nghi thức tiến hóa MMORPG!"));
                 } else {
-                    aLore.add(Component.text("§7Vui lòng đáp ứng đầy đủ điều kiện ở danh sách bên trái."));
+                    aLore.add(GuiText.component("§7Vui lòng đáp ứng đầy đủ điều kiện ở danh sách bên trái."));
                 }
                 aMeta.lore(aLore);
                 aMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "evo_action"), PersistentDataType.STRING, allMet ? ("do_evolve:" + petId) : "not_ready");
@@ -600,7 +600,7 @@ public class GuiListener implements Listener {
         ItemStack backBtn = new ItemStack(Material.BARRIER);
         ItemMeta bkMeta = backBtn.getItemMeta();
         if (bkMeta != null) {
-            bkMeta.displayName(Component.text("§c§l◀ QUAY LẠI QUẢN LÝ"));
+            bkMeta.displayName(GuiText.component("§c§l◀ QUAY LẠI QUẢN LÝ"));
             bkMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "evo_action"), PersistentDataType.STRING, "back:" + petId);
             backBtn.setItemMeta(bkMeta);
         }
@@ -629,7 +629,7 @@ public class GuiListener implements Listener {
         if (cMeta != null) {
             cMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(plugin.getLanguage().getMessage("gui.btn_confirm")));
             List<Component> cLore = new ArrayList<>();
-            cLore.add(Component.text("§7Nhấp để hoàn tất thao tác."));
+            cLore.add(GuiText.component("§7Nhấp để hoàn tất thao tác."));
             cMeta.lore(cLore);
             cMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "confirm_dialog"), PersistentDataType.STRING, "accept");
             confirmBtn.setItemMeta(cMeta);
@@ -647,7 +647,7 @@ public class GuiListener implements Listener {
         if (canMeta != null) {
             canMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(plugin.getLanguage().getMessage("gui.btn_cancel")));
             List<Component> canLore = new ArrayList<>();
-            canLore.add(Component.text("§7Nhấp để hủy thao tác và quay lại."));
+            canLore.add(GuiText.component("§7Nhấp để hủy thao tác và quay lại."));
             canMeta.lore(canLore);
             canMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "confirm_dialog"), PersistentDataType.STRING, "cancel");
             cancelBtn.setItemMeta(canMeta);
@@ -699,18 +699,18 @@ public class GuiListener implements Listener {
                 if (discovered) {
                     meta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&a✔ " + name)));
                 } else {
-                    meta.displayName(Component.text("§8??? [Chưa khám phá]"));
+                    meta.displayName(GuiText.component("§8??? [Chưa khám phá]"));
                 }
 
                 List<Component> lore = new ArrayList<>();
-                lore.add(Component.text("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
+                lore.add(GuiText.component("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
                 if (discovered) {
-                    lore.add(Component.text("§aĐã ghi danh vào Bách Khoa Toàn Thư!"));
+                    lore.add(GuiText.component("§aĐã ghi danh vào Bách Khoa Toàn Thư!"));
                     double hp = plugin.getConfig().getDouble("pets." + petId + ".stats.health", 20.0);
                     double dmg = plugin.getConfig().getDouble("pets." + petId + ".stats.damage", 5.0);
-                    lore.add(Component.text("§7Máu gốc: §a" + hp + " ❤ §7| Dame gốc: §c" + dmg + " ⚔"));
+                    lore.add(GuiText.component("§7Máu gốc: §a" + hp + " ❤ §7| Dame gốc: §c" + dmg + " ⚔"));
                 } else {
-                    lore.add(Component.text("§7Mở khóa qua: Ấp Trứng, Cửa Hàng hoặc Bắt thú hoang."));
+                    lore.add(GuiText.component("§7Mở khóa qua: Ấp Trứng, Cửa Hàng hoặc Bắt thú hoang."));
                 }
                 meta.lore(lore);
                 item.setItemMeta(meta);
@@ -727,7 +727,7 @@ public class GuiListener implements Listener {
             ItemStack prev = new ItemStack(Material.ARROW);
             ItemMeta pMeta = prev.getItemMeta();
             if (pMeta != null) {
-                pMeta.displayName(Component.text("§e◀ Trang " + (curPage - 1)));
+                pMeta.displayName(GuiText.component("§e◀ Trang " + (curPage - 1)));
                 pMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "nav_codex_page"), PersistentDataType.INTEGER, curPage - 1);
                 prev.setItemMeta(pMeta);
             }
@@ -737,7 +737,7 @@ public class GuiListener implements Listener {
         ItemStack back = new ItemStack(Material.LEAD);
         ItemMeta bMeta = back.getItemMeta();
         if (bMeta != null) {
-            bMeta.displayName(Component.text("§b◀ Menu Pet Của Tôi"));
+            bMeta.displayName(GuiText.component("§b◀ Menu Pet Của Tôi"));
             bMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_pet_menu");
             back.setItemMeta(bMeta);
         }
@@ -747,7 +747,7 @@ public class GuiListener implements Listener {
             ItemStack next = new ItemStack(Material.ARROW);
             ItemMeta nMeta = next.getItemMeta();
             if (nMeta != null) {
-                nMeta.displayName(Component.text("§eTrang " + (curPage + 1) + " ▶"));
+                nMeta.displayName(GuiText.component("§eTrang " + (curPage + 1) + " ▶"));
                 nMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "nav_codex_page"), PersistentDataType.INTEGER, curPage + 1);
                 next.setItemMeta(nMeta);
             }
@@ -760,7 +760,7 @@ public class GuiListener implements Listener {
     public static void openShardsMenu(Player p) {
         IpsecuzPet plugin = IpsecuzPet.getInstance();
         ShardsHolder holder = new ShardsHolder();
-        Inventory inv = Bukkit.createInventory(holder, 45, Component.text("§1✦ Kho Mảnh Thú Cưng (Shards) ✦"));
+        Inventory inv = Bukkit.createInventory(holder, 45, GuiText.component("§1✦ Kho Mảnh Thú Cưng (Shards) ✦"));
         holder.setInventory(inv);
 
         ItemStack border = new ItemStack(Material.CYAN_STAINED_GLASS_PANE);
@@ -787,13 +787,13 @@ public class GuiListener implements Listener {
                     PetRarity rarity = PetRarity.fromPetId(plugin, petId);
                     meta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&bMảnh: " + name)));
                     List<Component> lore = new ArrayList<>();
-                    lore.add(Component.text("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
+                    lore.add(GuiText.component("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
                     int req = plugin.getShardManager().getRequiredShardsToCraft(petId);
-                    lore.add(Component.text("§7Số mảnh hiện có: §b" + count + "/" + req));
+                    lore.add(GuiText.component("§7Số mảnh hiện có: §b" + count + "/" + req));
                     if (count >= req) {
-                        lore.add(Component.text("§a§l✔ ĐỦ MẢNH! Nhấp để ghép thành Pet!"));
+                        lore.add(GuiText.component("§a§l✔ ĐỦ MẢNH! Nhấp để ghép thành Pet!"));
                     } else {
-                        lore.add(Component.text("§c✖ Cần thêm " + (req - count) + " mảnh để ghép."));
+                        lore.add(GuiText.component("§c✖ Cần thêm " + (req - count) + " mảnh để ghép."));
                     }
                     meta.lore(lore);
                     meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "craft_shard_id"), PersistentDataType.STRING, petId);
@@ -810,10 +810,10 @@ public class GuiListener implements Listener {
             ItemStack empty = new ItemStack(Material.BARRIER);
             ItemMeta eMeta = empty.getItemMeta();
             if (eMeta != null) {
-                eMeta.displayName(Component.text("§cChưa Có Mảnh Nào"));
+                eMeta.displayName(GuiText.component("§cChưa Có Mảnh Nào"));
                 List<Component> eLore = new ArrayList<>();
-                eLore.add(Component.text("§7Khi quay trúng Pet đã sở hữu trong Lò Ấp,"));
-                eLore.add(Component.text("§7bạn sẽ nhận được Mảnh Pet tương ứng!"));
+                eLore.add(GuiText.component("§7Khi quay trúng Pet đã sở hữu trong Lò Ấp,"));
+                eLore.add(GuiText.component("§7bạn sẽ nhận được Mảnh Pet tương ứng!"));
                 eMeta.lore(eLore);
                 empty.setItemMeta(eMeta);
             }
@@ -823,7 +823,7 @@ public class GuiListener implements Listener {
         ItemStack back = new ItemStack(Material.ARROW);
         ItemMeta bkMeta = back.getItemMeta();
         if (bkMeta != null) {
-            bkMeta.displayName(Component.text("§b◀ Menu Pet Của Tôi"));
+            bkMeta.displayName(GuiText.component("§b◀ Menu Pet Của Tôi"));
             bkMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_pet_menu");
             back.setItemMeta(bkMeta);
         }
@@ -878,18 +878,18 @@ public class GuiListener implements Listener {
             String price = plugin.getCurrencyManager().getPriceDisplay(key);
             PetRarity rarity = PetRarity.fromPetId(plugin, key);
 
-            lore.add(Component.text("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
+            lore.add(GuiText.component("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
             double hp = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "health");
             double dmg = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "damage");
             double def = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "defense");
             double spd = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "speed");
-            lore.add(Component.text("§7Chỉ số cơ bản (Lv.1):"));
-            lore.add(Component.text("§7Máu: §a" + String.format("%.1f", hp) + " ❤ §7| Sát thương: §c" + String.format("%.1f", dmg) + " ⚔"));
-            lore.add(Component.text("§7Giáp: §9" + String.format("%.1f", def) + " 🛡 §7| Tốc độ: §f" + String.format("%.3f", spd)));
-            lore.add(Component.text("§7--------------------"));
+            lore.add(GuiText.component("§7Chỉ số cơ bản (Lv.1):"));
+            lore.add(GuiText.component("§7Máu: §a" + String.format("%.1f", hp) + " ❤ §7| Sát thương: §c" + String.format("%.1f", dmg) + " ⚔"));
+            lore.add(GuiText.component("§7Giáp: §9" + String.format("%.1f", def) + " 🛡 §7| Tốc độ: §f" + String.format("%.3f", spd)));
+            lore.add(GuiText.component("§7--------------------"));
 
             if (cm.getData().contains(p.getUniqueId() + ".pets." + key)) {
-                lore.add(Component.text("§a✔ ĐÃ SỞ HỮU"));
+                lore.add(GuiText.component("§a✔ ĐÃ SỞ HỮU"));
             } else {
                 org.bukkit.configuration.ConfigurationSection petSec = plugin.getConfig().getConfigurationSection("pets." + key);
                 if (petSec != null && (petSec.contains("requirements") || petSec.contains("all") || petSec.contains("one_of"))) {
@@ -901,7 +901,7 @@ public class GuiListener implements Listener {
                     lore.add(LegacyComponentSerializer.legacySection().deserialize(
                             ChatColor.translateAlternateColorCodes('&', lang.getMessage("gui.lore_price", "%cost%", price))));
                 }
-                lore.add(Component.text("§e▶ Nhấp để Mua ngay!"));
+                lore.add(GuiText.component("§e▶ Nhấp để Mua ngay!"));
             }
 
             meta.lore(lore);
@@ -919,7 +919,7 @@ public class GuiListener implements Listener {
             ItemStack prev = new ItemStack(Material.ARROW);
             ItemMeta pMeta = prev.getItemMeta();
             if (pMeta != null) {
-                pMeta.displayName(Component.text("§e◀ Trang " + (curPage - 1)));
+                pMeta.displayName(GuiText.component("§e◀ Trang " + (curPage - 1)));
                 pMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "nav_shop_page"), PersistentDataType.INTEGER, curPage - 1);
                 prev.setItemMeta(pMeta);
             }
@@ -929,7 +929,7 @@ public class GuiListener implements Listener {
         ItemStack hatchBtn = new ItemStack(Material.DRAGON_EGG);
         ItemMeta hMeta = hatchBtn.getItemMeta();
         if (hMeta != null) {
-            hMeta.displayName(Component.text("§d§lLÒ ẤP TRỨNG"));
+            hMeta.displayName(GuiText.component("§d§lLÒ ẤP TRỨNG"));
             hMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_hatch");
             hatchBtn.setItemMeta(hMeta);
         }
@@ -938,10 +938,10 @@ public class GuiListener implements Listener {
         ItemStack info = new ItemStack(Material.BOOK);
         ItemMeta infoMeta = info.getItemMeta();
         if (infoMeta != null) {
-            infoMeta.displayName(Component.text("§6§lCỬA HÀNG THÚ CƯNG"));
+            infoMeta.displayName(GuiText.component("§6§lCỬA HÀNG THÚ CƯNG"));
             List<Component> iLore = new ArrayList<>();
-            iLore.add(Component.text("§7Tổng số Pet bán: §e" + allKeys.size()));
-            iLore.add(Component.text("§7Trang hiện tại: §f" + curPage + "/" + totalPages));
+            iLore.add(GuiText.component("§7Tổng số Pet bán: §e" + allKeys.size()));
+            iLore.add(GuiText.component("§7Trang hiện tại: §f" + curPage + "/" + totalPages));
             infoMeta.lore(iLore);
             info.setItemMeta(infoMeta);
         }
@@ -950,7 +950,7 @@ public class GuiListener implements Listener {
         ItemStack menuBtn = new ItemStack(Material.LEAD);
         ItemMeta mMeta = menuBtn.getItemMeta();
         if (mMeta != null) {
-            mMeta.displayName(Component.text("§b§lMENU PET CỦA TÔI"));
+            mMeta.displayName(GuiText.component("§b§lMENU PET CỦA TÔI"));
             mMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_pet_menu");
             menuBtn.setItemMeta(mMeta);
         }
@@ -960,7 +960,7 @@ public class GuiListener implements Listener {
             ItemStack next = new ItemStack(Material.ARROW);
             ItemMeta nMeta = next.getItemMeta();
             if (nMeta != null) {
-                nMeta.displayName(Component.text("§eTrang " + (curPage + 1) + " ▶"));
+                nMeta.displayName(GuiText.component("§eTrang " + (curPage + 1) + " ▶"));
                 nMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "nav_shop_page"), PersistentDataType.INTEGER, curPage + 1);
                 next.setItemMeta(nMeta);
             }

@@ -278,6 +278,10 @@ public class BetterModelProvider implements ModelProvider {
     @Override
     public void handlePlayerQuit(Player player) {
         if (!isAvailable() || player == null) return;
+        UUID pId = player.getUniqueId();
+        for (Set<UUID> viewers : entityViewers.values()) {
+            viewers.remove(pId);
+        }
         for (EntityTracker tracker : activeTrackers.values()) {
             if (tracker != null && !tracker.isClosed()) {
                 try {

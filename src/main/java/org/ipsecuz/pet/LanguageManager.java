@@ -98,6 +98,44 @@ public class LanguageManager {
         return getMessage(path, new String[0]);
     }
 
+    public boolean isDisplayOnlyKey(String path) {
+        if (path == null) return false;
+        return path.startsWith("trait.") ||
+               path.startsWith("rarity.") ||
+               path.startsWith("card.") ||
+               path.startsWith("gui.") ||
+               path.startsWith("help.") ||
+               path.startsWith("model.") ||
+               path.startsWith("stats.") ||
+               path.startsWith("title.") ||
+               path.startsWith("actionbar.") ||
+               path.equals("pet.display_format") ||
+               path.equals("prefix");
+    }
+
+    public String getRawMessage(String path, String... placeholders) {
+        String msg = null;
+        if (primaryConfig != null) {
+            msg = primaryConfig.getString(path);
+        }
+        if (msg == null && fallbackConfig != null) {
+            msg = fallbackConfig.getString(path);
+        }
+        if (msg == null) {
+            return "§cMissing language key: " + path;
+        }
+
+        if (placeholders != null && placeholders.length > 0) {
+            for (int i = 0; i < placeholders.length; i += 2) {
+                if (i + 1 < placeholders.length && placeholders[i] != null && placeholders[i + 1] != null) {
+                    msg = msg.replace(placeholders[i], placeholders[i + 1]);
+                }
+            }
+        }
+
+        return colorize(msg);
+    }
+
     public String getMessage(String path, String... placeholders) {
         String msg = null;
         if (primaryConfig != null) {
@@ -110,9 +148,8 @@ public class LanguageManager {
             return "§cMissing language key: " + path;
         }
 
-        // Thêm prefix nếu không phải là gui, help, title hoặc stats format
-        if (!path.startsWith("gui") && !path.startsWith("help") && !path.startsWith("rarity")
-                && !path.equals("pet.display_format") && !path.startsWith("model.status_")) {
+        // Thêm prefix nếu không phải là display only key
+        if (!isDisplayOnlyKey(path)) {
             String prefix = primaryConfig != null ? primaryConfig.getString("prefix", "") : "";
             if (prefix.isEmpty() && fallbackConfig != null) {
                 prefix = fallbackConfig.getString("prefix", "");

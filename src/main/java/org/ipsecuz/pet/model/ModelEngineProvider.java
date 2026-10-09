@@ -24,6 +24,7 @@ public class ModelEngineProvider implements ModelProvider {
     private final Map<UUID, ModeledEntity> activeEntities = new ConcurrentHashMap<>();
     private final Map<UUID, ActiveModel> activeModels = new ConcurrentHashMap<>();
     private final Map<UUID, String> activeModelIds = new ConcurrentHashMap<>();
+    private final Map<UUID, String> entityPetIds = new ConcurrentHashMap<>();
     private final Map<String, Long> lastErrorLogTime = new ConcurrentHashMap<>();
     private Boolean availableCache = null;
 
@@ -81,6 +82,9 @@ public class ModelEngineProvider implements ModelProvider {
             activeEntities.put(pet.getUniqueId(), modeledEntity);
             activeModels.put(pet.getUniqueId(), activeModel);
             activeModelIds.put(pet.getUniqueId(), modelId);
+            if (petId != null) {
+                entityPetIds.put(pet.getUniqueId(), petId);
+            }
 
             // Only hide base entity after model is confirmed attached
             modeledEntity.setBaseEntityVisible(false);
@@ -111,6 +115,7 @@ public class ModelEngineProvider implements ModelProvider {
     public void remove(UUID entityUuid) {
         if (entityUuid == null) return;
         activeModels.remove(entityUuid);
+        entityPetIds.remove(entityUuid);
         String modelId = activeModelIds.remove(entityUuid);
         ModeledEntity modeledEntity = activeEntities.remove(entityUuid);
 
@@ -154,6 +159,7 @@ public class ModelEngineProvider implements ModelProvider {
                 }
             }
         }
+        entityPetIds.clear();
         activeModelIds.clear();
         activeModels.clear();
         activeEntities.clear();
@@ -201,8 +207,9 @@ public class ModelEngineProvider implements ModelProvider {
         if (plugin.getModelProviderManager() != null && plugin.getModelProviderManager().getAnimationController() != null) {
             plugin.getModelProviderManager().getAnimationController().requestAnimation(pet, state);
         } else {
+            String petId = entityPetIds.get(pet.getUniqueId());
             String animName = (plugin.getModelProviderManager() != null) ?
-                    plugin.getModelProviderManager().resolveAnimationName(null, ModelType.MODELENGINE, state) :
+                    plugin.getModelProviderManager().resolveAnimationName(petId, ModelType.MODELENGINE, state) :
                     state.getPrimaryName();
             renderRawAnimation(pet, animName, state);
         }
@@ -214,8 +221,9 @@ public class ModelEngineProvider implements ModelProvider {
         if (plugin.getModelProviderManager() != null && plugin.getModelProviderManager().getAnimationController() != null) {
             plugin.getModelProviderManager().getAnimationController().requestTransientAnimation(pet, state, durationTicks, returnState);
         } else {
+            String petId = entityPetIds.get(pet.getUniqueId());
             String animName = (plugin.getModelProviderManager() != null) ?
-                    plugin.getModelProviderManager().resolveAnimationName(null, ModelType.MODELENGINE, state) :
+                    plugin.getModelProviderManager().resolveAnimationName(petId, ModelType.MODELENGINE, state) :
                     state.getPrimaryName();
             renderRawAnimation(pet, animName, state);
         }
@@ -250,8 +258,9 @@ public class ModelEngineProvider implements ModelProvider {
             AnimationHandler handler = model.getAnimationHandler();
             if (handler == null) return;
 
+            String petId = entityPetIds.get(uuid);
             String animName = (plugin.getModelProviderManager() != null) ?
-                    plugin.getModelProviderManager().resolveAnimationName(null, ModelType.MODELENGINE, state) :
+                    plugin.getModelProviderManager().resolveAnimationName(petId, ModelType.MODELENGINE, state) :
                     state.getPrimaryName();
             handler.playAnimation(animName, 0.25, 0.25, 1.0, force);
         } catch (Throwable t) {

@@ -53,7 +53,7 @@ public enum PetRarity {
     public String getLocalizedName(IpsecuzPet plugin) {
         if (plugin != null && plugin.getLanguage() != null) {
             String key = "rarity." + name().toLowerCase();
-            String localized = plugin.getLanguage().getMessage(key);
+            String localized = plugin.getLanguage().getRawMessage(key);
             if (localized != null && !localized.startsWith("§cMissing")) {
                 boolean bold = (this == EPIC || this == LEGENDARY || this == MYTHIC || this == SECRET || this == ETERNAL);
                 return (bold ? chatColor + "§l" : chatColor.toString()) + localized;

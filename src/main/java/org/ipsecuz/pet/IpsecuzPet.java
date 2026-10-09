@@ -6,7 +6,7 @@ public class IpsecuzPet extends JavaPlugin {
 
     public static final int RESOURCE_ID = 130551;
     private static IpsecuzPet instance;
-    private static boolean metricsInitialized = false;
+    private boolean metricsInitialized = false;
     private ConfigManager configManager;
     private PetManager petManager;
     private CurrencyManager currencyManager;
@@ -124,7 +124,7 @@ public class IpsecuzPet extends JavaPlugin {
             tradeManager.cancelAllActiveTrades();
         }
         if (petManager != null) {
-            petManager.removeAllPets();
+            petManager.shutdownCleanup();
         }
         if (skillManager != null) {
             skillManager.clearAllCooldowns();

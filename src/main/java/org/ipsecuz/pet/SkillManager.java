@@ -1,5 +1,6 @@
 package org.ipsecuz.pet;
 
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -32,8 +33,12 @@ public class SkillManager {
     }
 
     public boolean isValidEnemyTarget(Player owner, Entity entity) {
+        return isValidEnemyTarget(owner != null ? owner.getUniqueId() : null, entity);
+    }
+
+    public boolean isValidEnemyTarget(UUID ownerId, Entity entity) {
         if (entity == null || !entity.isValid() || entity.isDead()) return false;
-        if (owner != null && entity.equals(owner)) return false;
+        if (ownerId != null && entity.getUniqueId().equals(ownerId)) return false;
 
         // Ignore active pets
         if (entity.getPersistentDataContainer().has(plugin.getPetManager().petKey, PersistentDataType.STRING)) {
@@ -64,7 +69,7 @@ public class SkillManager {
         // Other hostile mobs / Slimes / Ghasts / Bosses
         if (entity instanceof org.bukkit.entity.Mob mob) {
             if (mob instanceof org.bukkit.entity.Tameable tameable && tameable.isTamed()) {
-                if (owner != null && owner.getUniqueId().equals(tameable.getOwnerUniqueId())) {
+                if (ownerId != null && ownerId.equals(tameable.getOwnerUniqueId())) {
                     return false;
                 }
             }
@@ -325,38 +330,42 @@ public class SkillManager {
     // --- HỆ THỐNG NỘI TẠI (PASSIVES) ---
     private final Map<String, Long> lastPassiveTick = new ConcurrentHashMap<>();
 
-    public void handlePetTick(Player owner, Entity pet, String petId) {
-        if (!plugin.getModuleManager().isSkillsEnabled() || owner == null || pet == null || petId == null) return;
+    public void handlePetTick(PetManager.PetFollowSnapshot snapshot, Entity pet, String petId) {
+        if (!plugin.getModuleManager().isSkillsEnabled() || snapshot == null || pet == null || petId == null) return;
         long now = System.currentTimeMillis();
+        UUID ownerId = snapshot.getOwnerId();
 
         if ("allay_pet".equals(petId)) {
             FileConfiguration config = plugin.getModuleManager().getSkillsConfig();
             int intervalSec = config.getInt("skills.allay_pet.passive.regen_interval_seconds", 5);
             double healAmt = config.getDouble("skills.allay_pet.passive.heal_amount", 2.0);
-            String passiveKey = owner.getUniqueId() + ":" + petId + ":regen";
+            String passiveKey = ownerId + ":" + petId + ":regen";
             long last = lastPassiveTick.getOrDefault(passiveKey, 0L);
             if (now - last >= intervalSec * 1000L) {
                 lastPassiveTick.put(passiveKey, now);
-                SchedulerUtils.runEntityTask(plugin, owner, () -> {
-                    if (owner.isOnline()) {
-                        double maxHp = 20.0;
-                        org.bukkit.attribute.AttributeInstance attr = owner.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH);
-                        if (attr != null) maxHp = attr.getValue();
-                        if (owner.getHealth() < maxHp) {
-                            owner.setHealth(Math.min(maxHp, owner.getHealth() + healAmt));
-                            try {
-                                owner.getWorld().spawnParticle(Particle.HEART, owner.getLocation().add(0, 1.2, 0), 2, 0.3, 0.3, 0.3, 0.0);
-                                owner.getWorld().playSound(owner.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.7f, 1.5f);
-                            } catch (Exception ignored) {}
+                Player targetOwner = Bukkit.getPlayer(ownerId);
+                if (targetOwner != null) {
+                    SchedulerUtils.runEntityTask(plugin, targetOwner, () -> {
+                        if (targetOwner.isOnline()) {
+                            double maxHp = 20.0;
+                            org.bukkit.attribute.AttributeInstance attr = targetOwner.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH);
+                            if (attr != null) maxHp = attr.getValue();
+                            if (targetOwner.getHealth() < maxHp) {
+                                targetOwner.setHealth(Math.min(maxHp, targetOwner.getHealth() + healAmt));
+                                try {
+                                    targetOwner.getWorld().spawnParticle(Particle.HEART, targetOwner.getLocation().add(0, 1.2, 0), 2, 0.3, 0.3, 0.3, 0.0);
+                                    targetOwner.getWorld().playSound(targetOwner.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.7f, 1.5f);
+                                } catch (Exception ignored) {}
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
         } else if ("warden_pet".equals(petId)) {
             FileConfiguration config = plugin.getModuleManager().getSkillsConfig();
             int intervalSec = config.getInt("skills.warden_pet.passive.detect_interval_seconds", 3);
             double radius = config.getDouble("skills.warden_pet.passive.detect_invisible_radius", 10.0);
-            String passiveKey = owner.getUniqueId() + ":" + petId + ":detect";
+            String passiveKey = ownerId + ":" + petId + ":detect";
             long last = lastPassiveTick.getOrDefault(passiveKey, 0L);
             if (now - last >= intervalSec * 1000L) {
                 lastPassiveTick.put(passiveKey, now);
@@ -364,7 +373,7 @@ public class SkillManager {
                     if (!pet.isValid()) return;
                     boolean foundInvisible = false;
                     for (Entity nearby : pet.getNearbyEntities(radius, radius, radius)) {
-                        if (nearby instanceof org.bukkit.entity.LivingEntity living && isValidEnemyTarget(owner, living)) {
+                        if (nearby instanceof org.bukkit.entity.LivingEntity living && isValidEnemyTarget(ownerId, living)) {
                             if (living.isInvisible() || living.hasPotionEffect(PotionEffectType.INVISIBILITY)) {
                                 living.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 80, 0, false, false, true));
                                 foundInvisible = true;
@@ -380,6 +389,23 @@ public class SkillManager {
                 });
             }
         }
+    }
+
+    public void handlePetTick(Player owner, Entity pet, String petId) {
+        if (owner == null) return;
+        org.bukkit.attribute.AttributeInstance maxHealthAttr = owner.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH);
+        double maxHp = maxHealthAttr != null ? maxHealthAttr.getValue() : 20.0;
+        PetManager.PetFollowSnapshot snapshot = new PetManager.PetFollowSnapshot(
+                owner.getUniqueId(),
+                owner.isOnline(),
+                owner.getLocation(),
+                owner.getWorld(),
+                owner.getLocation().getDirection(),
+                owner.getGameMode(),
+                owner.getHealth(),
+                maxHp
+        );
+        handlePetTick(snapshot, pet, petId);
     }
 
     public double getDamageReductionPercent(Player player) {

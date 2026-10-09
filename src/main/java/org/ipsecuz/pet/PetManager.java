@@ -177,11 +177,59 @@ public class PetManager {
                 plugin.getSkillManager().clearCooldown(ownerId);
             }
             if (e != null) {
-                // Item 25: Dọn dẹp model tracker vô điều kiện trước
-                modelHandler.removeModel(e.getUniqueId());
+                UUID entityId = e.getUniqueId();
+                Runnable cleanupAction = () -> {
+                    try {
+                        if (modelHandler != null) {
+                            modelHandler.stopAnimation(e);
+                            modelHandler.removeModel(entityId);
+                        }
+                        for (Entity passenger : new ArrayList<>(e.getPassengers())) {
+                            if (passenger != null) {
+                                passenger.eject();
+                                if (passenger.getPersistentDataContainer().has(new NamespacedKey(plugin, "pet_seat"), PersistentDataType.STRING)) {
+                                    passenger.remove();
+                                }
+                            }
+                        }
+                        if (e.isValid()) {
+                            try {
+                                e.getWorld().spawnParticle(Particle.CLOUD, e.getLocation().add(0, 0.5, 0), 15, 0.3, 0.3, 0.3, 0.05);
+                                e.getWorld().playSound(e.getLocation(), Sound.ENTITY_CHICKEN_EGG, 1f, 1.4f);
+                            } catch (Exception ignored) {}
+                            e.remove();
+                        }
+                    } catch (Throwable t) {
+                        plugin.getLogger().warning("Error cleaning up pet entity in region context: " + t.getMessage());
+                    }
+                };
 
-                SchedulerUtils.runEntityTask(plugin, e, () -> {
-                    // Item 24: Dọn dẹp yên cưỡi ArmorStand an toàn
+                Runnable retiredFallback = () -> {
+                    try {
+                        if (modelHandler != null) {
+                            modelHandler.removeModel(entityId);
+                        }
+                    } catch (Throwable t) {
+                        plugin.getLogger().warning("Error cleaning up retired pet model: " + t.getMessage());
+                    }
+                };
+
+                SchedulerUtils.runEntityTask(plugin, e, cleanupAction, retiredFallback);
+            }
+        }
+    }
+
+    public void shutdownCleanup() {
+        dyingPets.clear();
+        for (Map.Entry<UUID, Entity> entry : activePets.entrySet()) {
+            Entity e = entry.getValue();
+            if (e != null) {
+                try {
+                    UUID entityId = e.getUniqueId();
+                    if (modelHandler != null) {
+                        modelHandler.stopAnimation(e);
+                        modelHandler.removeModel(entityId);
+                    }
                     for (Entity passenger : new ArrayList<>(e.getPassengers())) {
                         if (passenger != null) {
                             passenger.eject();
@@ -190,15 +238,19 @@ public class PetManager {
                             }
                         }
                     }
-                    if (e.isValid()) {
-                        try {
-                            e.getWorld().spawnParticle(Particle.CLOUD, e.getLocation().add(0, 0.5, 0), 15, 0.3, 0.3, 0.3, 0.05);
-                            e.getWorld().playSound(e.getLocation(), Sound.ENTITY_CHICKEN_EGG, 1f, 1.4f);
-                        } catch (Exception ignored) {}
-                        e.remove();
-                    }
-                });
+                    e.remove();
+                } catch (Throwable t) {
+                    plugin.getLogger().warning("Error cleaning up pet entity during shutdown: " + t.getMessage());
+                }
             }
+        }
+        activePets.clear();
+        activePetIds.clear();
+        if (modelHandler != null) {
+            modelHandler.removeAll();
+        }
+        if (plugin.getSkillManager() != null) {
+            plugin.getSkillManager().clearAllCooldowns();
         }
     }
 
@@ -209,7 +261,9 @@ public class PetManager {
         }
         activePets.clear();
         activePetIds.clear();
-        modelHandler.removeAll();
+        if (modelHandler != null) {
+            modelHandler.removeAll();
+        }
         if (plugin.getSkillManager() != null) {
             plugin.getSkillManager().clearAllCooldowns();
         }
@@ -279,13 +333,23 @@ public class PetManager {
         private final Location location;
         private final org.bukkit.World world;
         private final org.bukkit.util.Vector direction;
+        private final org.bukkit.GameMode gameMode;
+        private final double health;
+        private final double maxHealth;
 
         public PetFollowSnapshot(UUID ownerId, boolean online, Location location, org.bukkit.World world, org.bukkit.util.Vector direction) {
+            this(ownerId, online, location, world, direction, org.bukkit.GameMode.SURVIVAL, 20.0, 20.0);
+        }
+
+        public PetFollowSnapshot(UUID ownerId, boolean online, Location location, org.bukkit.World world, org.bukkit.util.Vector direction, org.bukkit.GameMode gameMode, double health, double maxHealth) {
             this.ownerId = ownerId;
             this.online = online;
             this.location = (location != null) ? location.clone() : null;
             this.world = world;
             this.direction = (direction != null) ? direction.clone() : new org.bukkit.util.Vector(0, 0, 1);
+            this.gameMode = gameMode;
+            this.health = health;
+            this.maxHealth = maxHealth;
         }
 
         public UUID getOwnerId() { return ownerId; }
@@ -293,6 +357,9 @@ public class PetManager {
         public Location getLocation() { return location != null ? location.clone() : null; }
         public org.bukkit.World getWorld() { return world; }
         public org.bukkit.util.Vector getDirection() { return direction != null ? direction.clone() : new org.bukkit.util.Vector(0, 0, 1); }
+        public org.bukkit.GameMode getGameMode() { return gameMode; }
+        public double getHealth() { return health; }
+        public double getMaxHealth() { return maxHealth; }
     }
 
     private long tickCounter = 0;
@@ -313,7 +380,10 @@ public class PetManager {
             if (owner == null) {
                 Entity pet = activePets.get(ownerId);
                 if (pet != null) {
-                    SchedulerUtils.runEntityTask(plugin, pet, () -> removePet(ownerId));
+                    SchedulerUtils.runEntityTask(plugin, pet, () -> removePet(ownerId), () -> {
+                        activePets.remove(ownerId);
+                        activePetIds.remove(ownerId);
+                    });
                 } else {
                     activePets.remove(ownerId);
                     activePetIds.remove(ownerId);
@@ -331,12 +401,18 @@ public class PetManager {
                     return;
                 }
 
+                org.bukkit.attribute.AttributeInstance maxHealthAttr = owner.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH);
+                double maxHp = (maxHealthAttr != null) ? maxHealthAttr.getValue() : 20.0;
+
                 PetFollowSnapshot snapshot = new PetFollowSnapshot(
                         ownerId,
-                        true,
+                        owner.isOnline(),
                         owner.getLocation(),
                         owner.getWorld(),
-                        owner.getLocation().getDirection()
+                        owner.getLocation().getDirection(),
+                        owner.getGameMode(),
+                        owner.getHealth(),
+                        maxHp
                 );
 
                 Entity pet = activePets.get(ownerId);
@@ -417,11 +493,20 @@ public class PetManager {
                         playParticles(pet, petId);
                     }
 
-                    plugin.getSkillManager().handlePetTick(owner, pet, petId);
+                    if (plugin.getSkillManager() != null) {
+                        plugin.getSkillManager().handlePetTick(snapshot, pet, petId);
+                    }
 
                     // 3. Hiệu ứng bùa lợi định kỳ: mỗi 40 ticks (8 chu kỳ)
                     if (currentTick % 8 == 0) {
-                        SchedulerUtils.runEntityTask(plugin, owner, () -> applyBuffs(owner, petId, ownerId));
+                        Player p = Bukkit.getPlayer(ownerId);
+                        if (p != null) {
+                            SchedulerUtils.runEntityTask(plugin, p, () -> {
+                                if (p.isOnline()) {
+                                    applyBuffs(p, petId, ownerId);
+                                }
+                            });
+                        }
                     }
                 });
             });

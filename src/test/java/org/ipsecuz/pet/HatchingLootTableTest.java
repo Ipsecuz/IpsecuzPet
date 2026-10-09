@@ -81,10 +81,10 @@ public class HatchingLootTableTest {
     public void testPendingHatchSessionLifecycle() {
         UUID playerId = UUID.randomUUID();
         HatchingManager.PendingHatchSession session = new HatchingManager.PendingHatchSession(
-                playerId, "starter_egg", "cat_pet", HatchingManager.HatchState.PENDING, System.currentTimeMillis()
+                playerId, "starter_egg", "cat_pet", HatchingManager.HatchState.CREATED, System.currentTimeMillis()
         );
 
-        assertEquals(HatchingManager.HatchState.PENDING, session.getState());
+        assertEquals(HatchingManager.HatchState.CREATED, session.getState());
         assertEquals("starter_egg", session.getEggId());
         assertEquals("cat_pet", session.getWinningPetId());
         assertEquals(playerId, session.getPlayerUuid());

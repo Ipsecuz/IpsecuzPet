@@ -41,7 +41,7 @@ public enum PetTrait {
 
     public String getLocalizedName(IpsecuzPet plugin) {
         if (plugin != null && plugin.getLanguage() != null) {
-            String val = plugin.getLanguage().getMessage("trait." + name().toLowerCase());
+            String val = plugin.getLanguage().getRawMessage("trait." + name().toLowerCase());
             if (val != null && !val.startsWith("§cMissing")) {
                 return val;
             }

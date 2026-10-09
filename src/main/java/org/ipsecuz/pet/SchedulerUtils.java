@@ -62,29 +62,63 @@ public class SchedulerUtils {
 
     // 3. Chạy Task trên Entity
     public static void runEntityTask(Plugin plugin, Entity entity, Runnable task) {
-        if (entity == null || !entity.isValid()) return;
+        runEntityTask(plugin, entity, task, null);
+    }
+
+    public static void runEntityTask(Plugin plugin, Entity entity, Runnable task, Runnable retired) {
+        if (entity == null) {
+            if (retired != null) retired.run();
+            return;
+        }
         if (isFolia) {
-            entity.getScheduler().run(plugin, (st) -> task.run(), null);
+            entity.getScheduler().run(plugin, (st) -> task.run(), retired);
         } else {
-            task.run();
+            if (Bukkit.isPrimaryThread()) {
+                if (entity.isValid()) {
+                    task.run();
+                } else if (retired != null) {
+                    retired.run();
+                }
+            } else {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (entity.isValid()) {
+                        task.run();
+                    } else if (retired != null) {
+                        retired.run();
+                    }
+                });
+            }
         }
     }
 
     // 4. Chạy Task trên Entity với độ trễ
     public static void runEntityTaskLater(Plugin plugin, Entity entity, Runnable task, long delay) {
-        if (entity == null || !entity.isValid()) return;
+        runEntityTaskLater(plugin, entity, task, null, delay);
+    }
+
+    public static void runEntityTaskLater(Plugin plugin, Entity entity, Runnable task, Runnable retired, long delay) {
+        if (entity == null) {
+            if (retired != null) retired.run();
+            return;
+        }
         if (isFolia) {
-            entity.getScheduler().runDelayed(plugin, (st) -> task.run(), null, delay);
+            entity.getScheduler().runDelayed(plugin, (st) -> task.run(), retired, delay);
         } else {
             new BukkitRunnable() {
-                @Override public void run() { task.run(); }
+                @Override public void run() {
+                    if (entity.isValid()) {
+                        task.run();
+                    } else if (retired != null) {
+                        retired.run();
+                    }
+                }
             }.runTaskLater(plugin, delay);
         }
     }
 
     // 5. Teleport an toàn
     public static void teleportAsync(Entity entity, Location location) {
-        if (entity == null || !entity.isValid()) return;
+        if (entity == null) return;
         entity.teleportAsync(location);
     }
 }

@@ -7,13 +7,10 @@ import org.ipsecuz.pet.model.ModelProviderManager;
 
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-
 public class ModelHandler {
 
     private final IpsecuzPet plugin;
     private final ModelProviderManager manager;
-    private final Map<UUID, PetAnimationState> currentStates = new ConcurrentHashMap<>();
 
     public ModelHandler(IpsecuzPet plugin) {
         this.plugin = plugin;
@@ -68,6 +65,11 @@ public class ModelHandler {
     public void playTransientAnimation(Entity pet, PetAnimationState state, long durationTicks, PetAnimationState returnState) {
         if (pet == null || state == null) return;
         manager.playTransientAnimation(pet, state, durationTicks, returnState);
+    }
+
+    public void stopAnimation(Entity pet) {
+        if (pet == null) return;
+        manager.stopAnimation(pet);
     }
 
     public PetAnimationState getCurrentState(UUID uuid) {
