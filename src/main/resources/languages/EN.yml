@@ -11,6 +11,7 @@ general:
   cancel: "&c✘ CANCEL"
 
 pet:
+  rename_prompt: "&eEnter a new name for your pet in chat (or type &ccancel &eto cancel):"
   display_format: "&8[&eLv.%level%&8] &a%name% &7(&f%owner%&7)"
   spawn: "&aSummoned &e%pet_name%&a!"
   despawn: "&cStored pet into kennel."
@@ -98,54 +99,63 @@ trade:
   already_trading: "&cOne of the players is already in an active trade session!"
   invite_sent: "&aSent pet trade invite to &e%player% &a(Expires in 60s)."
   invite_received: "&e%player% &7wants to trade pets with you! Type &b/pet trade accept &7to accept."
-  no_invite: "&cYou have no pending trade invites (or invite expired)."
-  sender_offline: "&cThe player who sent the invite is now offline!"
-  offer_changed: "&e[Trade] Offer has changed. Locked status was reset!"
-  success: "&a&lTRADE SUCCESSFUL! &fYou received a Pet Card from &e%player%&f."
+  no_invite: "&cYou have no pending trade invitations (or it has expired)."
+  sender_offline: "&cThe player who sent the trade invite is now offline!"
+  offer_changed: "&e[Trade] Offer has changed. Lock status has been reset!"
+  success: "&a&lTRADE SUCCESS! &fYou received Pet Card from &e%player%&f."
   cancelled: "&c&l[TRADE CANCELLED] &7%reason%"
-  title: "&8Trade: &9%playerA% &8vs &6%playerB%"
-  initiator_offer: "&b✦ Offering: %player%"
-  partner_offer: "&6✦ Partner: %player%"
+  title: "&8Pet Trade: &9%playerA% &8vs &6%playerB%"
+  initiator_offer: "&b✦ Initiator Offer: %player%"
+  partner_offer: "&6✦ Partner Offer: %player%"
   divider: "&8✦ Divider"
   status_locked: "&a&l✓ %player% LOCKED"
   status_unlocked: "&c&l✘ %player% UNLOCKED"
-  toggle_lock: "&7Click to toggle Lock / Unlock"
+  toggle_lock: "&7Click to Toggle Lock / Unlock"
   countdown: "&e&lCOUNTDOWN: &6%time%s..."
-  countdown_desc: "&7Trade will finalize momentarily!"
+  countdown_desc: "&7Trade will complete shortly!"
   ready: "&a&lBOTH PLAYERS READY!"
-  ready_desc: "&7Preparing confirmation..."
+  ready_desc: "&7Preparing final confirmation..."
   waiting_lock: "&c&lWAITING FOR LOCK"
-  waiting_lock_desc: "&7Both players must lock their offers to proceed."
-  invalid_card: "&cOnly valid, unconsumed Pet Cards can be placed in trade!"
-  not_enough_space: "&cNot enough inventory space to complete trade!"
-  atomic_rollback: "&cTrade encountered an exception and was atomically rolled back."
+  waiting_lock_desc: "&7Both players must click Lock to proceed."
+  invalid_card: "&cOnly valid (unconsumed) Pet Cards can be placed in trade slots!"
+  not_enough_space: "&cInsufficient inventory space to complete trade!"
+  atomic_rollback: "&cTrade encountered an error and rolled back atomically."
+  only_valid_card: "&cOnly valid Pet Cards (unconsumed) can be placed in trade slots!"
+  offer_full: "&cYour trade offer slots are full!"
+  cancel_quit: "One of the players disconnected."
+  cancel_invalid_amount: "Detected invalid pet card stack size."
+  cancel_invalid_card: "Invalid pet card detected."
+  cancel_consumed_card: "Pet card was previously consumed."
+  cancel_space: "Insufficient inventory space for one of the players."
 
 skills:
-  disabled: "&cPet Skills are currently disabled on this server!"
+  disabled: "&cPet Skills feature is currently disabled on this server!"
   not_owned: "&cYou do not own this pet!"
-  already_learned: "&aYour pet has already learned this skill!"
-  not_found: "&cSkill details could not be found!"
+  already_learned: "&aPet has already learned this skill!"
+  not_found: "&cSkill information not found!"
   learn_success: "&a&lSUCCESS! &fYour pet learned skill: %skill%"
-  no_active_skill: "&cThis pet has no active ultimate skill!"
-  not_learned: "&cPet has not learned this ultimate! Open the skill menu to learn it."
-  cooldown: "&cSkill is on cooldown! Please wait &e%cooldown%s&c."
-  cast_success: "&6&lPET SKILL! &e%skill% &ahas been activated!"
+  no_active_skill: "&cThis pet currently does not have an active ultimate!"
+  not_learned: "&cPet has not learned this ultimate yet! Open GUI to learn."
+  cooldown: "&cUltimate skill is on cooldown! Please wait &e%cooldown%s&c."
+  cast_success: "&6&lPET SKILL! &e%skill% &aactivated!"
   cleanse_effect: "&aCleansing Song removed &e%amount% &cnegative effects!"
+  need_summon_first: "&cYou must summon your pet before activating skills!"
 
 feeding:
-  not_holding_food: "&cYou must hold valid pet food in your main hand to feed your pet!"
+  not_holding_food: "&cYou must hold valid pet food in your main hand!"
   full: "&eYour pet is completely full (%happiness%%)!"
-  feed_success: "&aSuccessfully fed pet! Happiness: &e%happiness%%"
+  feed_success: "&aSuccessfully fed your pet! Happiness: &e%happiness%%"
+  invalid_food: "&cThis item is not a food that your pet likes!"
 
 evolution:
-  max_stars: "&ePet has reached maximum star tier (%stars% ⭐)!"
-  not_enough_level: "&cPet must reach level &e%required% &cto evolve (Current: &e%current%&c)!"
-  success: "&6&lEVOLUTION SUCCESS! &aYour pet ascended to &e%stars% ⭐&a!"
+  max_stars: "&ePet has already reached maximum stars (%stars% ⭐)!"
+  not_enough_level: "&cPet needs level &e%required% &cto evolve (Current: &e%current%&c)!"
+  success: "&6&lEVOLUTION SUCCESS! &aYour pet advanced to &e%stars% ⭐&a!"
 
 shards:
-  duplicate_reward: "&eYou already own &f%pet_name%&e! Converted into &b+%amount% %rarity% Shards &eand &a+%exp% EXP&e!"
-  craft_success: "&a&lCRAFT SUCCESS! &fYou forged pet &e%pet_name%&f!"
-  not_enough_shards: "&cNot enough pet shards! (Required: &e%required%&c, Owned: &e%current%&c)"
+  duplicate_reward: "&eYou already own &f%pet_name%&e! Converted to &b+%amount% %rarity% Shards &eand &a+%exp% EXP&e!"
+  craft_success: "&a&lCRAFT SUCCESS! &fYou successfully crafted Pet &e%pet_name%&f!"
+  not_enough_shards: "&cNot enough Pet Shards! (Need: &e%required%&c, Have: &e%current%&c)"
 
 codex:
   title: "&1Pet Codex"
@@ -159,7 +169,7 @@ model:
   bettermodel_label: "&7BetterModel: %status%"
   modelengine_label: "&7ModelEngine: %status%"
   global_provider: "&7Global Provider: &e%provider%"
-  active_provider: "&7Effective Provider: &a%provider%"
+  active_provider: "&7Active Provider: &a%provider%"
   installed: "&aINSTALLED"
   not_installed: "&cNOT INSTALLED"
   status_footer: "&8&m----------------------------------------"
@@ -168,19 +178,98 @@ model:
 gui:
   menu_title: "&1Pet Profile"
   shop_title: "&6Pet Shop"
-  detail_title: "&8Pet Detail: %pet_name%"
+  detail_title: "&8Pet Details: %pet_name%"
   hatch_title: "&ePet Incubator"
   codex_title: "&1Pet Codex"
-  confirm_title: "&8Confirm Action"
+  confirm_title: "&8Confirmation"
   trade_title: "&8Pet Trading"
+  evolution_title: "&8Evolution: %pet_name%"
+  shards_title: "&1Pet Shards Pouch"
+  confirm_withdraw_title: "&8Confirm Withdraw: %pet_name%"
+  confirm_evolve_title: "&8Confirm Evolution: %pet_name%"
+  confirm_buy_title: "&8Confirm Purchase: %pet_name%"
+  codex_title_page: "&1Pet Codex &8(Page %page%/%total%)"
+  shop_info_title: "&eShop Information"
+  evo_preview_title: "&6⭐ Evolution Preview"
+  shards_empty_title: "&cNo Shards Collected"
+  codex_unknown_title: "&8??? Undiscovered ???"
 
   btn_confirm: "&a✓ CONFIRM"
+  btn_confirm_desc: "Proceed with this operation"
   btn_cancel: "&c✘ CANCEL"
+  btn_cancel_desc: "Cancel and go back"
   btn_next_page: "&aNext Page ➡"
+  btn_next_page_num: "Next Page &8(%page%/%total%)"
   btn_prev_page: "&c⬅ Previous Page"
+  btn_prev_page_num: "Previous Page &8(%page%/%total%)"
   btn_close: "&cClose Menu"
   btn_back: "&7⬅ Back"
+  btn_back_to_list: "Return to pet list"
+  btn_back_to_menu: "Return to main menu"
+  btn_back_to_detail: "Return to pet details"
   btn_action: "&eClick To Interact"
+
+  heading_stats: "Current Stats"
+  heading_base_stats: "Base Stats"
+  heading_requirements: "Requirements"
+  heading_evo_requirements: "Evolution Requirements"
+  section_pet_stats: "COMBAT ATTRIBUTES"
+
+  btn_summon_title: "&a✦ Summon Pet"
+  btn_summon_action: "Click to summon pet by your side"
+  btn_despawn_title: "&c✦ Store Pet"
+  btn_despawn_action: "Click to return pet to kennel"
+  btn_feed_title: "&e🍗 Feed Pet"
+  btn_feed_desc_1: "Increase happiness and restore vitality"
+  btn_feed_desc_2: "Hold valid pet food in your main hand"
+  btn_feed_action: "Click to feed pet"
+  btn_evolution_title: "&6⭐ Star Evolution"
+  btn_evolution_desc: "Promote pet stars to boost combat attributes"
+  btn_evolution_action: "Click to open evolution menu"
+  btn_evolve_ready: "&a⭐ EVOLVE NOW"
+  btn_evolve_not_ready: "&c✘ NOT ENOUGH REQUIREMENTS"
+  btn_evolve_not_ready_desc: "Gather more levels and materials to evolve"
+  btn_evolve_action: "Click to evolve pet"
+  btn_size_baby_title: "&b✦ Baby Form"
+  btn_size_adult_title: "&6✦ Adult Form"
+  btn_size_desc: "Change displayed model size form"
+  btn_size_toggle_to_baby: "Click to switch to Baby Form"
+  btn_size_toggle_to_adult: "Click to switch to Adult Form"
+  btn_rename_title: "&e✎ Rename Pet"
+  btn_rename_desc: "Give a unique nickname to your companion"
+  btn_rename_limit: "Max 16 characters, supports color codes"
+  btn_rename_hint: "Click to start renaming"
+  btn_withdraw_title: "&6📦 Withdraw To Pet Card"
+  btn_withdraw_desc: "Pack your pet safely into an item card"
+  btn_withdraw_action: "Click to withdraw as a trade card"
+
+  btn_skill_active_title: "&e⚡ Active Ultimate"
+  btn_skill_active_action: "Click to activate skill"
+  btn_skill_learn_title: "&6✦ Learn New Skill"
+  btn_skill_learn_action: "Click to learn this skill"
+  skill_unlocked: "&a✓ UNLOCKED"
+  skill_locked: "&c✘ LOCKED"
+
+  btn_shards: "&b✦ Pet Shards"
+  btn_shards_desc: "View and craft collected pet shards"
+  btn_shards_action: "Click to open pet shards"
+  btn_codex: "&d✦ Pet Codex"
+  btn_codex_desc: "View the pet encyclopedia and collection"
+  btn_codex_action: "Click to open Codex"
+  btn_shop: "&a✦ Pet Shop"
+  btn_shop_desc: "Purchase special pets using server currency"
+  btn_shop_action: "Click to open Pet Shop"
+  btn_hatch: "&e✦ Egg Incubator"
+  btn_hatch_desc: "Open egg incubator to hatch new pets"
+  btn_hatch_action: "Click to open incubator"
+
+  action_summon: "Left-click to Summon"
+  action_detail: "Right-click to View Details"
+  action_buy_now: "Click to purchase this pet"
+  status_active: "&aCurrently Active"
+  status_resting: "&7Resting in Kennel"
+  form_baby: "Baby"
+  form_adult: "Adult"
 
   lore_level: "&7Level: &e%level%"
   lore_damage: "&c⚔ Damage: %value%"
@@ -193,6 +282,51 @@ gui:
   lore_price: "&ePrice: %cost%"
   lore_stars: "&7Stars: &e%stars% ⭐"
   lore_happiness: "&7Happiness: &e%happiness%%"
+  lore_id: "Pet ID"
+  lore_rarity: "Rarity"
+  lore_trait: "Trait"
+  lore_exp: "Experience"
+  lore_max: "MAX"
+  lore_form: "Form"
+  lore_shards_count: "Shards Owned"
+  stat_unchanged: "Unchanged"
+
+  stat_pet_id: "Pet ID"
+  stat_rarity: "Rarity"
+  stat_level: "Level"
+  stat_max: "MAX"
+  stat_exp: "Experience"
+  stat_stars: "Stars"
+  stat_trait: "Trait"
+  stat_health: "Max Health"
+  stat_damage: "Damage"
+  stat_defense: "Defense"
+  stat_speed: "Speed"
+
+  evo_free: "&aFree (No requirements)"
+  star_max_reached: "&6★ MAX STAR LEVEL REACHED ★"
+  codex_registered: "Registered"
+  codex_unknown_desc: "Explore the world or hatch eggs to discover!"
+  shard_name_prefix: "&bPet Shard: &f"
+  shards_craft_ready: "&a✓ READY TO CRAFT"
+  shards_craft_needed: "&cNeed more shards to craft"
+  shards_empty_desc_1: "You do not own any pet shards yet."
+  shards_empty_desc_2: "Obtain shards by hatching duplicate pets!"
+  shop_cur_page: "Current Page: &e%page%/%total%"
+  shop_total_pets: "Total Pets Available: &a%count%"
+  shop_already_owned: "&a✓ YOU ALREADY OWN THIS PET"
+
+  hatch_click_spin: "&a▶ Click to Spin Gacha & Hatch!"
+  hatch_guide_title: "&e&lEGG HATCHING & GACHA GUIDE"
+  hatch_guide_line1: "&7- Right-click the egg item in your hand"
+  hatch_guide_line2: "&7  or click directly on the GUI icon."
+  hatch_guide_line3: "&7- Vivid roulette animation with sound effects!"
+  hatch_guide_line4: "&7- The pet in the center slot will be yours!"
+  hatch_guide_line5: "&7- Duplicate pets grant Pet Shards & bonus EXP!"
+  hatch_cost_header: "&6✦ Hatching Cost:"
+  hatch_winner_badge: "YOUR REWARD!"
+  hatch_pointer_down: "&e▼ &6&lREWARD SLOT &e▼"
+  hatch_pointer_up: "&e▲ &6&lREWARD SLOT &e▲"
 
 rarity:
   common: "Common"
@@ -222,45 +356,47 @@ card:
   nickname: "&7Nickname: &f%nickname%"
   skills: "&7Unlocked Skills: &e%amount% skill(s)"
   click_redeem: "&e[Right-click to Summon]"
-  invalid_amount: "&cPet Card must have an amount of exactly 1."
-  consumed: "&cThis card has already been consumed (anti-clone)!"
-  invalid_signature: "&cInvalid card security signature or data modified!"
+  invalid_amount: "&cPet Card stack size must be exactly 1."
+  consumed: "&cThis Pet Card was previously consumed (clone prevention)!"
+  invalid_signature: "&cSecurity signature invalid or card data tampered with!"
 
 hatching:
-  disabled: "&cThe Hatching & Gacha system is currently disabled by the server!"
-  invalid_egg: "&cEgg data not found for this egg type!"
-  empty_loot: "&cThis egg does not have any pets configured to hatch!"
+  disabled: "&cEgg Hatching & Pet Gacha is currently disabled on this server!"
+  invalid_egg: "&cNo data found for this egg type!"
+  empty_loot: "&cThis egg does not have a configured hatchable pet list!"
   invalid_rates: "&cThis egg does not have valid drop rates configured!"
   duplicate_reward: "&e[IpsecuzPet] You already own this pet! Automatically converted to Pet Shards and EXP."
-  full_storage_reward: "&e[Pet Storage Full] You reached the pet limit! Converted reward to Pet Shards."
+  full_storage_reward: "&e[Pet Storage Full] Maximum pet limit reached, reward converted to Pet Shards!"
   success: "&a&lCONGRATULATIONS! &fYou hatched: %pet% &7(Rarity: %rarity%&7, Trait: %trait%&7)"
-  broadcast: "&6&l[IPSECUZ PET] &ePlayer &f%player% &ejust hatched a %rarity% &e%pet%&e!"
+  broadcast: "&6&l[IPSECUZ PET] &ePlayer &f%player% &ehatched %rarity% Pet &e%pet%&e!"
   title_secret: "&5&l??? MYSTERIOUS ???"
   subtitle_secret: "&d✦ SECRET TREASURE: %pet%"
   title_eternal: "&4&l⚔ IMMORTAL MYTHIC ⚔"
   subtitle_eternal: "&c&l%pet%"
-  title_legendary: "&6&l★ LEGENDARY APPEARED! ★"
+  title_legendary: "&6&l★ LEGENDARY SUMMONED! ★"
+  title_mythic: "&c&l★ MYTHIC PET SUMMONED! ★"
+  subtitle_mythic: "&e✦ LEGENDARY MYTHIC BEAST: %pet%"
   title_rare: "&d&l✦ HATCH SUCCESS! ✦"
-  title_default: "&a&lHATCH SUCCESS!"
-  subtitle_default: "&eObtained: %pet%"
+  title_default: "&a&lEGG HATCHED SUCCESSFULLY!"
+  subtitle_default: "&eReceived: %pet%"
 
 help:
   header: "&8&m------------------------"
   title: " &#00aaff✦ &#fb00ffIPSECUZ PETS &#00aaff✦"
   cmd_gui: "&e/pet &7- Open Pet Menu"
   cmd_shop: "&e/pet shop &7- Open Pet Shop"
-  cmd_despawn: "&e/pet despawn &7- Store Active Pet"
-  cmd_duel: "&e/pet duel <name> &7- Challenge Player"
-  cmd_accept: "&e/pet accept &7- Accept Duel Challenge"
-  cmd_baby: "&e/pet baby &7- Toggle Baby / Adult Form"
-  cmd_feed: "&e/pet feed &7- Feed Active Pet"
-  cmd_skill: "&e/pet skill &7- Cast Ultimate Pet Skill"
-  cmd_star: "&e/pet star &7- Evolve Pet Stars"
-  cmd_trade: "&e/pet trade <name> &7- Trade Pets"
-  cmd_hatch: "&e/pet hatch &7- Open Incubator"
+  cmd_despawn: "&e/pet despawn &7- Store Pet"
+  cmd_duel: "&e/pet duel <player> &7- Challenge Player"
+  cmd_accept: "&e/pet accept &7- Accept Duel"
+  cmd_baby: "&e/pet baby &7- Toggle Baby/Adult Form"
+  cmd_feed: "&e/pet feed &7- Feed Pet"
+  cmd_skill: "&e/pet skill &7- Activate Pet Skill"
+  cmd_star: "&e/pet star &7- Evolve Star Tier"
+  cmd_trade: "&e/pet trade <player> &7- Trade Pets"
+  cmd_hatch: "&e/pet hatch &7- Open Egg Incubator"
   cmd_codex: "&e/pet codex &7- Open Pet Codex"
   cmd_shards: "&e/pet shards &7- View Pet Shards"
-  cmd_model_status: "&e/pet model status &7- Check ModelEngine / BetterModel status"
+  cmd_model_status: "&e/pet model status &7- Check ModelEngine / BetterModel Status"
   cmd_give: "&c/pet give <player> <pet_id> &7- Admin Give Pet"
   cmd_giveball: "&c/pet giveball <player> <ball_id> <amount> &7- Give Ball"
   cmd_giveegg: "&c/pet giveegg <player> <egg_id> <amount> &7- Give Egg"
@@ -268,11 +404,155 @@ help:
   footer: "&8&m------------------------"
 
 requirement:
-  not_met: "&cYou do not meet requirement: &e%missing%"
-  transaction_failed: "&cRequirement transaction failed! Resources refunded."
-  not_enough: "&cMissing: &e%missing% &7(Required: &e%required%&7, Current: &e%current%&7)"
+  not_met: "&cYou do not meet the requirement: &e%missing%"
+  transaction_failed: "&cRequirement transaction failed! Resources returned."
+  not_enough: "&cMissing: &e%missing% &7(Need: &e%required%&7, Have: &e%current%&7)"
   ready: "&a&l✔ REQUIREMENTS MET"
 
 capture:
-  disabled: "&cThe pet capture system is currently disabled!"
+  disabled: "&cPet capture feature is currently disabled!"
 
+stats:
+  health: "Max Health"
+  damage: "Damage"
+  defense: "Defense"
+  speed: "Speed"
+
+actionbar:
+  evolution: "&a&l★ STAR EVOLUTION! &eReached %stars% ⭐"
+  revive_progress: "&bRevival progress: &e%current%/%max% ores"
+
+happiness:
+  ecstatic: "&aEcstatic"
+  content: "&eContent"
+  sad: "&cSad"
+  starving: "&4Starving"
+
+eggs:
+  common_egg:
+    name: "&a🥚 Common Egg"
+    lore:
+      - "&7Rarity: &aCommon"
+      - "&7Contains souls of gentle friendly creatures."
+      - "&f"
+      - "&e✦ Possible Hatch Results:"
+      - " &7- Tiny Chick (&a35%&7)"
+      - " &7- Playful Piglet (&a30%&7)"
+      - " &7- Dairy Cow (&a20%&7)"
+      - " &7- Fluffy Sheep (&a15%&7)"
+      - "&f"
+      - "&6▶ Right-click or place in incubator to open!"
+  rare_egg:
+    name: "&b🔮 Rare Egg"
+    lore:
+      - "&7Rarity: &bRare"
+      - "&7Hatches trustworthy combat companions."
+      - "&f"
+      - "&e✦ Possible Hatch Results:"
+      - " &7- Alpha Wolf (&b35%&7)"
+      - " &7- Noble Black Cat (&b30%&7)"
+      - " &7- Snow Fox (&b20%&7)"
+      - " &7- Iron Guardian (&b15%&7)"
+      - "&f"
+      - "&6▶ Right-click or place in incubator to open!"
+  legendary_egg:
+    name: "&6👑 Legendary Egg"
+    lore:
+      - "&7Rarity: &6Legendary"
+      - "&7Possesses ancient power of legendary beasts!"
+      - "&f"
+      - "&e✦ Possible Hatch Results:"
+      - " &7- Gentle Allay (&640%&7)"
+      - " &7- Abyssal Warden (&625%&7)"
+      - " &7- Ender Dragon (&620%&7)"
+      - " &7- Wither Overlord (&615%&7)"
+      - "&f"
+      - "&6▶ Right-click or place in incubator to open!"
+
+pets:
+  chicken_pet:
+    name: "&eTiny Chick"
+  pig_pet:
+    name: "&dPlayful Piglet"
+  cow_pet:
+    name: "&fDairy Cow"
+  sheep_pet:
+    name: "&fFluffy Sheep"
+  zombie_pet:
+    name: "&2Farmer Zombie"
+  skeleton_pet:
+    name: "&7Skeleton Sniper"
+  spider_pet:
+    name: "&4Venomous Spider"
+  creeper_pet:
+    name: "&aWalking Bomb"
+  slime_pet:
+    name: "&aBouncy Slime"
+  bee_pet:
+    name: "&eQueen Bee"
+  wolf_pet:
+    name: "&7Alpha Wolf"
+  cat_pet:
+    name: "&bNoble Black Cat"
+  fox_pet:
+    name: "&6Snow Fox"
+  panda_pet:
+    name: "&fKungfu Panda"
+  iron_golem_pet:
+    name: "&fIron Guardian"
+  blaze_pet:
+    name: "&6Fire Blaze"
+  magma_cube_pet:
+    name: "&cMagma Cube"
+  enderman_pet:
+    name: "&5Ender Wanderer"
+  witch_pet:
+    name: "&5Dark Witch"
+  axolotl_pet:
+    name: "&dCute Axolotl"
+  turtle_pet:
+    name: "&2Ancient Turtle"
+  wither_pet:
+    name: "&8Wither Overlord"
+  ender_dragon_pet:
+    name: "&5Ender Dragon"
+  warden_pet:
+    name: "&3Abyssal Warden"
+  ravager_pet:
+    name: "&8Raging Ravager"
+  allay_pet:
+    name: "&bGentle Allay"
+  sniffer_pet:
+    name: "&cAncient Sniffer"
+  camel_pet:
+    name: "&6Desert Camel"
+  frog_pet:
+    name: "&2Meadow Frog"
+  piglin_pet:
+    name: "&6Piglin Hunter"
+  goat_pet:
+    name: "&fMountain Goat"
+  polar_bear_pet:
+    name: "&fWarrior Polar Bear"
+  dolphin_pet:
+    name: "&bPlayful Dolphin"
+  snowman_pet:
+    name: "&fHappy Snowman"
+  glow_squid_pet:
+    name: "&3Glow Squid"
+  strider_pet:
+    name: "&cLong-leg Strider"
+  hoglin_pet:
+    name: "&cAggressive Hoglin"
+  phantom_pet:
+    name: "&9Sky Phantom"
+  vex_pet:
+    name: "&7Mischievous Vex"
+  shulker_pet:
+    name: "&5Mystery Shulker"
+  pillager_pet:
+    name: "&8Pillager Sniper"
+  drowned_pet:
+    name: "&bOcean Drowned"
+  parrot_pet:
+    name: "&aRainbow Parrot"

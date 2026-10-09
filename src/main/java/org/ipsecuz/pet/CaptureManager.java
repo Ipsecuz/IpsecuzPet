@@ -154,10 +154,10 @@ public class CaptureManager {
 
         ItemStack item = new ItemStack(data.material, amount);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(data.name.replace("&", "§")));
+        meta.displayName(GuiText.component(data.name));
 
         List<Component> loreComp = new ArrayList<>();
-        for (String l : data.lore) loreComp.add(Component.text(l.replace("&", "§")));
+        for (String l : data.lore) loreComp.add(GuiText.component(l));
         meta.lore(loreComp);
 
         meta.getPersistentDataContainer().set(ballKey, PersistentDataType.STRING, ballId);

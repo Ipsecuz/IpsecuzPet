@@ -98,6 +98,12 @@ public class LanguageManager {
         return getMessage(path, new String[0]);
     }
 
+    public boolean contains(String path) {
+        if (path == null) return false;
+        return (primaryConfig != null && primaryConfig.contains(path)) ||
+               (fallbackConfig != null && fallbackConfig.contains(path));
+    }
+
     public boolean isDisplayOnlyKey(String path) {
         if (path == null) return false;
         return path.startsWith("trait.") ||
@@ -109,8 +115,105 @@ public class LanguageManager {
                path.startsWith("stats.") ||
                path.startsWith("title.") ||
                path.startsWith("actionbar.") ||
+               path.startsWith("pets.") ||
+               path.startsWith("eggs.") ||
+               path.startsWith("skills.") ||
+               path.startsWith("happiness.") ||
+               path.startsWith("hatching.title_") ||
+               path.startsWith("hatching.subtitle_") ||
+               path.startsWith("trade.initiator_offer") ||
+               path.startsWith("trade.partner_offer") ||
+               path.startsWith("trade.divider") ||
+               path.startsWith("trade.status_") ||
+               path.startsWith("trade.toggle_lock") ||
+               path.startsWith("trade.countdown") ||
+               path.startsWith("trade.ready") ||
+               path.startsWith("trade.waiting_lock") ||
+               path.startsWith("trade.cancel_") ||
+               path.equals("trade.title") ||
                path.equals("pet.display_format") ||
                path.equals("prefix");
+    }
+
+    public String getPetName(String petId) {
+        if (petId == null) return "Pet";
+        String key = "pets." + petId + ".name";
+        String val = getRawMessage(key);
+        if (val != null && !val.startsWith("§cMissing")) {
+            return val;
+        }
+        return plugin.getConfig().getString("pets." + petId + ".name", petId);
+    }
+
+    public String getPetDisplayName(java.util.UUID ownerId, String petId) {
+        if (petId == null) return "Pet";
+        if (ownerId != null && plugin.getConfigManager() != null) {
+            String customName = plugin.getConfigManager().getCustomName(ownerId, petId);
+            if (customName != null && !customName.trim().isEmpty()) {
+                return customName;
+            }
+        }
+        return getPetName(petId);
+    }
+
+    public String getRawMessageOrDefault(String path, String defaultValue, String... placeholders) {
+        String msg = null;
+        if (primaryConfig != null) {
+            msg = primaryConfig.getString(path);
+        }
+        if (msg == null && fallbackConfig != null) {
+            msg = fallbackConfig.getString(path);
+        }
+        if (msg == null) {
+            msg = defaultValue;
+        }
+        if (msg == null) {
+            return "§c" + path;
+        }
+
+        if (placeholders != null && placeholders.length > 0) {
+            for (int i = 0; i < placeholders.length; i += 2) {
+                if (i + 1 < placeholders.length && placeholders[i] != null && placeholders[i + 1] != null) {
+                    msg = msg.replace(placeholders[i], placeholders[i + 1]);
+                }
+            }
+        }
+
+        return colorize(msg);
+    }
+
+    public String getMessageOrDefault(String path, String defaultValue, String... placeholders) {
+        String msg = null;
+        if (primaryConfig != null) {
+            msg = primaryConfig.getString(path);
+        }
+        if (msg == null && fallbackConfig != null) {
+            msg = fallbackConfig.getString(path);
+        }
+        if (msg == null) {
+            msg = defaultValue;
+        }
+        if (msg == null) {
+            return "§c" + path;
+        }
+
+        if (!isDisplayOnlyKey(path)) {
+            String prefix = primaryConfig != null ? primaryConfig.getString("prefix", "") : "";
+            if (prefix.isEmpty() && fallbackConfig != null) {
+                prefix = fallbackConfig.getString("prefix", "");
+            }
+            msg = prefix + msg;
+        }
+
+        if (placeholders != null && placeholders.length > 0) {
+            for (int i = 0; i < placeholders.length; i += 2) {
+                if (i + 1 < placeholders.length && placeholders[i] != null && placeholders[i + 1] != null) {
+                    msg = msg.replace(placeholders[i], placeholders[i + 1]);
+                }
+            }
+        }
+
+        return colorize(msg);
     }
 
     public String getRawMessage(String path, String... placeholders) {

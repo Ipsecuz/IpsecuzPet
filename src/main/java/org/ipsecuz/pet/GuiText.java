@@ -1,6 +1,7 @@
 package org.ipsecuz.pet;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.ChatColor;
 
@@ -13,6 +14,7 @@ import java.util.regex.Pattern;
 /**
  * Adventure GUI color and component serialization utility.
  * Preserves standard Minecraft formatting codes as well as modern RGB hex codes (&#RRGGBB).
+ * Automatically suppresses unwanted italic formatting for GUI items and lore.
  */
 public final class GuiText {
 
@@ -47,9 +49,21 @@ public final class GuiText {
     }
 
     /**
-     * Converts formatted text to an Adventure Component.
+     * Converts formatted text to an Adventure Component with italics disabled by default.
      */
     public static Component component(String text) {
+        if (text == null || text.isEmpty()) {
+            return Component.empty().decoration(TextDecoration.ITALIC, false);
+        }
+        String formatted = colorize(text);
+        Component deserialized = SECTION_SERIALIZER.deserialize(formatted);
+        return stripItalics(deserialized);
+    }
+
+    /**
+     * Converts formatted text to an Adventure Component specifically for inventory titles.
+     */
+    public static Component title(String text) {
         if (text == null || text.isEmpty()) {
             return Component.empty();
         }
@@ -58,7 +72,18 @@ public final class GuiText {
     }
 
     /**
-     * Converts a list of formatted strings to a list of Adventure Components.
+     * Ensures that the root component has TextDecoration.ITALIC set to false if unset.
+     */
+    public static Component stripItalics(Component comp) {
+        if (comp == null) return Component.empty();
+        if (comp.decoration(TextDecoration.ITALIC) == TextDecoration.State.NOT_SET) {
+            return comp.decoration(TextDecoration.ITALIC, false);
+        }
+        return comp;
+    }
+
+    /**
+     * Converts a list of formatted strings to a list of non-italic Adventure Components.
      */
     public static List<Component> components(List<String> lines) {
         if (lines == null || lines.isEmpty()) {
@@ -84,5 +109,20 @@ public final class GuiText {
         }
         return result;
     }
-}
 
+    /**
+     * Builds a standardized progress bar string.
+     * Example: [§a████§7░░░░§b] §e50%
+     */
+    public static String progressBar(int current, int max, int totalBars) {
+        if (max <= 0) max = 1;
+        double ratio = Math.max(0.0, Math.min(1.0, (double) current / max));
+        int filled = (int) Math.round(ratio * totalBars);
+        StringBuilder sb = new StringBuilder("§b[§a");
+        for (int i = 0; i < filled; i++) sb.append("█");
+        sb.append("§7");
+        for (int i = filled; i < totalBars; i++) sb.append("░");
+        sb.append("§b] §e").append((int) (ratio * 100)).append("%");
+        return sb.toString();
+    }
+}

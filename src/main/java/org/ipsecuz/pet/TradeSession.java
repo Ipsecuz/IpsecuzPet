@@ -68,7 +68,7 @@ public class TradeSession {
                 .replace("%player1%", playerA.getName())
                 .replace("%player2%", playerB.getName());
 
-        Component title = LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', rawTitle));
+        Component title = GuiText.title(rawTitle);
         this.inventory = Bukkit.createInventory(new TradeHolder(this), 54, title);
     }
 
@@ -214,26 +214,27 @@ public class TradeSession {
         state = TradeState.COMMITTING;
 
         if (!playerA.isOnline() || !playerB.isOnline()) {
-            cancel("Một trong hai người chơi đã thoát game trước khi hoàn tất giao dịch.");
+            cancel(plugin.getLanguage().getMessage("trade.cancel_quit"));
             return;
         }
 
         // Pha 1: Chụp ảnh snapshot toàn bộ ưu đãi và kiểm tra tính hợp lệ
         List<ItemStack> itemsFromA = new ArrayList<>();
+        var lang = plugin.getLanguage();
         for (int slot : SLOTS_A) {
             ItemStack item = inventory.getItem(slot);
             if (item != null && item.getType() != Material.AIR) {
                 if (PetCardSecurity.isPetCard(plugin, item) && item.getAmount() != 1) {
-                    cancel("Thẻ của người chơi " + playerA.getName() + " có số lượng không hợp lệ (phải bằng 1)!");
+                    cancel(lang.getMessage("trade.cancel_invalid_amount", "%player%", playerA.getName()));
                     return;
                 }
                 PetCardSecurity.CardValidationResult res = PetCardSecurity.validateAndExtractCard(plugin, item);
                 if (!res.isValid()) {
-                    cancel("Thẻ của người chơi " + playerA.getName() + " không hợp lệ: " + res.getErrorMessage());
+                    cancel(lang.getMessage("trade.cancel_invalid_card", "%player%", playerA.getName(), "%reason%", res.getErrorMessage()));
                     return;
                 }
                 if (res.getCardData().getCardUniqueId() != null && PetCardSecurity.isCardConsumed(plugin, res.getCardData().getCardUniqueId())) {
-                    cancel("Thẻ của người chơi " + playerA.getName() + " đã bị tiêu hao trước đó (chống clone)!");
+                    cancel(lang.getMessage("trade.cancel_consumed_card", "%player%", playerA.getName()));
                     return;
                 }
                 itemsFromA.add(item.clone());
@@ -245,16 +246,16 @@ public class TradeSession {
             ItemStack item = inventory.getItem(slot);
             if (item != null && item.getType() != Material.AIR) {
                 if (PetCardSecurity.isPetCard(plugin, item) && item.getAmount() != 1) {
-                    cancel("Thẻ của người chơi " + playerB.getName() + " có số lượng không hợp lệ (phải bằng 1)!");
+                    cancel(lang.getMessage("trade.cancel_invalid_amount", "%player%", playerB.getName()));
                     return;
                 }
                 PetCardSecurity.CardValidationResult res = PetCardSecurity.validateAndExtractCard(plugin, item);
                 if (!res.isValid()) {
-                    cancel("Thẻ của người chơi " + playerB.getName() + " không hợp lệ: " + res.getErrorMessage());
+                    cancel(lang.getMessage("trade.cancel_invalid_card", "%player%", playerB.getName(), "%reason%", res.getErrorMessage()));
                     return;
                 }
                 if (res.getCardData().getCardUniqueId() != null && PetCardSecurity.isCardConsumed(plugin, res.getCardData().getCardUniqueId())) {
-                    cancel("Thẻ của người chơi " + playerB.getName() + " đã bị tiêu hao trước đó (chống clone)!");
+                    cancel(lang.getMessage("trade.cancel_consumed_card", "%player%", playerB.getName()));
                     return;
                 }
                 itemsFromB.add(item.clone());
@@ -266,12 +267,12 @@ public class TradeSession {
         int freeSlotsB = getFreeStorageSlots(playerB);
 
         if (freeSlotsA < itemsFromB.size()) {
-            cancel("Người chơi " + playerA.getName() + " không đủ ô trống trong kho đồ (cần " + itemsFromB.size() + " ô, hiện có " + freeSlotsA + " ô)!");
+            cancel(lang.getMessage("trade.cancel_space", "%player%", playerA.getName(), "%need%", String.valueOf(itemsFromB.size()), "%free%", String.valueOf(freeSlotsA)));
             return;
         }
 
         if (freeSlotsB < itemsFromA.size()) {
-            cancel("Người chơi " + playerB.getName() + " không đủ ô trống trong kho đồ (cần " + itemsFromA.size() + " ô, hiện có " + freeSlotsB + " ô)!");
+            cancel(lang.getMessage("trade.cancel_space", "%player%", playerB.getName(), "%need%", String.valueOf(itemsFromA.size()), "%free%", String.valueOf(freeSlotsB)));
             return;
         }
 
@@ -345,7 +346,7 @@ public class TradeSession {
                 if (idxB < itemsFromB.size()) inventory.setItem(slot, itemsFromB.get(idxB++));
             }
 
-            cancel("Giao dịch gặp lỗi kỹ thuật ngoại lệ và đã hoàn tác nguyên tử (Atomic Rollback). Không có vật phẩm nào bị rơi hay mất mát.");
+            cancel(plugin.getLanguage().getMessage("trade.atomic_rollback"));
             return;
         } finally {
             plugin.getTradeManager().removeCommittingTrade(tradeTxId);
@@ -421,18 +422,17 @@ public class TradeSession {
     }
 
     private ItemStack createGlass(Material material, String name, String... lore) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            meta.displayName(Component.text(name));
-            if (lore.length > 0) {
-                List<Component> list = new ArrayList<>();
-                for (String l : lore) list.add(Component.text(l));
-                meta.lore(list);
+        GuiItemBuilder ib = GuiItemBuilder.from(material).name(name);
+        if (lore != null && lore.length > 0) {
+            GuiLoreBuilder lb = GuiLoreBuilder.create();
+            for (String l : lore) {
+                if (l != null && !l.isEmpty()) {
+                    lb.line(l);
+                }
             }
-            item.setItemMeta(meta);
+            ib.lore(lb);
         }
-        return item;
+        return ib.build();
     }
 
     public Player getPlayerA() { return playerA; }

@@ -125,8 +125,11 @@ public class EvolutionManager {
                     plugin.getModelHandler().playTransientAnimation(pet, PetAnimationState.CELEBRATE, 45L, PetAnimationState.IDLE);
                 }
 
-                player.sendActionBar(net.kyori.adventure.text.Component.text(
-                        "§6§l★ TIẾN HÓA: " + getStarDisplay(curStar) + " §e➔ " + getStarDisplay(nextStar)
+                player.sendActionBar(GuiText.component(
+                        plugin.getLanguage().getMessageOrDefault("actionbar.evolution",
+                                "§6§l★ TIẾN HÓA: %cur% §e➔ %next%",
+                                "%cur%", getStarDisplay(curStar),
+                                "%next%", getStarDisplay(nextStar))
                 ));
                 player.sendMessage(plugin.getLanguage().getMessage("evolution.success", "%stars%", String.valueOf(nextStar)));
                 plugin.getPetManager().refreshPetStats(player);

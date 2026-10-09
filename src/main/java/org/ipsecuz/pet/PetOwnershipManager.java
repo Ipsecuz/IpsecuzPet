@@ -30,6 +30,10 @@ public class PetOwnershipManager {
         return max;
     }
 
+    public int getMaxPets(Player player) {
+        return getMaxOwnedPets(player);
+    }
+
     public int getOwnedPetCount(UUID uuid) {
         if (uuid == null) return 0;
         var sec = plugin.getConfigManager().getData().getConfigurationSection(uuid + ".pets");

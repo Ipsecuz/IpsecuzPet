@@ -110,15 +110,7 @@ public class GuiListener implements Listener {
     }
 
     public static String buildProgressBar(int current, int max, int totalBars) {
-        if (max <= 0) return "§a[██████████] 100%";
-        double percent = Math.min(1.0, Math.max(0.0, (double) current / max));
-        int filled = (int) Math.round(percent * totalBars);
-        StringBuilder sb = new StringBuilder("§a[");
-        for (int i = 0; i < filled; i++) sb.append("█");
-        sb.append("§7");
-        for (int i = filled; i < totalBars; i++) sb.append("░");
-        sb.append("§a] §e").append((int) (percent * 100)).append("%");
-        return sb.toString();
+        return GuiText.progressBar(current, max, totalBars);
     }
 
     public static void openPetMenu(Player p) {
@@ -141,7 +133,7 @@ public class GuiListener implements Listener {
 
         PetMenuHolder holder = new PetMenuHolder(curPage);
         String rawTitle = lang.getMessage("gui.menu_title") + " &8[" + curPage + "/" + totalPages + "]";
-        Inventory inv = Bukkit.createInventory(holder, 54, LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', rawTitle)));
+        Inventory inv = Bukkit.createInventory(holder, 54, GuiText.title(rawTitle));
         holder.setInventory(inv);
 
         int startIndex = (curPage - 1) * pageSize;
@@ -150,16 +142,8 @@ public class GuiListener implements Listener {
         for (int i = startIndex; i < endIndex; i++) {
             String petId = ownedPets.get(i);
             String matStr = plugin.getConfig().getString("pets." + petId + ".icon", "STONE");
-            ItemStack item = plugin.getItemHookManager().getItem(matStr, Material.STONE);
-            ItemMeta meta = item.getItemMeta();
-            if (meta == null) continue;
+            String displayName = lang.getPetDisplayName(p.getUniqueId(), petId);
 
-            String defaultName = plugin.getConfig().getString("pets." + petId + ".name", "Pet");
-            String customName = cm.getCustomName(p.getUniqueId(), petId);
-            String displayName = (customName != null) ? customName : defaultName;
-            meta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', displayName)));
-
-            List<Component> lore = new ArrayList<>();
             int lvl = cm.getData().getInt(p.getUniqueId() + ".pets." + petId + ".level", 1);
             int exp = cm.getData().getInt(p.getUniqueId() + ".pets." + petId + ".exp", 0);
             int maxLvl = plugin.getConfig().getInt("rpg_system.max_level", 100);
@@ -171,108 +155,100 @@ public class GuiListener implements Listener {
             PetTrait trait = PetTrait.fromString(traitName);
             PetRarity rarity = PetRarity.fromPetId(plugin, petId);
 
-            lore.add(GuiText.component("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
-            lore.add(GuiText.component("§7Cấp độ: §6Lv." + lvl + (lvl >= maxLvl ? " §e[TỐI ĐA]" : (" §8(" + exp + "/" + reqExp + ")"))));
-            if (lvl < maxLvl) {
-                lore.add(GuiText.component("§7Kinh nghiệm: " + buildProgressBar(exp, reqExp, 10)));
-            }
-            lore.add(GuiText.component("§7Cấp sao: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐"))));
-            lore.add(GuiText.component("§7Đặc chất: " + trait.getLocalizedName(plugin)));
-            lore.add(GuiText.component("§7Dạng kích thước: " + (isBaby ? "§b👶 Bé con" : "§6🦁 Trưởng thành")));
-
             FeedingManager.HappinessState happyState = (plugin.getFeedingManager() != null)
                     ? plugin.getFeedingManager().getHappinessState(happy) : FeedingManager.HappinessState.CONTENT;
-            lore.add(GuiText.component("§7Thân thiết: §d♡ " + happy + "% §8(" + happyState.getDisplay() + "§8)"));
 
-            lore.add(GuiText.component("§8§m------------------------"));
             String active = plugin.getPetManager().getActivePetId(p.getUniqueId());
-            if (active != null && active.equals(petId)) {
-                lore.add(GuiText.component("§a● ĐANG ĐƯỢC TRIỆU HỒI [KÍCH HOẠT]"));
-            } else {
-                lore.add(GuiText.component("§7○ ĐANG NGHỈ NGƠI"));
-                lore.add(GuiText.component("§e▶ Chuột trái: Triệu hồi"));
-            }
-            lore.add(GuiText.component("§b▶ Chuột phải: Mở Quản Lý Chi Tiết"));
+            boolean isActive = active != null && active.equals(petId);
 
-            meta.lore(lore);
-            meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_id"), PersistentDataType.STRING, petId);
-            item.setItemMeta(meta);
+            GuiLoreBuilder lore = GuiLoreBuilder.create()
+                    .stat(lang.getMessage("gui.lore_rarity"), rarity.getLocalizedName(plugin))
+                    .stat(lang.getMessage("gui.lore_level"), "Lv." + lvl + (lvl >= maxLvl ? " " + lang.getMessage("gui.lore_max") : (" §8(" + exp + "/" + reqExp + ")")));
+
+            if (lvl < maxLvl) {
+                lore.raw("§7" + lang.getMessage("gui.lore_exp") + ": " + GuiText.progressBar(exp, reqExp, 10));
+            }
+
+            lore.stat(lang.getMessage("gui.lore_stars"), ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐")))
+                .stat(lang.getMessage("gui.lore_trait"), trait.getLocalizedName(plugin))
+                .stat(lang.getMessage("gui.lore_form"), isBaby ? lang.getMessage("gui.form_baby") : lang.getMessage("gui.form_adult"))
+                .stat(lang.getMessage("gui.lore_happiness"), "§d♡ " + happy + "% §8(" + happyState.getLocalizedDisplay(plugin) + "§8)")
+                .separator();
+
+            if (isActive) {
+                lore.status(true, lang.getMessage("gui.status_active"));
+            } else {
+                lore.status(false, lang.getMessage("gui.status_resting"));
+                lore.action(lang.getMessage("gui.action_summon"));
+            }
+            lore.action(lang.getMessage("gui.action_detail"));
+
+            ItemStack item = GuiItemBuilder.from(matStr, Material.STONE)
+                    .name(displayName)
+                    .lore(lore)
+                    .pdc("pet_id", petId)
+                    .build();
+
             inv.setItem(i - startIndex, item);
         }
 
         // Thanh điều hướng đáy (slots 45-53)
-        ItemStack navGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
-        ItemMeta ngMeta = navGlass.getItemMeta();
-        if (ngMeta != null) { ngMeta.displayName(Component.text(" ")); navGlass.setItemMeta(ngMeta); }
+        ItemStack navGlass = GuiItemBuilder.from(Material.BLACK_STAINED_GLASS_PANE).name(" ").build();
         for (int s = 45; s < 54; s++) inv.setItem(s, navGlass);
 
         if (curPage > 1) {
-            ItemStack prev = new ItemStack(Material.ARROW);
-            ItemMeta pMeta = prev.getItemMeta();
-            if (pMeta != null) {
-                pMeta.displayName(GuiText.component("§e◀ Trang " + (curPage - 1)));
-                pMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "nav_page"), PersistentDataType.INTEGER, curPage - 1);
-                prev.setItemMeta(pMeta);
-            }
+            ItemStack prev = GuiItemBuilder.from(Material.ARROW)
+                    .name(lang.getMessage("gui.btn_prev_page_num", "%page%", String.valueOf(curPage - 1)))
+                    .pdc("nav_page", curPage - 1)
+                    .build();
             inv.setItem(45, prev);
         }
 
         // Nút Codex (slot 46)
-        ItemStack codexBtn = new ItemStack(Material.KNOWLEDGE_BOOK);
-        ItemMeta cMeta = codexBtn.getItemMeta();
-        if (cMeta != null) {
-            cMeta.displayName(GuiText.component("§6§l✦ BÁCH KHOA PET (CODEX) ✦"));
-            List<Component> cLore = new ArrayList<>();
-            cLore.add(GuiText.component("§7Xem toàn bộ danh sách Pet và tiến trình"));
-            cLore.add(GuiText.component("§e▶ Nhấp để mở Bách Khoa!"));
-            cMeta.lore(cLore);
-            cMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_codex");
-            codexBtn.setItemMeta(cMeta);
-        }
+        ItemStack codexBtn = GuiItemBuilder.from(Material.KNOWLEDGE_BOOK)
+                .name(lang.getMessage("gui.btn_codex"))
+                .lore(GuiLoreBuilder.create()
+                        .description(lang.getMessage("gui.btn_codex_desc"))
+                        .action(lang.getMessage("gui.btn_codex_action")))
+                .pdc("btn_action", "open_codex")
+                .build();
         inv.setItem(46, codexBtn);
 
         // Nút Shards (slot 47)
-        ItemStack shardsBtn = new ItemStack(Material.PRISMARINE_SHARD);
-        ItemMeta shMeta = shardsBtn.getItemMeta();
-        if (shMeta != null) {
-            shMeta.displayName(GuiText.component("§b§l✦ KHO MẢNH PET (SHARDS) ✦"));
-            List<Component> shLore = new ArrayList<>();
-            shLore.add(GuiText.component("§7Ghép 50 mảnh để mở khóa Pet mới!"));
-            shLore.add(GuiText.component("§e▶ Nhấp để kiểm tra mảnh ghép"));
-            shMeta.lore(shLore);
-            shMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_shards");
-            shardsBtn.setItemMeta(shMeta);
-        }
+        ItemStack shardsBtn = GuiItemBuilder.from(Material.PRISMARINE_SHARD)
+                .name(lang.getMessage("gui.btn_shards"))
+                .lore(GuiLoreBuilder.create()
+                        .description(lang.getMessage("gui.btn_shards_desc"))
+                        .action(lang.getMessage("gui.btn_shards_action")))
+                .pdc("btn_action", "open_shards")
+                .build();
         inv.setItem(47, shardsBtn);
 
         // Nút Cửa Hàng (slot 49)
-        ItemStack shopBtn = new ItemStack(Material.EMERALD);
-        ItemMeta sMeta = shopBtn.getItemMeta();
-        if (sMeta != null) {
-            sMeta.displayName(GuiText.component("§a§lCỬA HÀNG THÚ CƯNG"));
-            sMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_shop");
-            shopBtn.setItemMeta(sMeta);
-        }
+        ItemStack shopBtn = GuiItemBuilder.from(Material.EMERALD)
+                .name(lang.getMessage("gui.btn_shop"))
+                .lore(GuiLoreBuilder.create()
+                        .description(lang.getMessage("gui.btn_shop_desc"))
+                        .action(lang.getMessage("gui.btn_shop_action")))
+                .pdc("btn_action", "open_shop")
+                .build();
         inv.setItem(49, shopBtn);
 
         // Nút Lò Ấp Trứng (slot 51)
-        ItemStack hatchBtn = new ItemStack(Material.DRAGON_EGG);
-        ItemMeta hMeta = hatchBtn.getItemMeta();
-        if (hMeta != null) {
-            hMeta.displayName(GuiText.component("§d§lLÒ ẤP TRỨNG PET"));
-            hMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_hatch");
-            hatchBtn.setItemMeta(hMeta);
-        }
+        ItemStack hatchBtn = GuiItemBuilder.from(Material.DRAGON_EGG)
+                .name(lang.getMessage("gui.btn_hatch"))
+                .lore(GuiLoreBuilder.create()
+                        .description(lang.getMessage("gui.btn_hatch_desc"))
+                        .action(lang.getMessage("gui.btn_hatch_action")))
+                .pdc("btn_action", "open_hatch")
+                .build();
         inv.setItem(51, hatchBtn);
 
         if (curPage < totalPages) {
-            ItemStack next = new ItemStack(Material.ARROW);
-            ItemMeta nMeta = next.getItemMeta();
-            if (nMeta != null) {
-                nMeta.displayName(GuiText.component("§eTrang " + (curPage + 1) + " ▶"));
-                nMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "nav_page"), PersistentDataType.INTEGER, curPage + 1);
-                next.setItemMeta(nMeta);
-            }
+            ItemStack next = GuiItemBuilder.from(Material.ARROW)
+                    .name(lang.getMessage("gui.btn_next_page_num", "%page%", String.valueOf(curPage + 1)))
+                    .pdc("nav_page", curPage + 1)
+                    .build();
             inv.setItem(53, next);
         }
 
@@ -282,25 +258,20 @@ public class GuiListener implements Listener {
     public static void openPetDetailMenu(Player p, String petId) {
         IpsecuzPet plugin = IpsecuzPet.getInstance();
         ConfigManager cm = plugin.getConfigManager();
+        LanguageManager lang = plugin.getLanguage();
 
         PetDetailHolder holder = new PetDetailHolder(petId);
-        String defaultName = plugin.getConfig().getString("pets." + petId + ".name", "Pet");
-        String customName = cm.getCustomName(p.getUniqueId(), petId);
-        String name = (customName != null) ? customName : defaultName;
+        String name = lang.getPetDisplayName(p.getUniqueId(), petId);
 
-        String rawTitle = plugin.getLanguage().getMessage("gui.detail_title", "%pet_name%", name);
-        Inventory inv = Bukkit.createInventory(holder, 45, LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', rawTitle)));
+        String rawTitle = lang.getMessage("gui.detail_title", "%pet_name%", name);
+        Inventory inv = Bukkit.createInventory(holder, 45, GuiText.title(rawTitle));
         holder.setInventory(inv);
 
-        ItemStack border = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
-        ItemMeta bMeta = border.getItemMeta();
-        if (bMeta != null) { bMeta.displayName(Component.text(" ")); border.setItemMeta(bMeta); }
+        ItemStack border = GuiItemBuilder.from(Material.GRAY_STAINED_GLASS_PANE).name(" ").build();
         for (int i = 0; i < 45; i++) inv.setItem(i, border);
 
         // Icon chính (slot 13)
         String matStr = plugin.getConfig().getString("pets." + petId + ".icon", "STONE");
-        ItemStack petIcon = plugin.getItemHookManager().getItem(matStr, Material.STONE);
-        ItemMeta pMeta = petIcon.getItemMeta();
         int lvl = cm.getData().getInt(p.getUniqueId() + ".pets." + petId + ".level", 1);
         int exp = cm.getData().getInt(p.getUniqueId() + ".pets." + petId + ".exp", 0);
         int reqExp = lvl * plugin.getConfig().getInt("rpg_system.base_exp_requirement", 50);
@@ -311,73 +282,73 @@ public class GuiListener implements Listener {
         PetTrait trait = PetTrait.fromString(traitName);
         PetRarity rarity = PetRarity.fromPetId(plugin, petId);
 
-        if (pMeta != null) {
-            pMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&6★ " + name)));
-            List<Component> lore = new ArrayList<>();
-            lore.add(GuiText.component("§7Mã định danh: §e" + petId));
-            lore.add(GuiText.component("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
-            if (plugin.getModelProviderManager() != null) {
-                var provider = plugin.getModelProviderManager().resolveProviderForPet(petId);
-                if (provider != null && provider.getType() != org.ipsecuz.pet.model.ModelType.NONE) {
-                    lore.add(GuiText.component(plugin.getLanguage().getMessage("model.model_3d_label", "%provider%", provider.getType().name())));
-                }
+        FeedingManager.HappinessState happyState = (plugin.getFeedingManager() != null)
+                ? plugin.getFeedingManager().getHappinessState(happy) : FeedingManager.HappinessState.CONTENT;
+
+        GuiLoreBuilder petLore = GuiLoreBuilder.create()
+                .stat(lang.getMessage("gui.lore_id"), petId)
+                .stat(lang.getMessage("gui.lore_rarity"), rarity.getLocalizedName(plugin));
+
+        if (plugin.getModelProviderManager() != null) {
+            var provider = plugin.getModelProviderManager().resolveProviderForPet(petId);
+            if (provider != null && provider.getType() != org.ipsecuz.pet.model.ModelType.NONE) {
+                petLore.raw(lang.getMessage("model.model_3d_label", "%provider%", provider.getType().name()));
             }
-            lore.add(GuiText.component("§7Cấp sao: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐"))));
-            lore.add(GuiText.component("§7Đặc chất: " + trait.getLocalizedName(plugin)));
-            lore.add(GuiText.component("§7Cấp độ: §aLv." + lvl + " §7(EXP: §b" + exp + "/" + reqExp + "§7)"));
-            lore.add(GuiText.component("§7Độ vui vẻ: §e" + happy + "%"));
-            lore.add(GuiText.component("§7--------------------"));
-            double dmg = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "damage");
-            double hp = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "health");
-            double def = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "defense");
-            double spd = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "speed");
-            lore.add(GuiText.component("§7Máu tối đa: §a" + String.format("%.1f", hp) + " ❤"));
-            lore.add(GuiText.component("§7Sát thương: §c" + String.format("%.1f", dmg) + " ⚔"));
-            lore.add(GuiText.component("§7Giáp phòng thủ: §9" + String.format("%.1f", def) + " 🛡"));
-            lore.add(GuiText.component("§7Tốc độ di chuyển: §f" + String.format("%.3f", spd)));
-            pMeta.lore(lore);
-            petIcon.setItemMeta(pMeta);
         }
+
+        petLore.stat(lang.getMessage("gui.lore_stars"), ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐")))
+                .stat(lang.getMessage("gui.lore_trait"), trait.getLocalizedName(plugin))
+                .stat(lang.getMessage("gui.lore_level"), "Lv." + lvl + " §7(" + lang.getMessage("gui.lore_exp") + ": §b" + exp + "/" + reqExp + "§7)")
+                .stat(lang.getMessage("gui.lore_happiness"), happy + "% §8(" + happyState.getLocalizedDisplay(plugin) + "§8)")
+                .separator()
+                .heading(lang.getMessage("gui.heading_stats"));
+
+        double dmg = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "damage");
+        double hp = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "health");
+        double def = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "defense");
+        double spd = PetStatEngine.calculateEffectiveStat(plugin, p.getUniqueId(), petId, lvl, "speed");
+
+        petLore.stat(lang.getMessage("stats.health"), String.format("%.1f", hp) + " ❤")
+                .stat(lang.getMessage("stats.damage"), String.format("%.1f", dmg) + " ⚔")
+                .stat(lang.getMessage("stats.defense"), String.format("%.1f", def) + " 🛡")
+                .stat(lang.getMessage("stats.speed"), String.format("%.3f", spd));
+
+        ItemStack petIcon = GuiItemBuilder.from(matStr, Material.STONE)
+                .name("&6★ " + name)
+                .lore(petLore)
+                .build();
         inv.setItem(13, petIcon);
 
         // Nút Triệu Hồi / Cất đi (slot 20)
         String active = plugin.getPetManager().getActivePetId(p.getUniqueId());
         boolean isCurrent = active != null && active.equals(petId);
-        ItemStack summonBtn = new ItemStack(isCurrent ? Material.BARRIER : Material.LEAD);
-        ItemMeta sMeta = summonBtn.getItemMeta();
-        if (sMeta != null) {
-            sMeta.displayName(GuiText.component(isCurrent ? "§c§l[CẤT THÚ CƯNG]" : "§a§l[TRIỆU HỒI PET]"));
-            sMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "toggle_summon:" + petId);
-            summonBtn.setItemMeta(sMeta);
-        }
+        ItemStack summonBtn = GuiItemBuilder.from(isCurrent ? Material.BARRIER : Material.LEAD)
+                .name(isCurrent ? lang.getMessage("gui.btn_despawn_title") : lang.getMessage("gui.btn_summon_title"))
+                .lore(GuiLoreBuilder.create()
+                        .action(isCurrent ? lang.getMessage("gui.btn_despawn_action") : lang.getMessage("gui.btn_summon_action")))
+                .pdc("detail_action", "toggle_summon:" + petId)
+                .build();
         inv.setItem(20, summonBtn);
 
         // Nút Đổi dạng Kích thước Bé / Lớn (slot 22)
-        ItemStack sizeBtn = new ItemStack(isBaby ? Material.EGG : Material.TURTLE_HELMET);
-        ItemMeta sizeMeta = sizeBtn.getItemMeta();
-        if (sizeMeta != null) {
-            sizeMeta.displayName(GuiText.component(isBaby ? "§b§lKÍCH THƯỚC: [BÉ CON 👶]" : "§6§lKÍCH THƯỚC: [TRƯỞNG THÀNH 🦁]"));
-            List<Component> sizeLore = new ArrayList<>();
-            sizeLore.add(GuiText.component("§7Nhấp để chuyển đổi dạng kích thước"));
-            sizeLore.add(GuiText.component("§e▶ Đổi sang: " + (isBaby ? "Trưởng thành 🦁" : "Bé con 👶")));
-            sizeMeta.lore(sizeLore);
-            sizeMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "toggle_baby:" + petId);
-            sizeBtn.setItemMeta(sizeMeta);
-        }
+        ItemStack sizeBtn = GuiItemBuilder.from(isBaby ? Material.EGG : Material.TURTLE_HELMET)
+                .name(isBaby ? lang.getMessage("gui.btn_size_baby_title") : lang.getMessage("gui.btn_size_adult_title"))
+                .lore(GuiLoreBuilder.create()
+                        .description(lang.getMessage("gui.btn_size_desc"))
+                        .action(isBaby ? lang.getMessage("gui.btn_size_toggle_to_adult") : lang.getMessage("gui.btn_size_toggle_to_baby")))
+                .pdc("detail_action", "toggle_baby:" + petId)
+                .build();
         inv.setItem(22, sizeBtn);
 
         // Nút Cho ăn (slot 24)
-        ItemStack feedBtn = new ItemStack(Material.COOKED_BEEF);
-        ItemMeta fMeta = feedBtn.getItemMeta();
-        if (fMeta != null) {
-            fMeta.displayName(GuiText.component("§6§l[CHO ĂN 🍖]"));
-            List<Component> fLore = new ArrayList<>();
-            fLore.add(GuiText.component("§7Cầm thức ăn trên tay và nhấp vào đây"));
-            fLore.add(GuiText.component("§7hoặc dùng lệnh: §e/pet feed"));
-            fMeta.lore(fLore);
-            fMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "feed:" + petId);
-            feedBtn.setItemMeta(fMeta);
-        }
+        ItemStack feedBtn = GuiItemBuilder.from(Material.COOKED_BEEF)
+                .name(lang.getMessage("gui.btn_feed_title"))
+                .lore(GuiLoreBuilder.create()
+                        .description(lang.getMessage("gui.btn_feed_desc_1"))
+                        .description(lang.getMessage("gui.btn_feed_desc_2"))
+                        .action(lang.getMessage("gui.btn_feed_action")))
+                .pdc("detail_action", "feed:" + petId)
+                .build();
         inv.setItem(24, feedBtn);
 
         // Nút Kỹ Năng Ultimate (slot 29)
@@ -385,98 +356,85 @@ public class GuiListener implements Listener {
         FileConfiguration skillsCfg = plugin.getModuleManager().getSkillsConfig();
         ConfigurationSection ultSec = skillsCfg.getConfigurationSection("skills." + petId + ".ultimate");
 
-        ItemStack skillBtn = new ItemStack(skillUnlocked ? Material.BLAZE_POWDER : Material.NETHER_BRICK);
-        ItemMeta skMeta = skillBtn.getItemMeta();
-        if (skMeta != null) {
-            String skName = (ultSec != null) ? ultSec.getString("name", "Tuyệt Chiêu") : "Tuyệt Chiêu";
-            List<Component> skLore = new ArrayList<>();
+        String defaultSkName = (ultSec != null) ? ultSec.getString("name", "Tuyệt Chiêu") : "Tuyệt Chiêu";
+        String skName = (lang != null && lang.contains("skills." + petId + ".name"))
+                ? lang.getMessage("skills." + petId + ".name") : defaultSkName;
 
-            if (skillUnlocked) {
-                skMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&a&l[KÍCH HOẠT: " + skName + " ⚡]")));
-                if (ultSec != null && ultSec.contains("desc")) {
-                    skLore.add(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', ultSec.getString("desc", ""))));
-                }
-                skLore.add(GuiText.component("§a✔ Đã học kỹ năng"));
-                skLore.add(GuiText.component("§e▶ Nhấp để kích hoạt ngay!"));
-                skMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "ultimate:" + petId);
-            } else {
-                skMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&6&l[HỌC KỸ NĂNG: " + skName + " ⚡]")));
-                if (ultSec != null && ultSec.contains("desc")) {
-                    skLore.add(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', ultSec.getString("desc", ""))));
-                }
-                skLore.add(GuiText.component("§c✖ Chưa học kỹ năng này!"));
-                skLore.add(GuiText.component("§7--- Yêu cầu để học ---"));
-                if (ultSec != null) {
-                    org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(ultSec);
-                    org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(p, petId, lvl, star, plugin);
-                    org.ipsecuz.pet.requirement.RequirementCheckResult result = plugin.getRequirementManager().evaluate(group, ctx);
-                    skLore.addAll(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(result));
-                }
-                skLore.add(GuiText.component("§a▶ Nhấp để Học Kỹ Năng ngay!"));
-                skMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "learn_skill:ultimate:" + petId);
+        GuiLoreBuilder skLore = GuiLoreBuilder.create();
+        if (ultSec != null && ultSec.contains("desc")) {
+            skLore.description(ultSec.getString("desc", ""));
+        }
+
+        ItemStack skillBtn;
+        if (skillUnlocked) {
+            skLore.status(true, lang.getMessage("gui.skill_unlocked"))
+                  .action(lang.getMessage("gui.btn_skill_active_action"));
+            skillBtn = GuiItemBuilder.from(Material.BLAZE_POWDER)
+                    .name(lang.getMessage("gui.btn_skill_active_title", "%skill%", skName))
+                    .lore(skLore)
+                    .pdc("detail_action", "ultimate:" + petId)
+                    .build();
+        } else {
+            skLore.status(false, lang.getMessage("gui.skill_locked"))
+                  .separator()
+                  .heading(lang.getMessage("gui.heading_requirements"));
+            if (ultSec != null) {
+                org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(ultSec);
+                org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(p, petId, lvl, star, plugin);
+                org.ipsecuz.pet.requirement.RequirementCheckResult result = plugin.getRequirementManager().evaluate(group, ctx);
+                skLore.components(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(result));
             }
-
-            skMeta.lore(skLore);
-            skillBtn.setItemMeta(skMeta);
+            skLore.action(lang.getMessage("gui.btn_skill_learn_action"));
+            skillBtn = GuiItemBuilder.from(Material.NETHER_BRICK)
+                    .name(lang.getMessage("gui.btn_skill_learn_title", "%skill%", skName))
+                    .lore(skLore)
+                    .pdc("detail_action", "learn_skill:ultimate:" + petId)
+                    .build();
         }
         inv.setItem(29, skillBtn);
 
         // Nút Nâng Sao & Tiến Hóa (slot 31)
-        ItemStack starBtn = new ItemStack(Material.NETHER_STAR);
-        ItemMeta starMeta = starBtn.getItemMeta();
-        if (starMeta != null) {
-            starMeta.displayName(GuiText.component("§e§l[TIẾN HÓA & TĂNG SAO ⭐]"));
-            List<Component> stLore = new ArrayList<>();
-            stLore.add(GuiText.component("§7Cấp sao hiện tại: " + ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐"))));
-            stLore.add(GuiText.component("§7Gia tăng +15% Máu, Sát thương & Giáp mỗi sao"));
-            if (star < 5) {
-                stLore.add(GuiText.component("§a▶ Nhấp để mở Giao Diện Tiến Hóa Chuyên Sâu ⭐"));
-            } else {
-                stLore.add(GuiText.component("§6§l✔ ĐÃ ĐẠT CẤP SAO TỐI ĐA!"));
-            }
-            starMeta.lore(stLore);
-            starMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "open_evolution:" + petId);
-            starBtn.setItemMeta(starMeta);
+        GuiLoreBuilder evoBtnLore = GuiLoreBuilder.create()
+                .stat(lang.getMessage("gui.lore_stars"), ((plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(star) : (star + "⭐")))
+                .description(lang.getMessage("gui.btn_evolution_desc"));
+        if (star < 5) {
+            evoBtnLore.action(lang.getMessage("gui.btn_evolution_action"));
+        } else {
+            evoBtnLore.status(true, lang.getMessage("gui.star_max_reached"));
         }
+        ItemStack starBtn = GuiItemBuilder.from(Material.NETHER_STAR)
+                .name(lang.getMessage("gui.btn_evolution_title"))
+                .lore(evoBtnLore)
+                .pdc("detail_action", "open_evolution:" + petId)
+                .build();
         inv.setItem(31, starBtn);
 
         // Nút Rút Thẻ Pet (slot 33)
-        ItemStack withdrawBtn = new ItemStack(Material.CHEST_MINECART);
-        ItemMeta wMeta = withdrawBtn.getItemMeta();
-        if (wMeta != null) {
-            wMeta.displayName(GuiText.component("§d§l[RÚT THÀNH THẺ VẬT PHẨM 📦]"));
-            List<Component> wLore = new ArrayList<>();
-            wLore.add(GuiText.component("§7Rút thú cưng ra vật phẩm trong rương đồ"));
-            wLore.add(GuiText.component("§e▶ Nhấp để mở hộp thoại xác nhận rút"));
-            wMeta.lore(wLore);
-            wMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "confirm_withdraw_prompt:" + petId);
-            withdrawBtn.setItemMeta(wMeta);
-        }
+        ItemStack withdrawBtn = GuiItemBuilder.from(Material.CHEST_MINECART)
+                .name(lang.getMessage("gui.btn_withdraw_title"))
+                .lore(GuiLoreBuilder.create()
+                        .description(lang.getMessage("gui.btn_withdraw_desc"))
+                        .action(lang.getMessage("gui.btn_withdraw_action")))
+                .pdc("detail_action", "confirm_withdraw_prompt:" + petId)
+                .build();
         inv.setItem(33, withdrawBtn);
 
         // Nút Đổi tên Thú Cưng (slot 35)
-        ItemStack renameBtn = new ItemStack(Material.NAME_TAG);
-        ItemMeta rnMeta = renameBtn.getItemMeta();
-        if (rnMeta != null) {
-            rnMeta.displayName(GuiText.component("§e§l[ĐỔI TÊN THÚ CƯNG 🏷]"));
-            List<Component> rnLore = new ArrayList<>();
-            rnLore.add(GuiText.component("§7Tùy biến biệt danh cho pet của bạn"));
-            rnLore.add(GuiText.component("§e▶ Dùng lệnh: §6/pet rename <tên_mới>"));
-            rnLore.add(GuiText.component("§7(Độ dài hợp lệ từ 2 đến 24 ký tự)"));
-            rnMeta.lore(rnLore);
-            rnMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "rename_info:" + petId);
-            renameBtn.setItemMeta(rnMeta);
-        }
+        ItemStack renameBtn = GuiItemBuilder.from(Material.NAME_TAG)
+                .name(lang.getMessage("gui.btn_rename_title"))
+                .lore(GuiLoreBuilder.create()
+                        .description(lang.getMessage("gui.btn_rename_desc"))
+                        .action(lang.getMessage("gui.btn_rename_hint"))
+                        .description(lang.getMessage("gui.btn_rename_limit")))
+                .pdc("detail_action", "rename_info:" + petId)
+                .build();
         inv.setItem(35, renameBtn);
 
         // Nút Quay lại (slot 40)
-        ItemStack backBtn = new ItemStack(Material.BARRIER);
-        ItemMeta bkMeta = backBtn.getItemMeta();
-        if (bkMeta != null) {
-            bkMeta.displayName(GuiText.component("§c§l◀ QUAY LẠI DANH SÁCH"));
-            bkMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "detail_action"), PersistentDataType.STRING, "back");
-            backBtn.setItemMeta(bkMeta);
-        }
+        ItemStack backBtn = GuiItemBuilder.from(Material.BARRIER)
+                .name(lang.getMessage("gui.btn_back_to_list"))
+                .pdc("detail_action", "back")
+                .build();
         inv.setItem(40, backBtn);
 
         p.openInventory(inv);
@@ -487,20 +445,18 @@ public class GuiListener implements Listener {
         IpsecuzPet plugin = IpsecuzPet.getInstance();
         ConfigManager cm = plugin.getConfigManager();
         EvolutionManager evo = plugin.getEvolutionManager();
+        LanguageManager lang = plugin.getLanguage();
 
         int curStar = evo.getStar(p.getUniqueId(), petId);
         int maxStar = plugin.getModuleManager().getEvolutionConfig().getInt("max_stars", 5);
         int nextStar = Math.min(maxStar, curStar + 1);
 
         EvolutionHolder holder = new EvolutionHolder(petId);
-        Inventory inv = Bukkit.createInventory(holder, 45, LegacyComponentSerializer.legacySection().deserialize(
-                ChatColor.translateAlternateColorCodes('&', "&8✦ Tiến Hóa: " + curStar + "⭐ ➔ " + nextStar + "⭐")
-        ));
+        String rawTitle = lang.getMessage("gui.evolution_title", "%cur%", curStar + "⭐", "%next%", nextStar + "⭐");
+        Inventory inv = Bukkit.createInventory(holder, 45, GuiText.title(rawTitle));
         holder.setInventory(inv);
 
-        ItemStack border = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
-        ItemMeta bMeta = border.getItemMeta();
-        if (bMeta != null) { bMeta.displayName(Component.text(" ")); border.setItemMeta(bMeta); }
+        ItemStack border = GuiItemBuilder.from(Material.BLACK_STAINED_GLASS_PANE).name(" ").build();
         for (int i = 0; i < 45; i++) inv.setItem(i, border);
 
         // Slot 13: Thẻ So Sánh Chỉ Số (Current vs Next Star Preview)
@@ -519,91 +475,87 @@ public class GuiListener implements Listener {
         double nextDef = PetStatEngine.calculateStatPreview(plugin, petId, lvl, nextStar, trait, happy, "defense");
         double nextSpd = PetStatEngine.calculateStatPreview(plugin, petId, lvl, nextStar, trait, happy, "speed");
 
-        ItemStack preview = new ItemStack(Material.NETHER_STAR);
-        ItemMeta prevMeta = preview.getItemMeta();
-        if (prevMeta != null) {
-            prevMeta.displayName(GuiText.component("§e§lSO SÁNH TIẾN HÓA ⭐"));
-            List<Component> pLore = new ArrayList<>();
-            pLore.add(GuiText.component("§7Cấp sao: " + evo.getStarDisplay(curStar) + " §e➔ " + evo.getStarDisplay(nextStar)));
-            pLore.add(GuiText.component("§8§m------------------------"));
-            if (curStar < maxStar) {
-                double hpDiff = ((nextHp / curHp) - 1.0) * 100.0;
-                double dmgDiff = ((nextDmg / curDmg) - 1.0) * 100.0;
-                double defDiff = ((nextDef / Math.max(0.1, curDef)) - 1.0) * 100.0;
-                pLore.add(GuiText.component("§7Máu: §a" + String.format("%.1f", curHp) + " ❤ §e➔ §a" + String.format("%.1f", nextHp) + " ❤ " + (hpDiff > 0 ? "§a(+" + Math.round(hpDiff) + "%)" : "")));
-                pLore.add(GuiText.component("§7Sát thương: §c" + String.format("%.1f", curDmg) + " ⚔ §e➔ §c" + String.format("%.1f", nextDmg) + " ⚔ " + (dmgDiff > 0 ? "§a(+" + Math.round(dmgDiff) + "%)" : "")));
-                pLore.add(GuiText.component("§7Giáp: §9" + String.format("%.1f", curDef) + " 🛡 §e➔ §9" + String.format("%.1f", nextDef) + " 🛡 " + (defDiff > 0 ? "§a(+" + Math.round(defDiff) + "%)" : "")));
-                if (nextSpd > curSpd) {
-                    pLore.add(GuiText.component("§7Tốc độ: §f" + String.format("%.3f", curSpd) + " §e➔ §f" + String.format("%.3f", nextSpd)));
-                } else {
-                    pLore.add(GuiText.component("§7Tốc độ: §f" + String.format("%.3f", curSpd) + " §7(Không đổi)"));
-                }
+        GuiLoreBuilder prevLore = GuiLoreBuilder.create()
+                .stat(lang.getMessage("gui.lore_stars"), evo.getStarDisplay(curStar) + " §e➔ " + evo.getStarDisplay(nextStar))
+                .separator();
+
+        if (curStar < maxStar) {
+            double hpDiff = ((nextHp / curHp) - 1.0) * 100.0;
+            double dmgDiff = ((nextDmg / curDmg) - 1.0) * 100.0;
+            double defDiff = ((nextDef / Math.max(0.1, curDef)) - 1.0) * 100.0;
+
+            String hpExtra = hpDiff > 0 ? " §a(+" + Math.round(hpDiff) + "%)" : "";
+            String dmgExtra = dmgDiff > 0 ? " §a(+" + Math.round(dmgDiff) + "%)" : "";
+            String defExtra = defDiff > 0 ? " §a(+" + Math.round(defDiff) + "%)" : "";
+
+            prevLore.statCompare(lang.getMessage("stats.health"), String.format("%.1f", curHp) + " ❤", String.format("%.1f", nextHp) + " ❤" + hpExtra)
+                    .statCompare(lang.getMessage("stats.damage"), String.format("%.1f", curDmg) + " ⚔", String.format("%.1f", nextDmg) + " ⚔" + dmgExtra)
+                    .statCompare(lang.getMessage("stats.defense"), String.format("%.1f", curDef) + " 🛡", String.format("%.1f", nextDef) + " 🛡" + defExtra);
+
+            if (nextSpd > curSpd) {
+                prevLore.statCompare(lang.getMessage("stats.speed"), String.format("%.3f", curSpd), String.format("%.3f", nextSpd));
             } else {
-                pLore.add(GuiText.component("§6§l✔ ĐÃ ĐẠT CẤP SAO TỐI ĐA!"));
+                prevLore.stat(lang.getMessage("stats.speed"), String.format("%.3f", curSpd) + " §7(" + lang.getMessage("gui.stat_unchanged") + ")");
             }
-            prevMeta.lore(pLore);
-            preview.setItemMeta(prevMeta);
+        } else {
+            prevLore.status(true, lang.getMessage("gui.star_max_reached"));
         }
+
+        ItemStack preview = GuiItemBuilder.from(Material.NETHER_STAR)
+                .name(lang.getMessage("gui.evo_preview_title"))
+                .lore(prevLore)
+                .build();
         inv.setItem(13, preview);
 
         // Slot 29: Danh sách kiểm tra điều kiện (Requirements Checklist)
-        ItemStack checkItem = new ItemStack(Material.WRITABLE_BOOK);
-        ItemMeta chMeta = checkItem.getItemMeta();
         boolean allMet = true;
+        GuiLoreBuilder chLore = GuiLoreBuilder.create();
 
-        if (chMeta != null) {
-            chMeta.displayName(GuiText.component("§6§lDANH SÁCH ĐIỀU KIỆN TIẾN HÓA"));
-            List<Component> chLore = new ArrayList<>();
+        if (curStar >= maxStar) {
+            chLore.status(true, lang.getMessage("gui.star_max_reached"));
+            allMet = false;
+        } else {
+            FileConfiguration config = plugin.getModuleManager().getEvolutionConfig();
+            ConfigurationSection reqSec = config.getConfigurationSection("requirements.star_" + nextStar);
 
-            if (curStar >= maxStar) {
-                chLore.add(GuiText.component("§a✔ Đã đạt cấp sao tối đa!"));
-                allMet = false;
+            if (reqSec != null) {
+                org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(reqSec);
+                org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(p, petId, lvl, curStar, plugin);
+                org.ipsecuz.pet.requirement.RequirementCheckResult result = plugin.getRequirementManager().evaluate(group, ctx);
+                allMet = result.isSatisfied();
+                chLore.components(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(result));
             } else {
-                FileConfiguration config = plugin.getModuleManager().getEvolutionConfig();
-                ConfigurationSection reqSec = config.getConfigurationSection("requirements.star_" + nextStar);
-
-                if (reqSec != null) {
-                    org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(reqSec);
-                    org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(p, petId, lvl, curStar, plugin);
-                    org.ipsecuz.pet.requirement.RequirementCheckResult result = plugin.getRequirementManager().evaluate(group, ctx);
-                    allMet = result.isSatisfied();
-                    chLore.addAll(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(result));
-                } else {
-                    chLore.add(GuiText.component("§a[✔] Miễn phí tiến hóa!"));
-                }
+                chLore.status(true, lang.getMessage("gui.evo_free"));
             }
-            chMeta.lore(chLore);
-            checkItem.setItemMeta(chMeta);
         }
+
+        ItemStack checkItem = GuiItemBuilder.from(Material.WRITABLE_BOOK)
+                .name(lang.getMessage("gui.heading_evo_requirements"))
+                .lore(chLore)
+                .build();
         inv.setItem(29, checkItem);
 
         // Slot 33: Nút Tiến Hóa (Action Button)
         if (curStar < maxStar) {
-            ItemStack actionBtn = new ItemStack(allMet ? Material.LIME_CONCRETE : Material.RED_CONCRETE);
-            ItemMeta aMeta = actionBtn.getItemMeta();
-            if (aMeta != null) {
-                aMeta.displayName(GuiText.component(allMet ? "§a§l[TIẾN HÓA NGAY! ⭐]" : "§c§l[CHƯA ĐỦ ĐIỀU KIỆN ✖]"));
-                List<Component> aLore = new ArrayList<>();
-                if (allMet) {
-                    aLore.add(GuiText.component("§e▶ Nhấp để bắt đầu nghi thức tiến hóa MMORPG!"));
-                } else {
-                    aLore.add(GuiText.component("§7Vui lòng đáp ứng đầy đủ điều kiện ở danh sách bên trái."));
-                }
-                aMeta.lore(aLore);
-                aMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "evo_action"), PersistentDataType.STRING, allMet ? ("do_evolve:" + petId) : "not_ready");
-                actionBtn.setItemMeta(aMeta);
+            GuiLoreBuilder aLore = GuiLoreBuilder.create();
+            if (allMet) {
+                aLore.action(lang.getMessage("gui.btn_evolve_action"));
+            } else {
+                aLore.description(lang.getMessage("gui.btn_evolve_not_ready_desc"));
             }
+            ItemStack actionBtn = GuiItemBuilder.from(allMet ? Material.LIME_CONCRETE : Material.RED_CONCRETE)
+                    .name(allMet ? lang.getMessage("gui.btn_evolve_ready") : lang.getMessage("gui.btn_evolve_not_ready"))
+                    .lore(aLore)
+                    .pdc("evo_action", allMet ? ("do_evolve:" + petId) : "not_ready")
+                    .build();
             inv.setItem(33, actionBtn);
         }
 
         // Slot 40: Nút Quay lại
-        ItemStack backBtn = new ItemStack(Material.BARRIER);
-        ItemMeta bkMeta = backBtn.getItemMeta();
-        if (bkMeta != null) {
-            bkMeta.displayName(GuiText.component("§c§l◀ QUAY LẠI QUẢN LÝ"));
-            bkMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "evo_action"), PersistentDataType.STRING, "back:" + petId);
-            backBtn.setItemMeta(bkMeta);
-        }
+        ItemStack backBtn = GuiItemBuilder.from(Material.BARRIER)
+                .name(lang.getMessage("gui.btn_back_to_detail"))
+                .pdc("evo_action", "back:" + petId)
+                .build();
         inv.setItem(40, backBtn);
 
         p.openInventory(inv);
@@ -612,28 +564,20 @@ public class GuiListener implements Listener {
 
     public static void openConfirmDialog(Player p, String title, ItemStack displayItem, String confirmActionPayload) {
         IpsecuzPet plugin = IpsecuzPet.getInstance();
+        LanguageManager lang = plugin.getLanguage();
         ConfirmHolder holder = new ConfirmHolder(confirmActionPayload);
-        Inventory inv = Bukkit.createInventory(holder, 27, LegacyComponentSerializer.legacySection().deserialize(
-                ChatColor.translateAlternateColorCodes('&', title)
-        ));
+        Inventory inv = Bukkit.createInventory(holder, 27, GuiText.title(title));
         holder.setInventory(inv);
 
-        ItemStack border = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
-        ItemMeta bMeta = border.getItemMeta();
-        if (bMeta != null) { bMeta.displayName(Component.text(" ")); border.setItemMeta(bMeta); }
+        ItemStack border = GuiItemBuilder.from(Material.GRAY_STAINED_GLASS_PANE).name(" ").build();
         for (int i = 0; i < 27; i++) inv.setItem(i, border);
 
         // Slot 11: Nút Xác Nhận (Lime Concrete)
-        ItemStack confirmBtn = new ItemStack(Material.LIME_CONCRETE);
-        ItemMeta cMeta = confirmBtn.getItemMeta();
-        if (cMeta != null) {
-            cMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(plugin.getLanguage().getMessage("gui.btn_confirm")));
-            List<Component> cLore = new ArrayList<>();
-            cLore.add(GuiText.component("§7Nhấp để hoàn tất thao tác."));
-            cMeta.lore(cLore);
-            cMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "confirm_dialog"), PersistentDataType.STRING, "accept");
-            confirmBtn.setItemMeta(cMeta);
-        }
+        ItemStack confirmBtn = GuiItemBuilder.from(Material.LIME_CONCRETE)
+                .name(lang.getMessage("gui.btn_confirm"))
+                .lore(GuiLoreBuilder.create().action(lang.getMessage("gui.btn_confirm_desc")))
+                .pdc("confirm_dialog", "accept")
+                .build();
         inv.setItem(11, confirmBtn);
 
         // Slot 13: Thẻ Thông Tin
@@ -642,16 +586,11 @@ public class GuiListener implements Listener {
         }
 
         // Slot 15: Nút Hủy Bỏ (Red Concrete)
-        ItemStack cancelBtn = new ItemStack(Material.RED_CONCRETE);
-        ItemMeta canMeta = cancelBtn.getItemMeta();
-        if (canMeta != null) {
-            canMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(plugin.getLanguage().getMessage("gui.btn_cancel")));
-            List<Component> canLore = new ArrayList<>();
-            canLore.add(GuiText.component("§7Nhấp để hủy thao tác và quay lại."));
-            canMeta.lore(canLore);
-            canMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "confirm_dialog"), PersistentDataType.STRING, "cancel");
-            cancelBtn.setItemMeta(canMeta);
-        }
+        ItemStack cancelBtn = GuiItemBuilder.from(Material.RED_CONCRETE)
+                .name(lang.getMessage("gui.btn_cancel"))
+                .lore(GuiLoreBuilder.create().action(lang.getMessage("gui.btn_cancel_desc")))
+                .pdc("confirm_dialog", "cancel")
+                .build();
         inv.setItem(15, cancelBtn);
 
         p.openInventory(inv);
@@ -664,6 +603,7 @@ public class GuiListener implements Listener {
 
     public static void openCodexMenu(Player p, int page) {
         IpsecuzPet plugin = IpsecuzPet.getInstance();
+        LanguageManager lang = plugin.getLanguage();
         ConfigurationSection petsSec = plugin.getConfig().getConfigurationSection("pets");
         List<String> allPetKeys = petsSec != null ? new ArrayList<>(petsSec.getKeys(false)) : Collections.emptyList();
 
@@ -673,8 +613,8 @@ public class GuiListener implements Listener {
 
         CodexHolder holder = new CodexHolder(curPage);
         int discoveredCount = plugin.getCodexManager().getDiscoveredCount(p.getUniqueId());
-        String titleStr = "&1✦ Bách Khoa Pet: &e" + discoveredCount + "/" + allPetKeys.size() + " &8[" + curPage + "/" + totalPages + "]";
-        Inventory inv = Bukkit.createInventory(holder, 54, LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', titleStr)));
+        String titleStr = lang.getMessage("gui.codex_title_page", "%discovered%", String.valueOf(discoveredCount), "%total%", String.valueOf(allPetKeys.size()), "%page%", String.valueOf(curPage), "%max_page%", String.valueOf(totalPages));
+        Inventory inv = Bukkit.createInventory(holder, 54, GuiText.title(titleStr));
         holder.setInventory(inv);
 
         int start = (curPage - 1) * pageSize;
@@ -688,69 +628,51 @@ public class GuiListener implements Listener {
             ItemStack item;
             if (discovered) {
                 String matStr = plugin.getConfig().getString("pets." + petId + ".icon", "STONE");
-                item = plugin.getItemHookManager().getItem(matStr, Material.STONE);
+                String petName = lang.getPetName(petId);
+                double hp = plugin.getConfig().getDouble("pets." + petId + ".stats.health", 20.0);
+                double dmg = plugin.getConfig().getDouble("pets." + petId + ".stats.damage", 5.0);
+
+                item = GuiItemBuilder.from(matStr, Material.STONE)
+                        .name("&a✔ " + petName)
+                        .lore(GuiLoreBuilder.create()
+                                .stat(lang.getMessage("gui.lore_rarity"), rarity.getLocalizedName(plugin))
+                                .status(true, lang.getMessage("gui.codex_registered"))
+                                .stat(lang.getMessage("stats.health"), String.format("%.1f", hp) + " ❤")
+                                .stat(lang.getMessage("stats.damage"), String.format("%.1f", dmg) + " ⚔"))
+                        .build();
             } else {
-                item = new ItemStack(Material.GRAY_DYE);
-            }
-
-            ItemMeta meta = item.getItemMeta();
-            if (meta != null) {
-                String name = plugin.getConfig().getString("pets." + petId + ".name", petId);
-                if (discovered) {
-                    meta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&a✔ " + name)));
-                } else {
-                    meta.displayName(GuiText.component("§8??? [Chưa khám phá]"));
-                }
-
-                List<Component> lore = new ArrayList<>();
-                lore.add(GuiText.component("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
-                if (discovered) {
-                    lore.add(GuiText.component("§aĐã ghi danh vào Bách Khoa Toàn Thư!"));
-                    double hp = plugin.getConfig().getDouble("pets." + petId + ".stats.health", 20.0);
-                    double dmg = plugin.getConfig().getDouble("pets." + petId + ".stats.damage", 5.0);
-                    lore.add(GuiText.component("§7Máu gốc: §a" + hp + " ❤ §7| Dame gốc: §c" + dmg + " ⚔"));
-                } else {
-                    lore.add(GuiText.component("§7Mở khóa qua: Ấp Trứng, Cửa Hàng hoặc Bắt thú hoang."));
-                }
-                meta.lore(lore);
-                item.setItemMeta(meta);
+                item = GuiItemBuilder.from(Material.GRAY_DYE)
+                        .name(lang.getMessage("gui.codex_unknown_title"))
+                        .lore(GuiLoreBuilder.create()
+                                .stat(lang.getMessage("gui.lore_rarity"), rarity.getLocalizedName(plugin))
+                                .description(lang.getMessage("gui.codex_unknown_desc")))
+                        .build();
             }
             inv.setItem(i - start, item);
         }
 
-        ItemStack navGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
-        ItemMeta ngMeta = navGlass.getItemMeta();
-        if (ngMeta != null) { ngMeta.displayName(Component.text(" ")); navGlass.setItemMeta(ngMeta); }
+        ItemStack navGlass = GuiItemBuilder.from(Material.BLACK_STAINED_GLASS_PANE).name(" ").build();
         for (int s = 45; s < 54; s++) inv.setItem(s, navGlass);
 
         if (curPage > 1) {
-            ItemStack prev = new ItemStack(Material.ARROW);
-            ItemMeta pMeta = prev.getItemMeta();
-            if (pMeta != null) {
-                pMeta.displayName(GuiText.component("§e◀ Trang " + (curPage - 1)));
-                pMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "nav_codex_page"), PersistentDataType.INTEGER, curPage - 1);
-                prev.setItemMeta(pMeta);
-            }
+            ItemStack prev = GuiItemBuilder.from(Material.ARROW)
+                    .name(lang.getMessage("gui.btn_prev_page_num", "%page%", String.valueOf(curPage - 1)))
+                    .pdc("nav_codex_page", curPage - 1)
+                    .build();
             inv.setItem(45, prev);
         }
 
-        ItemStack back = new ItemStack(Material.LEAD);
-        ItemMeta bMeta = back.getItemMeta();
-        if (bMeta != null) {
-            bMeta.displayName(GuiText.component("§b◀ Menu Pet Của Tôi"));
-            bMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_pet_menu");
-            back.setItemMeta(bMeta);
-        }
+        ItemStack back = GuiItemBuilder.from(Material.LEAD)
+                .name(lang.getMessage("gui.btn_back_to_menu"))
+                .pdc("btn_action", "open_pet_menu")
+                .build();
         inv.setItem(49, back);
 
         if (curPage < totalPages) {
-            ItemStack next = new ItemStack(Material.ARROW);
-            ItemMeta nMeta = next.getItemMeta();
-            if (nMeta != null) {
-                nMeta.displayName(GuiText.component("§eTrang " + (curPage + 1) + " ▶"));
-                nMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "nav_codex_page"), PersistentDataType.INTEGER, curPage + 1);
-                next.setItemMeta(nMeta);
-            }
+            ItemStack next = GuiItemBuilder.from(Material.ARROW)
+                    .name(lang.getMessage("gui.btn_next_page_num", "%page%", String.valueOf(curPage + 1)))
+                    .pdc("nav_codex_page", curPage + 1)
+                    .build();
             inv.setItem(53, next);
         }
 
@@ -759,13 +681,12 @@ public class GuiListener implements Listener {
 
     public static void openShardsMenu(Player p) {
         IpsecuzPet plugin = IpsecuzPet.getInstance();
+        LanguageManager lang = plugin.getLanguage();
         ShardsHolder holder = new ShardsHolder();
-        Inventory inv = Bukkit.createInventory(holder, 45, GuiText.component("§1✦ Kho Mảnh Thú Cưng (Shards) ✦"));
+        Inventory inv = Bukkit.createInventory(holder, 45, GuiText.title(lang.getMessage("gui.shards_title")));
         holder.setInventory(inv);
 
-        ItemStack border = new ItemStack(Material.CYAN_STAINED_GLASS_PANE);
-        ItemMeta bMeta = border.getItemMeta();
-        if (bMeta != null) { bMeta.displayName(Component.text(" ")); border.setItemMeta(bMeta); }
+        ItemStack border = GuiItemBuilder.from(Material.CYAN_STAINED_GLASS_PANE).name(" ").build();
         for (int i = 0; i < 45; i++) {
             if (i < 9 || i >= 36 || i % 9 == 0 || i % 9 == 8) {
                 inv.setItem(i, border);
@@ -780,25 +701,26 @@ public class GuiListener implements Listener {
                 if (count <= 0) continue;
 
                 String matStr = plugin.getConfig().getString("pets." + petId + ".icon", "PRISMARINE_SHARD");
-                ItemStack item = plugin.getItemHookManager().getItem(matStr, Material.PRISMARINE_SHARD);
-                ItemMeta meta = item.getItemMeta();
-                if (meta != null) {
-                    String name = plugin.getConfig().getString("pets." + petId + ".name", petId);
-                    PetRarity rarity = PetRarity.fromPetId(plugin, petId);
-                    meta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&bMảnh: " + name)));
-                    List<Component> lore = new ArrayList<>();
-                    lore.add(GuiText.component("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
-                    int req = plugin.getShardManager().getRequiredShardsToCraft(petId);
-                    lore.add(GuiText.component("§7Số mảnh hiện có: §b" + count + "/" + req));
-                    if (count >= req) {
-                        lore.add(GuiText.component("§a§l✔ ĐỦ MẢNH! Nhấp để ghép thành Pet!"));
-                    } else {
-                        lore.add(GuiText.component("§c✖ Cần thêm " + (req - count) + " mảnh để ghép."));
-                    }
-                    meta.lore(lore);
-                    meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "craft_shard_id"), PersistentDataType.STRING, petId);
-                    item.setItemMeta(meta);
+                String petName = lang.getPetName(petId);
+                PetRarity rarity = PetRarity.fromPetId(plugin, petId);
+                int req = plugin.getShardManager().getRequiredShardsToCraft(petId);
+
+                GuiLoreBuilder sLore = GuiLoreBuilder.create()
+                        .stat(lang.getMessage("gui.lore_rarity"), rarity.getLocalizedName(plugin))
+                        .stat(lang.getMessage("gui.lore_shards_count"), count + "/" + req);
+
+                if (count >= req) {
+                    sLore.status(true, lang.getMessage("gui.shards_craft_ready"));
+                } else {
+                    sLore.status(false, lang.getMessage("gui.shards_craft_needed", "%needed%", String.valueOf(req - count)));
                 }
+
+                ItemStack item = GuiItemBuilder.from(matStr, Material.PRISMARINE_SHARD)
+                        .name("&b" + lang.getMessage("gui.shard_name_prefix") + " " + petName)
+                        .lore(sLore)
+                        .pdc("craft_shard_id", petId)
+                        .build();
+
                 inv.setItem(slot, item);
                 slot++;
                 if (slot % 9 == 8) slot += 2;
@@ -807,26 +729,19 @@ public class GuiListener implements Listener {
         }
 
         if (slot == 10) {
-            ItemStack empty = new ItemStack(Material.BARRIER);
-            ItemMeta eMeta = empty.getItemMeta();
-            if (eMeta != null) {
-                eMeta.displayName(GuiText.component("§cChưa Có Mảnh Nào"));
-                List<Component> eLore = new ArrayList<>();
-                eLore.add(GuiText.component("§7Khi quay trúng Pet đã sở hữu trong Lò Ấp,"));
-                eLore.add(GuiText.component("§7bạn sẽ nhận được Mảnh Pet tương ứng!"));
-                eMeta.lore(eLore);
-                empty.setItemMeta(eMeta);
-            }
+            ItemStack empty = GuiItemBuilder.from(Material.BARRIER)
+                    .name(lang.getMessage("gui.shards_empty_title"))
+                    .lore(GuiLoreBuilder.create()
+                            .description(lang.getMessage("gui.shards_empty_desc_1"))
+                            .description(lang.getMessage("gui.shards_empty_desc_2")))
+                    .build();
             inv.setItem(22, empty);
         }
 
-        ItemStack back = new ItemStack(Material.ARROW);
-        ItemMeta bkMeta = back.getItemMeta();
-        if (bkMeta != null) {
-            bkMeta.displayName(GuiText.component("§b◀ Menu Pet Của Tôi"));
-            bkMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_pet_menu");
-            back.setItemMeta(bkMeta);
-        }
+        ItemStack back = GuiItemBuilder.from(Material.ARROW)
+                .name(lang.getMessage("gui.btn_back_to_menu"))
+                .pdc("btn_action", "open_pet_menu")
+                .build();
         inv.setItem(40, back);
 
         p.openInventory(inv);
@@ -858,7 +773,7 @@ public class GuiListener implements Listener {
 
         ShopMenuHolder holder = new ShopMenuHolder(curPage);
         String rawTitle = lang.getMessage("gui.shop_title") + " &8[" + curPage + "/" + totalPages + "]";
-        Inventory inv = Bukkit.createInventory(holder, 54, LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', rawTitle)));
+        Inventory inv = Bukkit.createInventory(holder, 54, GuiText.title(rawTitle));
         holder.setInventory(inv);
 
         int startIndex = (curPage - 1) * pageSize;
@@ -867,103 +782,86 @@ public class GuiListener implements Listener {
         for (int i = startIndex; i < endIndex; i++) {
             String key = allKeys.get(i);
             String matStr = plugin.getConfig().getString("pets." + key + ".icon", "STONE");
-            ItemStack item = plugin.getItemHookManager().getItem(matStr, Material.STONE);
-            ItemMeta meta = item.getItemMeta();
-            if (meta == null) continue;
-
-            String name = plugin.getConfig().getString("pets." + key + ".name", key);
-            meta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', name)));
-
-            List<Component> lore = new ArrayList<>();
+            String petName = lang.getPetName(key);
             String price = plugin.getCurrencyManager().getPriceDisplay(key);
             PetRarity rarity = PetRarity.fromPetId(plugin, key);
 
-            lore.add(GuiText.component("§7Độ hiếm: " + rarity.getLocalizedName(plugin)));
             double hp = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "health");
             double dmg = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "damage");
             double def = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "defense");
             double spd = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "speed");
-            lore.add(GuiText.component("§7Chỉ số cơ bản (Lv.1):"));
-            lore.add(GuiText.component("§7Máu: §a" + String.format("%.1f", hp) + " ❤ §7| Sát thương: §c" + String.format("%.1f", dmg) + " ⚔"));
-            lore.add(GuiText.component("§7Giáp: §9" + String.format("%.1f", def) + " 🛡 §7| Tốc độ: §f" + String.format("%.3f", spd)));
-            lore.add(GuiText.component("§7--------------------"));
+
+            GuiLoreBuilder lore = GuiLoreBuilder.create()
+                    .stat(lang.getMessage("gui.lore_rarity"), rarity.getLocalizedName(plugin))
+                    .separator()
+                    .heading(lang.getMessage("gui.heading_base_stats"))
+                    .stat(lang.getMessage("stats.health"), String.format("%.1f", hp) + " ❤")
+                    .stat(lang.getMessage("stats.damage"), String.format("%.1f", dmg) + " ⚔")
+                    .stat(lang.getMessage("stats.defense"), String.format("%.1f", def) + " 🛡")
+                    .stat(lang.getMessage("stats.speed"), String.format("%.3f", spd))
+                    .separator();
 
             if (cm.getData().contains(p.getUniqueId() + ".pets." + key)) {
-                lore.add(GuiText.component("§a✔ ĐÃ SỞ HỮU"));
+                lore.status(true, lang.getMessage("gui.shop_already_owned"));
             } else {
                 org.bukkit.configuration.ConfigurationSection petSec = plugin.getConfig().getConfigurationSection("pets." + key);
                 if (petSec != null && (petSec.contains("requirements") || petSec.contains("all") || petSec.contains("one_of"))) {
                     org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(petSec);
                     org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(p, key, 1, 1, plugin);
                     org.ipsecuz.pet.requirement.RequirementCheckResult res = plugin.getRequirementManager().evaluate(group, ctx);
-                    lore.addAll(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(res));
+                    lore.components(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(res));
                 } else {
-                    lore.add(LegacyComponentSerializer.legacySection().deserialize(
-                            ChatColor.translateAlternateColorCodes('&', lang.getMessage("gui.lore_price", "%cost%", price))));
+                    lore.price(lang.getMessage("gui.lore_price", "%cost%", price));
                 }
-                lore.add(GuiText.component("§e▶ Nhấp để Mua ngay!"));
+                lore.action(lang.getMessage("gui.action_buy_now"));
             }
 
-            meta.lore(lore);
-            meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "shop_id"), PersistentDataType.STRING, key);
-            item.setItemMeta(meta);
+            ItemStack item = GuiItemBuilder.from(matStr, Material.STONE)
+                    .name(petName)
+                    .lore(lore)
+                    .pdc("shop_id", key)
+                    .build();
+
             inv.setItem(i - startIndex, item);
         }
 
-        ItemStack navGlass = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
-        ItemMeta ngMeta = navGlass.getItemMeta();
-        if (ngMeta != null) { ngMeta.displayName(Component.text(" ")); navGlass.setItemMeta(ngMeta); }
+        ItemStack navGlass = GuiItemBuilder.from(Material.BLACK_STAINED_GLASS_PANE).name(" ").build();
         for (int s = 45; s < 54; s++) inv.setItem(s, navGlass);
 
         if (curPage > 1) {
-            ItemStack prev = new ItemStack(Material.ARROW);
-            ItemMeta pMeta = prev.getItemMeta();
-            if (pMeta != null) {
-                pMeta.displayName(GuiText.component("§e◀ Trang " + (curPage - 1)));
-                pMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "nav_shop_page"), PersistentDataType.INTEGER, curPage - 1);
-                prev.setItemMeta(pMeta);
-            }
+            ItemStack prev = GuiItemBuilder.from(Material.ARROW)
+                    .name(lang.getMessage("gui.btn_prev_page_num", "%page%", String.valueOf(curPage - 1)))
+                    .pdc("nav_shop_page", curPage - 1)
+                    .build();
             inv.setItem(45, prev);
         }
 
-        ItemStack hatchBtn = new ItemStack(Material.DRAGON_EGG);
-        ItemMeta hMeta = hatchBtn.getItemMeta();
-        if (hMeta != null) {
-            hMeta.displayName(GuiText.component("§d§lLÒ ẤP TRỨNG"));
-            hMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_hatch");
-            hatchBtn.setItemMeta(hMeta);
-        }
+        ItemStack hatchBtn = GuiItemBuilder.from(Material.DRAGON_EGG)
+                .name(lang.getMessage("gui.btn_hatch"))
+                .lore(GuiLoreBuilder.create().action(lang.getMessage("gui.btn_hatch_action")))
+                .pdc("btn_action", "open_hatch")
+                .build();
         inv.setItem(47, hatchBtn);
 
-        ItemStack info = new ItemStack(Material.BOOK);
-        ItemMeta infoMeta = info.getItemMeta();
-        if (infoMeta != null) {
-            infoMeta.displayName(GuiText.component("§6§lCỬA HÀNG THÚ CƯNG"));
-            List<Component> iLore = new ArrayList<>();
-            iLore.add(GuiText.component("§7Tổng số Pet bán: §e" + allKeys.size()));
-            iLore.add(GuiText.component("§7Trang hiện tại: §f" + curPage + "/" + totalPages));
-            infoMeta.lore(iLore);
-            info.setItemMeta(infoMeta);
-        }
+        ItemStack info = GuiItemBuilder.from(Material.BOOK)
+                .name(lang.getMessage("gui.shop_info_title"))
+                .lore(GuiLoreBuilder.create()
+                        .stat(lang.getMessage("gui.shop_total_pets"), String.valueOf(allKeys.size()))
+                        .stat(lang.getMessage("gui.shop_cur_page"), curPage + "/" + totalPages))
+                .build();
         inv.setItem(49, info);
 
-        ItemStack menuBtn = new ItemStack(Material.LEAD);
-        ItemMeta mMeta = menuBtn.getItemMeta();
-        if (mMeta != null) {
-            mMeta.displayName(GuiText.component("§b§lMENU PET CỦA TÔI"));
-            mMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "btn_action"), PersistentDataType.STRING, "open_pet_menu");
-            menuBtn.setItemMeta(mMeta);
-        }
+        ItemStack menuBtn = GuiItemBuilder.from(Material.LEAD)
+                .name(lang.getMessage("gui.btn_back_to_menu"))
+                .pdc("btn_action", "open_pet_menu")
+                .build();
         inv.setItem(51, menuBtn);
 
         if (curPage < totalPages) {
-            ItemStack next = new ItemStack(Material.ARROW);
-            ItemMeta nMeta = next.getItemMeta();
-            if (nMeta != null) {
-                nMeta.displayName(GuiText.component("§eTrang " + (curPage + 1) + " ▶"));
-                nMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "nav_shop_page"), PersistentDataType.INTEGER, curPage + 1);
-                next.setItemMeta(nMeta);
-            }
+            ItemStack next = GuiItemBuilder.from(Material.ARROW)
+                    .name(lang.getMessage("gui.btn_next_page_num", "%page%", String.valueOf(curPage + 1)))
+                    .pdc("nav_shop_page", curPage + 1)
+                    .build();
             inv.setItem(53, next);
         }
 
@@ -996,7 +894,7 @@ public class GuiListener implements Listener {
                     PetCardSecurity.CardValidationResult res = PetCardSecurity.validateAndExtractCard(plugin, dragged);
                     if (!res.isValid() || (res.getCardData().getCardUniqueId() != null && PetCardSecurity.isCardConsumed(plugin, res.getCardData().getCardUniqueId()))) {
                         e.setCancelled(true);
-                        p.sendMessage("§cChỉ có thể đặt Thẻ Pet hợp lệ (chưa bị tiêu hao) vào khung giao dịch!");
+                        p.sendMessage(plugin.getLanguage().getMessage("trade.only_valid_card"));
                         p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                         return;
                     }
@@ -1016,7 +914,7 @@ public class GuiListener implements Listener {
         } else if (e.getInventory().getHolder() instanceof TradeSession.TradeHolder holder) {
             TradeSession session = holder.getSession();
             if (!session.isFinished()) {
-                session.cancel(e.getPlayer().getName() + " đã đóng giao diện giao dịch.");
+                session.cancel(plugin.getLanguage().getMessage("trade.cancel_quit"));
             }
         }
     }
@@ -1068,7 +966,7 @@ public class GuiListener implements Listener {
                     PetCardSecurity.CardValidationResult res = PetCardSecurity.validateAndExtractCard(plugin, cursor);
                     if (!res.isValid() || (res.getCardData().getCardUniqueId() != null && PetCardSecurity.isCardConsumed(plugin, res.getCardData().getCardUniqueId()))) {
                         e.setCancelled(true);
-                        p.sendMessage("§cChỉ có thể đặt Thẻ Pet hợp lệ (chưa bị tiêu hao) vào khung giao dịch!");
+                        p.sendMessage(plugin.getLanguage().getMessage("trade.only_valid_card"));
                         p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                         return;
                     }
@@ -1084,7 +982,7 @@ public class GuiListener implements Listener {
                     if (clicked != null && clicked.getType() != Material.AIR) {
                         PetCardSecurity.CardValidationResult res = PetCardSecurity.validateAndExtractCard(plugin, clicked);
                         if (!res.isValid() || (res.getCardData().getCardUniqueId() != null && PetCardSecurity.isCardConsumed(plugin, res.getCardData().getCardUniqueId()))) {
-                            p.sendMessage("§cChỉ có thể đưa Thẻ Pet hợp lệ (chưa bị tiêu hao) vào khung giao dịch!");
+                            p.sendMessage(plugin.getLanguage().getMessage("trade.only_valid_card"));
                             p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                             return;
                         }
@@ -1106,7 +1004,7 @@ public class GuiListener implements Listener {
                             session.resetLocks();
                             p.playSound(p.getLocation(), Sound.ITEM_ARMOR_EQUIP_LEATHER, 1f, 1.2f);
                         } else {
-                            p.sendMessage("§cKhung đề nghị giao dịch của bạn đã đầy!");
+                            p.sendMessage(plugin.getLanguage().getMessage("trade.offer_full"));
                         }
                     }
                     return;
@@ -1137,7 +1035,8 @@ public class GuiListener implements Listener {
                         String petId = action.substring("do_evolve:".length());
                         ItemStack confirmIcon = topInv.getItem(13);
                         if (confirmIcon == null) confirmIcon = new ItemStack(Material.NETHER_STAR);
-                        openConfirmDialog(p, "&0Xác Nhận Tiến Hóa Pet", confirmIcon.clone(), "confirm_evolve:" + petId);
+                        String petDisplayName = plugin.getLanguage().getPetDisplayName(p.getUniqueId(), petId);
+                        openConfirmDialog(p, plugin.getLanguage().getMessage("gui.confirm_evolve_title", "%pet%", petDisplayName), confirmIcon.clone(), "confirm_evolve:" + petId);
                     } else if (action.startsWith("back:")) {
                         String petId = action.substring("back:".length());
                         openPetDetailMenu(p, petId);
@@ -1179,7 +1078,7 @@ public class GuiListener implements Listener {
                             plugin.getConfigManager().saveData();
                             plugin.getCodexManager().discover(p.getUniqueId(), shopId);
 
-                            p.sendMessage(plugin.getLanguage().getMessage("pet.buy_success", "%pet_name%", plugin.getConfig().getString("pets." + shopId + ".name", shopId)));
+                            p.sendMessage(plugin.getLanguage().getMessage("pet.buy_success", "%pet_name%", plugin.getLanguage().getPetName(shopId)));
                             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
                             openShopMenu(p, 1);
                         } else {
@@ -1276,7 +1175,7 @@ public class GuiListener implements Listener {
                 int shards = plugin.getShardManager().getShards(p.getUniqueId(), petId);
                 int reqShards = plugin.getShardManager().getRequiredShardsToCraft(petId);
                 if (shards < reqShards) {
-                    p.sendMessage("§cBạn chưa đủ " + reqShards + " mảnh! Hiện có: §e" + shards + "/" + reqShards);
+                    p.sendMessage(plugin.getLanguage().getMessage("shards.not_enough_shards", "%required%", String.valueOf(reqShards), "%current%", String.valueOf(shards)));
                     p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                     return;
                 }
@@ -1291,7 +1190,8 @@ public class GuiListener implements Listener {
                 plugin.getConfigManager().saveData();
                 plugin.getCodexManager().discover(p.getUniqueId(), petId);
 
-                p.sendMessage("§a§lTHÀNH CÔNG! §fĐã ghép thành công " + reqShards + " mảnh thành Pet mới!");
+                String petDisplayName = plugin.getLanguage().getPetName(petId);
+                p.sendMessage(plugin.getLanguage().getMessage("shards.craft_success", "%pet_name%", petDisplayName));
                 p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
                 openShardsMenu(p);
             }
@@ -1326,7 +1226,8 @@ public class GuiListener implements Listener {
                 String petId = parts[1];
                 boolean curBaby = plugin.getConfigManager().isPetBaby(p.getUniqueId(), petId);
                 plugin.getConfigManager().setPetBaby(p.getUniqueId(), petId, !curBaby);
-                p.sendMessage("§aĐã đổi dạng thú cưng sang: " + (!curBaby ? "§b👶 Bé con" : "§6🦁 Trưởng thành"));
+                String formStr = !curBaby ? plugin.getLanguage().getMessage("gui.form_baby") : plugin.getLanguage().getMessage("gui.form_adult");
+                p.sendMessage(plugin.getLanguage().getMessage("pet.baby_toggle", "%form%", formStr));
                 String active = plugin.getPetManager().getActivePetId(p.getUniqueId());
                 if (active != null && active.equals(petId)) {
                     plugin.getPetManager().spawnPet(p, petId);
@@ -1346,7 +1247,7 @@ public class GuiListener implements Listener {
                 String petId = (parts.length > 1) ? parts[1] : null;
                 String active = plugin.getPetManager().getActivePetId(p.getUniqueId());
                 if (petId != null && (active == null || !active.equals(petId))) {
-                    p.sendMessage("§cBạn cần triệu hồi pet này trước để kích hoạt tuyệt chiêu chiến đấu!");
+                    p.sendMessage(plugin.getLanguage().getMessage("skills.need_summon_first"));
                     p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                     return;
                 }
@@ -1376,10 +1277,11 @@ public class GuiListener implements Listener {
                 }
                 String petId = parts[1];
                 ItemStack wdIcon = clickedItem.clone();
-                openConfirmDialog(p, "&0Xác Nhận Rút Thẻ Pet", wdIcon, "confirm_withdraw:" + petId);
+                String petDisplayName = plugin.getLanguage().getPetDisplayName(p.getUniqueId(), petId);
+                openConfirmDialog(p, plugin.getLanguage().getMessage("gui.confirm_withdraw_title", "%pet%", petDisplayName), wdIcon, "confirm_withdraw:" + petId);
             } else if ("rename_info".equals(action) && parts.length > 1) {
                 p.closeInventory();
-                p.sendMessage("§e[IpsecuzPet] Hãy dùng lệnh: §6/pet rename <tên_mới> §eđể đổi tên cho thú cưng này!");
+                p.sendMessage(plugin.getLanguage().getMessage("pet.rename_prompt"));
                 p.playSound(p.getLocation(), Sound.BLOCK_ANVIL_USE, 1f, 1f);
             }
             return;
@@ -1423,8 +1325,8 @@ public class GuiListener implements Listener {
                 }
 
                 ItemStack buyCard = clickedItem.clone();
-                String name = plugin.getConfig().getString("pets." + shopId + ".name", shopId);
-                openConfirmDialog(p, "&0Xác Nhận Mua: " + name, buyCard, "confirm_buy:" + shopId);
+                String name = plugin.getLanguage().getPetName(shopId);
+                openConfirmDialog(p, plugin.getLanguage().getMessage("gui.confirm_buy_title", "%pet_name%", name), buyCard, "confirm_buy:" + shopId);
             }
             return;
         }

@@ -183,42 +183,73 @@ public final class PetCardSecurity {
     }
 
     public static ItemStack createPetCard(IpsecuzPet plugin, String petId, int level, int exp, int stars, String trait, String customName, List<String> unlockedSkills) {
-        String defaultName = plugin.getConfig().getString("pets." + petId + ".name", petId);
-        String petName = (customName != null && !customName.isEmpty()) ? customName : defaultName;
-        PetRarity rarity = PetRarity.fromPetId(plugin, petId);
-
         ItemStack item = new ItemStack(Material.DRAGON_EGG);
         item.setAmount(1);
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
 
         LanguageManager lang = (plugin != null) ? plugin.getLanguage() : null;
-        String prefix = (lang != null) ? lang.getMessage("card.title_prefix", "") : "&6📦 ";
-        meta.displayName(GuiText.component(prefix + petName + " &e(Lv." + level + ")"));
-        List<Component> lore = new ArrayList<>();
-        lore.add(GuiText.component("&7--------------------"));
-        String rarityLabel = (lang != null) ? lang.getMessage("card.rarity", "%rarity%", rarity.getLocalizedName(plugin)) : "&7Độ hiếm: " + rarity.getLocalizedName(plugin);
-        lore.add(GuiText.component(rarityLabel));
-        String starDisplay = (plugin != null && plugin.getEvolutionManager() != null) ? plugin.getEvolutionManager().getStarDisplay(stars) : (stars + "⭐");
-        String starsLabel = (lang != null) ? lang.getMessage("card.stars", "%stars%", starDisplay) : "&7Cấp sao: " + starDisplay;
-        lore.add(GuiText.component(starsLabel));
+        String defaultName = (lang != null) ? lang.getPetName(petId) : plugin.getConfig().getString("pets." + petId + ".name", petId);
+        String petDisplayName = (customName != null && !customName.isEmpty()) ? customName : defaultName;
+        String prefix = (lang != null) ? lang.getRawMessage("card.title_prefix") : "&6📦 ";
+        meta.displayName(GuiText.component(prefix + petDisplayName + " &e(Lv." + level + ")"));
+
+        PetRarity rarity = PetRarity.fromPetId(plugin, petId);
+        int maxLvl = (plugin != null) ? plugin.getConfig().getInt("rpg_system.max_level", 100) : 100;
+        int reqExp = level * ((plugin != null) ? plugin.getConfig().getInt("rpg_system.base_exp_requirement", 50) : 50);
+        String starDisplay = (plugin != null && plugin.getEvolutionManager() != null)
+                ? plugin.getEvolutionManager().getStarDisplay(stars) : (stars + "⭐");
         String traitName = PetTrait.fromString(trait).getLocalizedName(plugin);
-        String traitLabel = (lang != null) ? lang.getMessage("card.trait", "%trait%", traitName) : "&7Đặc chất: " + traitName;
-        lore.add(GuiText.component(traitLabel));
-        String lvlLabel = (lang != null) ? lang.getMessage("card.level_exp", "%level%", String.valueOf(level), "%exp%", String.valueOf(exp)) : "&7Cấp độ: &aLv." + level + " &7(EXP: &b" + exp + "&7)";
-        lore.add(GuiText.component(lvlLabel));
+
+        double dmg = PetStatEngine.getBaseStatAtLevel(plugin, petId, level, "damage");
+        double hp = PetStatEngine.getBaseStatAtLevel(plugin, petId, level, "health");
+        double def = PetStatEngine.getBaseStatAtLevel(plugin, petId, level, "defense");
+        double spd = PetStatEngine.getBaseStatAtLevel(plugin, petId, level, "speed");
+
+        String rarityLabel = (lang != null) ? lang.getRawMessage("gui.stat_rarity") : "Độ hiếm";
+        String levelLabel = (lang != null) ? lang.getRawMessage("gui.stat_level") : "Cấp độ";
+        String maxLabel = (lang != null) ? lang.getRawMessage("gui.stat_max") : "TỐI ĐA";
+        String expLabel = (lang != null) ? lang.getRawMessage("gui.stat_exp") : "Kinh nghiệm";
+        String starsLabel = (lang != null) ? lang.getRawMessage("gui.stat_stars") : "Cấp sao";
+        String traitLabel = (lang != null) ? lang.getRawMessage("gui.stat_trait") : "Đặc chất";
+        String statsHeading = (lang != null) ? lang.getRawMessage("gui.section_pet_stats") : "CHỈ SỐ PET";
+        String hpLabel = (lang != null) ? lang.getRawMessage("gui.stat_health") : "Máu tối đa";
+        String dmgLabel = (lang != null) ? lang.getRawMessage("gui.stat_damage") : "Sát thương";
+        String defLabel = (lang != null) ? lang.getRawMessage("gui.stat_defense") : "Giáp phòng thủ";
+        String spdLabel = (lang != null) ? lang.getRawMessage("gui.stat_speed") : "Tốc độ";
+        String clickLabel = (lang != null) ? lang.getRawMessage("card.click_redeem") : "Nhấp chuột phải để Triệu Hồi";
+
+        GuiLoreBuilder lb = GuiLoreBuilder.create()
+                .separator()
+                .stat(rarityLabel, rarity.getLocalizedName(plugin))
+                .stat(levelLabel, "Lv." + level + (level >= maxLvl ? " §e[" + maxLabel + "]" : " §8(" + exp + "/" + reqExp + ")"))
+                .stat(starsLabel, starDisplay)
+                .stat(traitLabel, traitName);
+
+        if (level < maxLvl) {
+            lb.progressBar(expLabel, exp, reqExp, 10);
+        }
+
+        lb.separator()
+                .heading(statsHeading)
+                .stat(hpLabel, String.format("%.1f", hp), "❤")
+                .stat(dmgLabel, String.format("%.1f", dmg), "⚔")
+                .stat(defLabel, String.format("%.1f", def), "🛡")
+                .stat(spdLabel, String.format("%.3f", spd));
+
         if (customName != null && !customName.isEmpty()) {
-            String nickLabel = (lang != null) ? lang.getMessage("card.nickname", "%nickname%", customName) : "&7Biệt danh: &f" + customName;
-            lore.add(GuiText.component(nickLabel));
+            String nickLabel = (lang != null) ? lang.getRawMessage("card.nickname", "%nickname%", customName) : ("§7Biệt danh: §f" + customName);
+            lb.line(nickLabel);
         }
         if (unlockedSkills != null && !unlockedSkills.isEmpty()) {
-            String skillLabel = (lang != null) ? lang.getMessage("card.skills", "%amount%", String.valueOf(unlockedSkills.size())) : "&7Kỹ năng đã mở: &e" + unlockedSkills.size() + " skill";
-            lore.add(GuiText.component(skillLabel));
+            String skillLabel = (lang != null) ? lang.getMessage("card.skills", "%amount%", String.valueOf(unlockedSkills.size())) : ("§7Kỹ năng đã mở: §e" + unlockedSkills.size() + " skill");
+            lb.line(skillLabel);
         }
-        lore.add(GuiText.component("&7--------------------"));
-        String clickLabel = (lang != null) ? lang.getMessage("card.click_redeem") : "&e[Nhấp chuột phải để Triệu Hồi]";
-        lore.add(GuiText.component(clickLabel));
-        meta.lore(lore);
+
+        lb.separator()
+                .action(clickLabel);
+
+        meta.lore(lb.build());
 
         String cardUuid = UUID.randomUUID().toString();
         String signature = computeCanonicalSignature(plugin, CURRENT_SCHEMA, cardUuid, petId, level, exp, stars, trait, customName, unlockedSkills);

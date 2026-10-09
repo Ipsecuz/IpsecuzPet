@@ -34,6 +34,16 @@ public class FeedingManager {
         public String getDisplay() { return display; }
         public double getExpMultiplier() { return expMult; }
         public double getSpeedMultiplier() { return speedMult; }
+
+        public String getLocalizedDisplay(IpsecuzPet plugin) {
+            if (plugin != null && plugin.getLanguage() != null) {
+                String val = plugin.getLanguage().getRawMessage("happiness." + name().toLowerCase());
+                if (val != null && !val.startsWith("§cMissing")) {
+                    return val;
+                }
+            }
+            return display;
+        }
     }
 
     public FeedingManager(IpsecuzPet plugin) {
@@ -137,7 +147,7 @@ public class FeedingManager {
         ConfigurationSection foodSec = config.getConfigurationSection("foods." + matName);
 
         if (foodSec == null) {
-            player.sendMessage("§cThú cưng không thể ăn vật phẩm §e" + matName + "§c!");
+            player.sendMessage(plugin.getLanguage().getMessageOrDefault("feeding.invalid_food", "§cThú cưng không thể ăn vật phẩm §e%food%§c!", "%food%", matName));
             return false;
         }
 
@@ -160,7 +170,7 @@ public class FeedingManager {
         plugin.getPetManager().giveSpecificPetExp(player, petId, addExp);
 
         HappinessState state = getHappinessState(newHappy);
-        player.sendActionBar(net.kyori.adventure.text.Component.text(
+        player.sendActionBar(GuiText.component(
                 "§d♡ +" + addHappy + " §8(" + newHappy + "/" + maxHappy + ") §7| §b✦ EXP +" + addExp
         ));
         player.sendMessage(plugin.getLanguage().getMessage("pet.feed_success", "%happiness%", String.valueOf(newHappy)));

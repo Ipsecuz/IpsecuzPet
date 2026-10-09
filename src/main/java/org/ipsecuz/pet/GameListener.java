@@ -265,7 +265,7 @@ public class GameListener implements Listener {
                     }
 
                     if (!plugin.getOwnershipManager().canAcquirePet(p)) {
-                        plugin.getCaptureManager().refundAndFinish(p.getUniqueId(), "§cKho thú cưng đã đầy! Đã hoàn trả bóng.");
+                        plugin.getCaptureManager().refundAndFinish(p.getUniqueId(), lang.getMessage("pet.limit_reached", "%max_pets%", String.valueOf(plugin.getOwnershipManager().getMaxPets(p))));
                         return;
                     }
 
@@ -652,7 +652,7 @@ public class GameListener implements Listener {
                 cm.addReviveProgress(p.getUniqueId(), 1);
                 int cur = cm.getReviveProgress(p.getUniqueId());
                 int max = plugin.getConfig().getInt("rpg_system.revive_cost_diamonds", 32);
-                p.sendActionBar(net.kyori.adventure.text.Component.text(
+                p.sendActionBar(GuiText.component(
                         plugin.getLanguage().getMessage("pet.revive_progress", "%current%", String.valueOf(cur), "%max%", String.valueOf(max))
                 ));
                 if (cur >= max) {

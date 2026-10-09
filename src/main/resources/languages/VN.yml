@@ -11,6 +11,7 @@ general:
   cancel: "&c✘ HỦY BỎ"
 
 pet:
+  rename_prompt: "&eNhập tên mới cho thú cưng trong khung chat (hoặc gõ &ccancel &eđể hủy):"
   display_format: "&8[&eLv.%level%&8] &a%name% &7(&f%owner%&7)"
   spawn: "&aĐã triệu hồi &e%pet_name%&a!"
   despawn: "&cĐã cất Pet vào kho."
@@ -119,6 +120,13 @@ trade:
   invalid_card: "&cChỉ có thể đặt Thẻ Pet hợp lệ (chưa bị tiêu hao) vào khung giao dịch!"
   not_enough_space: "&cKho đồ không đủ ô trống để hoàn tất giao dịch!"
   atomic_rollback: "&cGiao dịch gặp lỗi kỹ thuật ngoại lệ và đã hoàn tác nguyên tử (Atomic Rollback)."
+  only_valid_card: "&cChỉ có thể đặt Thẻ Pet hợp lệ (chưa bị tiêu hao) vào khung giao dịch!"
+  offer_full: "&cKhung giao dịch của bạn đã đầy!"
+  cancel_quit: "Một trong hai người chơi đã thoát game."
+  cancel_invalid_amount: "Phát hiện số lượng thẻ Pet bất thường."
+  cancel_invalid_card: "Thẻ Pet giao dịch không hợp lệ."
+  cancel_consumed_card: "Thẻ Pet đã từng bị tiêu hao trước đó."
+  cancel_space: "Một trong hai bên không đủ chỗ trống trong túi đồ."
 
 skills:
   disabled: "&cTính năng Kỹ Năng Pet hiện đang bị tắt bởi máy chủ!"
@@ -131,11 +139,13 @@ skills:
   cooldown: "&cTuyệt chiêu đang hồi lại! Vui lòng chờ &e%cooldown%s&c."
   cast_success: "&6&lPET SKILL! &e%skill% &ađã được kích hoạt!"
   cleanse_effect: "&aKhúc Hát Thanh Lọc đã loại bỏ &e%amount% &ahiệu ứng tiêu cực!"
+  need_summon_first: "&cBạn phải triệu hồi thú cưng trước khi sử dụng kỹ năng!"
 
 feeding:
   not_holding_food: "&cBạn phải cầm thức ăn hợp lệ trên tay chính để cho Pet ăn!"
   full: "&eThú cưng của bạn đã no nê rồi (%happiness%%)!"
   feed_success: "&aĐã cho thú cưng ăn thành công! Độ vui vẻ: &e%happiness%%"
+  invalid_food: "&cVật phẩm này không phải là thức ăn mà thú cưng ưa thích!"
 
 evolution:
   max_stars: "&eThú cưng đã đạt cấp sao tối đa (%stars% ⭐)!"
@@ -173,14 +183,93 @@ gui:
   codex_title: "&1Sách Codex Thú Cưng"
   confirm_title: "&8Xác Nhận Thao Tác"
   trade_title: "&8Giao Dịch Pet"
+  evolution_title: "&8Tiến Hóa: %pet_name%"
+  shards_title: "&1Túi Mảnh Thú Cưng"
+  confirm_withdraw_title: "&8Xác Nhận Rút Thẻ: %pet_name%"
+  confirm_evolve_title: "&8Xác Nhận Tiến Hóa: %pet_name%"
+  confirm_buy_title: "&8Xác Nhận Mua: %pet_name%"
+  codex_title_page: "&1Codex Thú Cưng &8(Trang %page%/%total%)"
+  shop_info_title: "&eThông Tin Cửa Hàng"
+  evo_preview_title: "&6⭐ Xem Trước Tiến Hóa"
+  shards_empty_title: "&cChưa Có Mảnh Nào"
+  codex_unknown_title: "&8??? Chưa Mở Khóa ???"
 
   btn_confirm: "&a✓ XÁC NHẬN"
+  btn_confirm_desc: "Đồng ý thực hiện thao tác này"
   btn_cancel: "&c✘ HỦY BỎ"
+  btn_cancel_desc: "Hủy bỏ và quay lại"
   btn_next_page: "&aTrang Sau ➡"
+  btn_next_page_num: "Trang tiếp theo &8(%page%/%total%)"
   btn_prev_page: "&c⬅ Trang Trước"
+  btn_prev_page_num: "Trang trước đó &8(%page%/%total%)"
   btn_close: "&cĐóng Menu"
   btn_back: "&7⬅ Quay Lại"
+  btn_back_to_list: "Quay lại danh sách Pet"
+  btn_back_to_menu: "Quay lại bảng điều khiển"
+  btn_back_to_detail: "Quay lại chi tiết thú cưng"
   btn_action: "&eNhấp Để Thao Tác"
+
+  heading_stats: "Chỉ Số Hiện Tại"
+  heading_base_stats: "Chỉ Số Cơ Bản"
+  heading_requirements: "Điều Kiện Yêu Cầu"
+  heading_evo_requirements: "Điều Kiện Tiến Hóa"
+  section_pet_stats: "CHỈ SỐ CHIẾN ĐẤU"
+
+  btn_summon_title: "&a✦ Triệu Hồi Pet"
+  btn_summon_action: "Nhấp để triệu hồi thú cưng bên cạnh"
+  btn_despawn_title: "&c✦ Cất Pet Vào Kho"
+  btn_despawn_action: "Nhấp để thu hồi thú cưng về kho"
+  btn_feed_title: "&e🍗 Cho Thú Cưng Ăn"
+  btn_feed_desc_1: "Tăng độ vui vẻ và hồi phục sức sống"
+  btn_feed_desc_2: "Cần cầm thức ăn hợp lệ trên tay chính"
+  btn_feed_action: "Nhấp để cho thú cưng ăn"
+  btn_evolution_title: "&6⭐ Tiến Hóa Cấp Sao"
+  btn_evolution_desc: "Nâng cấp sao để tăng vọt các chỉ số chiến đấu"
+  btn_evolution_action: "Nhấp để mở menu tiến hóa"
+  btn_evolve_ready: "&a⭐ TIẾN HÓA NGAY"
+  btn_evolve_not_ready: "&c✘ CHƯA ĐỦ ĐIỀU KIỆN"
+  btn_evolve_not_ready_desc: "Hãy tích lũy thêm cấp độ và tài nguyên"
+  btn_evolve_action: "Nhấp để tiến hóa thú cưng"
+  btn_size_baby_title: "&b✦ Dạng Bé Con"
+  btn_size_adult_title: "&6✦ Dạng Trưởng Thành"
+  btn_size_desc: "Thay đổi kích thước mô hình hiển thị"
+  btn_size_toggle_to_baby: "Nhấp để chuyển sang Dạng Bé Con"
+  btn_size_toggle_to_adult: "Nhấp để chuyển sang Dạng Trưởng Thành"
+  btn_rename_title: "&e✎ Đổi Tên Thú Cưng"
+  btn_rename_desc: "Tạo biệt danh độc nhất cho người bạn đồng hành"
+  btn_rename_limit: "Tối đa 16 ký tự, hỗ trợ mã màu"
+  btn_rename_hint: "Nhấp để bắt đầu đổi tên"
+  btn_withdraw_title: "&6📦 Rút Thành Thẻ Pet"
+  btn_withdraw_desc: "Đóng gói thú cưng thành vật phẩm an toàn"
+  btn_withdraw_action: "Nhấp để rút thành thẻ giao dịch"
+
+  btn_skill_active_title: "&e⚡ Tuyệt Chiêu Kích Hoạt"
+  btn_skill_active_action: "Nhấp để kích hoạt kỹ năng"
+  btn_skill_learn_title: "&6✦ Học Kỹ Năng Mới"
+  btn_skill_learn_action: "Nhấp để mở khóa kỹ năng này"
+  skill_unlocked: "&a✓ ĐÃ MỞ KHÓA"
+  skill_locked: "&c✘ CHƯA MỞ KHÓA"
+
+  btn_shards: "&b✦ Túi Mảnh Pet"
+  btn_shards_desc: "Xem và ghép các mảnh thú cưng thu thập được"
+  btn_shards_action: "Nhấp để mở túi mảnh thú cưng"
+  btn_codex: "&d✦ Thư Viện Codex"
+  btn_codex_desc: "Xem toàn bộ bách khoa toàn thư thú cưng"
+  btn_codex_action: "Nhấp để mở thư viện Codex"
+  btn_shop: "&a✦ Cửa Hàng Pet"
+  btn_shop_desc: "Mua các thú cưng đặc biệt bằng tài nguyên"
+  btn_shop_action: "Nhấp để mở cửa hàng Pet"
+  btn_hatch: "&e✦ Lò Ấp Trứng"
+  btn_hatch_desc: "Mở giao diện ấp trứng và mở khóa pet mới"
+  btn_hatch_action: "Nhấp để mở lò ấp trứng"
+
+  action_summon: "Nhấp chuột trái để Triệu hồi"
+  action_detail: "Nhấp chuột phải để Mở chi tiết"
+  action_buy_now: "Nhấp để mua thú cưng này"
+  status_active: "&aĐang Hoạt Động"
+  status_resting: "&7Đang Nghỉ Ngơi"
+  form_baby: "Bé Con"
+  form_adult: "Trưởng Thành"
 
   lore_level: "&7Cấp độ: &e%level%"
   lore_damage: "&c⚔ Sát thương: %value%"
@@ -193,6 +282,51 @@ gui:
   lore_price: "&eGiá: %cost%"
   lore_stars: "&7Cấp sao: &e%stars% ⭐"
   lore_happiness: "&7Độ vui vẻ: &e%happiness%%"
+  lore_id: "ID Thú cưng"
+  lore_rarity: "Độ hiếm"
+  lore_trait: "Đặc chất"
+  lore_exp: "Kinh nghiệm"
+  lore_max: "TỐI ĐA"
+  lore_form: "Hình dáng"
+  lore_shards_count: "Mảnh sở hữu"
+  stat_unchanged: "Không đổi"
+
+  stat_pet_id: "Mã Pet"
+  stat_rarity: "Độ hiếm"
+  stat_level: "Cấp độ"
+  stat_max: "TỐI ĐA"
+  stat_exp: "Kinh nghiệm"
+  stat_stars: "Cấp sao"
+  stat_trait: "Đặc chất"
+  stat_health: "Máu tối đa"
+  stat_damage: "Sát thương"
+  stat_defense: "Giáp phòng thủ"
+  stat_speed: "Tốc độ"
+
+  evo_free: "&aMiễn phí (Không yêu cầu)"
+  star_max_reached: "&6★ ĐÃ ĐẠT CẤP SAO TỐI ĐA ★"
+  codex_registered: "Đã Thu Thập"
+  codex_unknown_desc: "Hãy khám phá thế giới hoặc ấp trứng để mở khóa!"
+  shard_name_prefix: "&bMảnh Pet &f"
+  shards_craft_ready: "&a✓ ĐỦ MẢNH ĐỂ GHÉP"
+  shards_craft_needed: "&cThiếu mảnh để ghép"
+  shards_empty_desc_1: "Bạn chưa sở hữu mảnh thú cưng nào."
+  shards_empty_desc_2: "Mảnh nhận được khi ấp trùng lặp thú cưng!"
+  shop_cur_page: "Trang hiện tại: &e%page%/%total%"
+  shop_total_pets: "Tổng số thú cưng mở bán: &a%count%"
+  shop_already_owned: "&a✓ BẠN ĐÃ SỞ HỮU PET NÀY"
+
+  hatch_click_spin: "&a▶ Nhấp để Quay Gacha & Ấp Trứng!"
+  hatch_guide_title: "&e&lHƯỚNG DẪN ẤP TRỨNG & QUAY PET"
+  hatch_guide_line1: "&7- Nhấp chuột phải vào quả trứng trên tay"
+  hatch_guide_line2: "&7  hoặc nhấp trực tiếp vào biểu tượng trên GUI."
+  hatch_guide_line3: "&7- Vòng quay Roulette sống động với hiệu ứng âm thanh!"
+  hatch_guide_line4: "&7- Pet dừng lại ở ô giữa sẽ thuộc về bạn!"
+  hatch_guide_line5: "&7- Nếu quay trùng pet: nhận Mảnh Pet & EXP thưởng!"
+  hatch_cost_header: "&6✦ Chi phí để quay:"
+  hatch_winner_badge: "PHẦN THƯỞNG CỦA BẠN!"
+  hatch_pointer_down: "&e▼ &6&lÔ NHẬN THƯỞNG &e▼"
+  hatch_pointer_up: "&e▲ &6&lÔ NHẬN THƯỞNG &e▲"
 
 rarity:
   common: "Thường"
@@ -240,6 +374,8 @@ hatching:
   title_eternal: "&4&l⚔ THẦN THOẠI BẤT TỬ ⚔"
   subtitle_eternal: "&c&l%pet%"
   title_legendary: "&6&l★ SIÊU PHẨM XUẤT HIỆN! ★"
+  title_mythic: "&c&l★ THẦN THOẠI XUẤT HIỆN! ★"
+  subtitle_mythic: "&e✦ THẦN THÚ HUYỀN THOẠI: %pet%"
   title_rare: "&d&l✦ ẤP TRỨNG THÀNH CÔNG! ✦"
   title_default: "&a&lẤP TRỨNG THÀNH CÔNG!"
   subtitle_default: "&eNhận được: %pet%"
@@ -276,3 +412,147 @@ requirement:
 capture:
   disabled: "&cTính năng bắt thú cưng hiện đang bị vô hiệu hóa!"
 
+stats:
+  health: "Máu Tối Đa"
+  damage: "Sát Thương"
+  defense: "Giáp Phòng Thủ"
+  speed: "Tốc Độ Di Chuyển"
+
+actionbar:
+  evolution: "&a&l★ TIẾN HÓA CẤP SAO! &eĐạt %stars% ⭐"
+  revive_progress: "&bTiến độ hồi sinh: &e%current%/%max% quặng"
+
+happiness:
+  ecstatic: "&aRất Vui Vẻ"
+  content: "&eBình Thường"
+  sad: "&cBuồn Bã"
+  starving: "&4Đói Lả"
+
+eggs:
+  common_egg:
+    name: "&a🥚 Trứng Thường (Common Egg)"
+    lore:
+      - "&7Độ hiếm: &aPhổ Thông"
+      - "&7Chứa đựng linh hồn các loài thú hiền lành."
+      - "&f"
+      - "&e✦ Danh sách Pet có thể nở:"
+      - " &7- Gà Con Lon Ton (&a35%&7)"
+      - " &7- Heo Ủn Ỉn (&a30%&7)"
+      - " &7- Bò Sữa (&a20%&7)"
+      - " &7- Cừu Bông (&a15%&7)"
+      - "&f"
+      - "&6▶ Nhấp chuột phải hoặc đặt vào Lò Ấp để mở!"
+  rare_egg:
+    name: "&b🔮 Trứng Hiếm (Rare Egg)"
+    lore:
+      - "&7Độ hiếm: &bHiếm"
+      - "&7Ấp nở những trợ thủ đắc lực."
+      - "&f"
+      - "&e✦ Danh sách Pet có thể nở:"
+      - " &7- Sói Tinh Anh (&b35%&7)"
+      - " &7- Mèo Mun Quý Tộc (&b30%&7)"
+      - " &7- Cáo Tuyết (&b20%&7)"
+      - " &7- Vệ Thần Sắt (&b15%&7)"
+      - "&f"
+      - "&6▶ Nhấp chuột phải hoặc đặt vào Lò Ấp để mở!"
+  legendary_egg:
+    name: "&6👑 Trứng Thần Thoại (Legendary Egg)"
+    lore:
+      - "&7Độ hiếm: &6Thần Thoại"
+      - "&7Chứa đựng sức mạnh của các cổ thú tối thượng!"
+      - "&f"
+      - "&e✦ Danh sách Pet có thể nở:"
+      - " &7- Tiểu Tiên Nữ (&640%&7)"
+      - " &7- Kẻ Cai Ngục (&625%&7)"
+      - " &7- Rồng Ender (&620%&7)"
+      - " &7- Chúa Tể Wither (&615%&7)"
+      - "&f"
+      - "&6▶ Nhấp chuột phải hoặc đặt vào Lò Ấp để mở!"
+
+pets:
+  chicken_pet:
+    name: "&eGà Con Lon Ton"
+  pig_pet:
+    name: "&dHeo Ủn Ỉn"
+  cow_pet:
+    name: "&fBò Sữa"
+  sheep_pet:
+    name: "&fCừu Bông"
+  zombie_pet:
+    name: "&2Zombie Nông Dân"
+  skeleton_pet:
+    name: "&7Xạ Thủ Xương"
+  spider_pet:
+    name: "&4Nhện Độc"
+  creeper_pet:
+    name: "&aBom Di Động"
+  slime_pet:
+    name: "&aCục Nhớt Vui Vẻ"
+  bee_pet:
+    name: "&eOng Chúa"
+  wolf_pet:
+    name: "&7Sói Tinh Anh"
+  cat_pet:
+    name: "&bMèo Mun Quý Tộc"
+  fox_pet:
+    name: "&6Cáo Tuyết"
+  panda_pet:
+    name: "&fGấu Trúc Kungfu"
+  iron_golem_pet:
+    name: "&fVệ Thần Sắt"
+  blaze_pet:
+    name: "&6Quỷ Lửa"
+  magma_cube_pet:
+    name: "&cKhối Nham Thạch"
+  enderman_pet:
+    name: "&5Slenderman"
+  witch_pet:
+    name: "&5Phù Thủy Hắc Ám"
+  axolotl_pet:
+    name: "&dKỳ Nhông Cute"
+  turtle_pet:
+    name: "&2Cụ Rùa Ngàn Năm"
+  wither_pet:
+    name: "&8Wither Boss"
+  ender_dragon_pet:
+    name: "&5Rồng Ender"
+  warden_pet:
+    name: "&3Kẻ Cai Ngục"
+  ravager_pet:
+    name: "&8Quái Thú Ravager"
+  allay_pet:
+    name: "&bTiểu Tiên Nữ"
+  sniffer_pet:
+    name: "&cThú Cổ Đại"
+  camel_pet:
+    name: "&6Lạc Đà Sa Mạc"
+  frog_pet:
+    name: "&2Ếch Cốm"
+  piglin_pet:
+    name: "&6Thợ Săn Piglin"
+  goat_pet:
+    name: "&fDê Núi"
+  polar_bear_pet:
+    name: "&fGấu Bắc Cực Chiến Binh"
+  dolphin_pet:
+    name: "&bCá Heo Tinh Nghịch"
+  snowman_pet:
+    name: "&fNgười Tuyết Vui Vẻ"
+  glow_squid_pet:
+    name: "&3Mực Tinh Quang"
+  strider_pet:
+    name: "&cStrider Chân Dài"
+  hoglin_pet:
+    name: "&cHoglin Hung Hăng"
+  phantom_pet:
+    name: "&9Bóng Ma Bầu Trời"
+  vex_pet:
+    name: "&7Tiểu Quỷ Vex"
+  shulker_pet:
+    name: "&5Hộp Shulker Bí Ẩn"
+  pillager_pet:
+    name: "&8Xạ Thủ Cướp Làng"
+  drowned_pet:
+    name: "&bThây Ma Biển Cả"
+  parrot_pet:
+    name: "&aVẹt Sắc Màu"

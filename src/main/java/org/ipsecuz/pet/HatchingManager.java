@@ -236,24 +236,32 @@ public class HatchingManager {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
 
+        LanguageManager lang = plugin.getLanguage();
         String name = sec.getString("name", "&eTrứng Pet");
-        meta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', name)));
+        String eggKeyName = "eggs." + eggId + ".name";
+        if (lang != null && !lang.getRawMessage(eggKeyName).startsWith("§cMissing")) {
+            name = lang.getRawMessage(eggKeyName);
+        }
+        meta.displayName(GuiText.component(name));
 
         List<Component> lore = new ArrayList<>();
-        for (String line : sec.getStringList("lore")) {
-            lore.add(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', line)));
+        List<String> transLore = (lang != null) ? lang.getMessageList("eggs." + eggId + ".lore") : null;
+        List<String> rawLore = (transLore != null && !transLore.isEmpty()) ? transLore : sec.getStringList("lore");
+        for (String line : rawLore) {
+            lore.add(GuiText.component(line));
         }
 
         if (sec.contains("requirements") || sec.contains("all") || sec.contains("one_of") || sec.contains("price") || sec.contains("cost_money")) {
             org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(sec);
             if (!group.getRequirements().isEmpty()) {
-                lore.add(Component.text(" "));
-                lore.add(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&6✦ Chi phí để quay:")));
+                lore.add(GuiText.component(" "));
+                String costHeader = (lang != null) ? lang.getRawMessage("gui.hatch_cost_header") : "&6✦ Chi phí để quay:";
+                lore.add(GuiText.component(costHeader));
                 org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(null, plugin);
                 org.ipsecuz.pet.requirement.RequirementCheckResult result = plugin.getRequirementManager().evaluate(group, ctx);
                 for (String line : org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToStrings(result)) {
                     if (!line.contains("ĐỦ ĐIỀU KIỆN") && !line.contains("CHƯA ĐỦ ĐIỀU KIỆN") && !line.startsWith("§7----")) {
-                        lore.add(Component.text(line));
+                        lore.add(GuiText.component(line));
                     }
                 }
             }
@@ -272,23 +280,26 @@ public class HatchingManager {
     }
 
     public void openHatchingGui(Player player) {
+        LanguageManager lang = plugin.getLanguage();
         if (!plugin.getModuleManager().isHatchingEnabled()) {
-            player.sendMessage("§cTính năng Ấp Trứng & Quay Pet hiện đang bị tắt bởi máy chủ!");
+            player.sendMessage(lang != null ? lang.getMessage("hatching.disabled") : "§cTính năng Ấp Trứng & Quay Pet hiện đang bị tắt bởi máy chủ!");
             return;
         }
 
         FileConfiguration config = plugin.getModuleManager().getHatchingConfig();
-        String title = config.getString("gui.title", "&1✦ Lò Ấp Trứng Thú Cưng ✦");
+        String title = (lang != null && !lang.getRawMessage("gui.hatch_title").startsWith("§cMissing"))
+                ? lang.getRawMessage("gui.hatch_title")
+                : config.getString("gui.title", "&1✦ Lò Ấp Trứng Thú Cưng ✦");
         int size = config.getInt("gui.size", 45);
 
         HatchMenuHolder holder = new HatchMenuHolder();
-        Inventory inv = Bukkit.createInventory(holder, size, LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', title)));
+        Inventory inv = Bukkit.createInventory(holder, size, GuiText.title(title));
         holder.setInventory(inv);
 
         ItemStack glass = new ItemStack(Material.CYAN_STAINED_GLASS_PANE);
         ItemMeta glassMeta = glass.getItemMeta();
         if (glassMeta != null) {
-            glassMeta.displayName(Component.text(" "));
+            glassMeta.displayName(GuiText.component(" "));
             glass.setItemMeta(glassMeta);
         }
         for (int i = 0; i < size; i++) {
@@ -307,8 +318,9 @@ public class HatchingManager {
                     if (meta != null) {
                         List<Component> lore = meta.lore();
                         if (lore == null) lore = new ArrayList<>();
-                        lore.add(Component.text(" "));
-                        lore.add(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&a▶ Nhấp để Quay Gacha & Ấp Trứng!")));
+                        lore.add(GuiText.component(" "));
+                        String spinHint = (lang != null) ? lang.getRawMessage("gui.hatch_click_spin") : "&a▶ Nhấp để Quay Gacha & Ấp Trứng!";
+                        lore.add(GuiText.component(spinHint));
                         meta.lore(lore);
                         eggItem.setItemMeta(meta);
                     }
@@ -321,13 +333,13 @@ public class HatchingManager {
         ItemStack info = new ItemStack(Material.BOOK);
         ItemMeta infoMeta = info.getItemMeta();
         if (infoMeta != null) {
-            infoMeta.displayName(GuiText.component("&e&lHƯỚNG DẪN ẤP TRỨNG & QUAY PET"));
+            infoMeta.displayName(GuiText.component((lang != null) ? lang.getRawMessage("gui.hatch_guide_title") : "&e&lHƯỚNG DẪN ẤP TRỨNG & QUAY PET"));
             List<Component> infoLore = new ArrayList<>();
-            infoLore.add(GuiText.component("&7- Nhấp chuột phải vào quả trứng trên tay"));
-            infoLore.add(GuiText.component("&7  hoặc nhấp trực tiếp vào biểu tượng trên GUI."));
-            infoLore.add(GuiText.component("&7- Vòng quay Roulette sống động với hiệu ứng âm thanh!"));
-            infoLore.add(GuiText.component("&7- Pet dừng lại ở ô giữa sẽ thuộc về bạn!"));
-            infoLore.add(GuiText.component("&7- Nếu quay trùng pet: nhận Mảnh Pet & EXP thưởng!"));
+            infoLore.add(GuiText.component((lang != null) ? lang.getRawMessage("gui.hatch_guide_line1") : "&7- Nhấp chuột phải vào quả trứng trên tay"));
+            infoLore.add(GuiText.component((lang != null) ? lang.getRawMessage("gui.hatch_guide_line2") : "&7  hoặc nhấp trực tiếp vào biểu tượng trên GUI."));
+            infoLore.add(GuiText.component((lang != null) ? lang.getRawMessage("gui.hatch_guide_line3") : "&7- Vòng quay Roulette sống động với hiệu ứng âm thanh!"));
+            infoLore.add(GuiText.component((lang != null) ? lang.getRawMessage("gui.hatch_guide_line4") : "&7- Pet dừng lại ở ô giữa sẽ thuộc về bạn!"));
+            infoLore.add(GuiText.component((lang != null) ? lang.getRawMessage("gui.hatch_guide_line5") : "&7- Nếu quay trùng pet: nhận Mảnh Pet & EXP thưởng!"));
             infoMeta.lore(infoLore);
             info.setItemMeta(infoMeta);
         }
@@ -484,17 +496,17 @@ public class HatchingManager {
         ItemStack item = plugin.getItemHookManager().getItem(iconMat, Material.STONE);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            String name = plugin.getConfig().getString("pets." + petId + ".name", petId);
+            LanguageManager lang = plugin.getLanguage();
+            String name = (lang != null) ? lang.getPetName(petId) : plugin.getConfig().getString("pets." + petId + ".name", petId);
             PetRarity rarity = PetRarity.fromPetId(plugin, petId);
-            meta.displayName(LegacyComponentSerializer.legacySection().deserialize(
-                    ChatColor.translateAlternateColorCodes('&', (isWinner ? "&6&l★ " : "&f") + name)));
-            List<Component> lore = new ArrayList<>();
-            lore.add(GuiText.component("&7Mã Pet: &e" + petId));
-            lore.add(GuiText.component("&7Độ hiếm: " + rarity.getLocalizedName(plugin)));
+            meta.displayName(GuiText.component((isWinner ? "&6&l★ " : "&f") + name));
+            GuiLoreBuilder lb = GuiLoreBuilder.create()
+                    .stat((lang != null) ? lang.getRawMessage("gui.stat_pet_id") : "Mã Pet", petId)
+                    .stat((lang != null) ? lang.getRawMessage("gui.stat_rarity") : "Độ hiếm", rarity.getLocalizedName(plugin));
             if (isWinner) {
-                lore.add(GuiText.component("&a&l✔ PHẦN THƯỞNG CỦA BẠN!"));
+                lb.success((lang != null) ? lang.getRawMessage("gui.hatch_winner_badge") : "PHẦN THƯỞNG CỦA BẠN!");
             }
-            meta.lore(lore);
+            meta.lore(lb.build());
             item.setItemMeta(meta);
         }
         return item;
@@ -505,16 +517,22 @@ public class HatchingManager {
         ItemStack glass = new ItemStack(glassMat);
         ItemMeta meta = glass.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text(" "));
+            meta.displayName(GuiText.component(" "));
             glass.setItemMeta(meta);
         }
+
+        LanguageManager lang = plugin.getLanguage();
+        String pointerDownName = (lang != null && !lang.getRawMessage("gui.hatch_pointer_down").startsWith("§cMissing"))
+                ? lang.getRawMessage("gui.hatch_pointer_down") : "&e▼ &6&lÔ NHẬN THƯỞNG &e▼";
+        String pointerUpName = (lang != null && !lang.getRawMessage("gui.hatch_pointer_up").startsWith("§cMissing"))
+                ? lang.getRawMessage("gui.hatch_pointer_up") : "&e▲ &6&lÔ NHẬN THƯỞNG &e▲";
 
         for (int i = 0; i < 9; i++) {
             if (i == 4) {
                 ItemStack pointer = new ItemStack(Material.HOPPER);
                 ItemMeta pMeta = pointer.getItemMeta();
                 if (pMeta != null) {
-                    pMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&e▼ &6&lÔ NHẬN THƯỞNG &e▼")));
+                    pMeta.displayName(GuiText.component(pointerDownName));
                     pointer.setItemMeta(pMeta);
                 }
                 inv.setItem(4, pointer);
@@ -528,7 +546,7 @@ public class HatchingManager {
                 ItemStack pointer = new ItemStack(Material.HOPPER);
                 ItemMeta pMeta = pointer.getItemMeta();
                 if (pMeta != null) {
-                    pMeta.displayName(LegacyComponentSerializer.legacySection().deserialize(ChatColor.translateAlternateColorCodes('&', "&e▲ &6&lÔ NHẬN THƯỞNG &e▲")));
+                    pMeta.displayName(GuiText.component(pointerUpName));
                     pointer.setItemMeta(pMeta);
                 }
                 inv.setItem(22, pointer);
@@ -737,7 +755,18 @@ public class HatchingManager {
                     player.getWorld().spawnParticle(Particle.FIREWORKS_SPARK, player.getLocation().add(0, 1.5, 0), 40, 0.6, 0.6, 0.6, 0.1);
                 } catch (Exception ignored) {}
 
-            } else if (rarity == PetRarity.MYTHIC || rarity == PetRarity.LEGENDARY) {
+            } else if (rarity == PetRarity.MYTHIC) {
+                titleText = (lang != null && !lang.getMessage("hatching.title_mythic").startsWith("§cMissing"))
+                        ? lang.getMessage("hatching.title_mythic") : "&d&l✦ THẦN THOẠI XUẤT THẾ ✦";
+                subtitleText = (lang != null && !lang.getMessage("hatching.subtitle_mythic").startsWith("§cMissing"))
+                        ? lang.getMessage("hatching.subtitle_mythic", "%pet%", petDisplayName) : "&d&l" + petDisplayName;
+                player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1.3f, 1.1f);
+                try {
+                    player.getWorld().spawnParticle(Particle.TOTEM, player.getLocation().add(0, 1.5, 0), 50, 0.6, 0.6, 0.6, 0.15);
+                    player.getWorld().spawnParticle(Particle.FIREWORKS_SPARK, player.getLocation().add(0, 1.5, 0), 35, 0.5, 0.5, 0.5, 0.1);
+                } catch (Exception ignored) {}
+
+            } else if (rarity == PetRarity.LEGENDARY) {
                 titleText = (lang != null && !lang.getMessage("hatching.title_legendary").startsWith("§cMissing"))
                         ? lang.getMessage("hatching.title_legendary") : "&6&l★ SIÊU PHẨM XUẤT HIỆN! ★";
                 subtitleText = (lang != null && !lang.getMessage("hatching.subtitle_default").startsWith("§cMissing"))
