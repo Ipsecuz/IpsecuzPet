@@ -198,7 +198,7 @@ public class GuiListener implements Listener {
 
         if (curPage > 1) {
             ItemStack prev = GuiItemBuilder.from(Material.ARROW)
-                    .name(lang.getMessage("gui.btn_prev_page_num", "%page%", String.valueOf(curPage - 1)))
+                    .name(lang.getMessage("gui.btn_prev_page_num", "%page%", String.valueOf(curPage - 1), "%total%", String.valueOf(totalPages)))
                     .pdc("nav_page", curPage - 1)
                     .build();
             inv.setItem(45, prev);
@@ -212,7 +212,7 @@ public class GuiListener implements Listener {
                         .action(lang.getMessage("gui.btn_codex_action")))
                 .pdc("btn_action", "open_codex")
                 .build();
-        inv.setItem(46, codexBtn);
+            inv.setItem(46, codexBtn);
 
         // Nút Shards (slot 47)
         ItemStack shardsBtn = GuiItemBuilder.from(Material.PRISMARINE_SHARD)
@@ -246,7 +246,7 @@ public class GuiListener implements Listener {
 
         if (curPage < totalPages) {
             ItemStack next = GuiItemBuilder.from(Material.ARROW)
-                    .name(lang.getMessage("gui.btn_next_page_num", "%page%", String.valueOf(curPage + 1)))
+                    .name(lang.getMessage("gui.btn_next_page_num", "%page%", String.valueOf(curPage + 1), "%total%", String.valueOf(totalPages)))
                     .pdc("nav_page", curPage + 1)
                     .build();
             inv.setItem(53, next);
@@ -656,7 +656,7 @@ public class GuiListener implements Listener {
 
         if (curPage > 1) {
             ItemStack prev = GuiItemBuilder.from(Material.ARROW)
-                    .name(lang.getMessage("gui.btn_prev_page_num", "%page%", String.valueOf(curPage - 1)))
+                    .name(lang.getMessage("gui.btn_prev_page_num", "%page%", String.valueOf(curPage - 1), "%total%", String.valueOf(totalPages)))
                     .pdc("nav_codex_page", curPage - 1)
                     .build();
             inv.setItem(45, prev);
@@ -670,7 +670,7 @@ public class GuiListener implements Listener {
 
         if (curPage < totalPages) {
             ItemStack next = GuiItemBuilder.from(Material.ARROW)
-                    .name(lang.getMessage("gui.btn_next_page_num", "%page%", String.valueOf(curPage + 1)))
+                    .name(lang.getMessage("gui.btn_next_page_num", "%page%", String.valueOf(curPage + 1), "%total%", String.valueOf(totalPages)))
                     .pdc("nav_codex_page", curPage + 1)
                     .build();
             inv.setItem(53, next);
@@ -825,12 +825,20 @@ public class GuiListener implements Listener {
             inv.setItem(i - startIndex, item);
         }
 
+        if (allKeys.isEmpty()) {
+            ItemStack emptyItem = GuiItemBuilder.from(Material.BARRIER)
+                    .name(lang.getMessage("gui.shop_empty_title"))
+                    .lore(GuiLoreBuilder.create().desc(lang.getMessage("gui.shop_empty_desc")))
+                    .build();
+            inv.setItem(22, emptyItem);
+        }
+
         ItemStack navGlass = GuiItemBuilder.from(Material.BLACK_STAINED_GLASS_PANE).name(" ").build();
         for (int s = 45; s < 54; s++) inv.setItem(s, navGlass);
 
         if (curPage > 1) {
             ItemStack prev = GuiItemBuilder.from(Material.ARROW)
-                    .name(lang.getMessage("gui.btn_prev_page_num", "%page%", String.valueOf(curPage - 1)))
+                    .name(lang.getMessage("gui.btn_prev_page_num", "%page%", String.valueOf(curPage - 1), "%total%", String.valueOf(totalPages)))
                     .pdc("nav_shop_page", curPage - 1)
                     .build();
             inv.setItem(45, prev);
@@ -859,7 +867,7 @@ public class GuiListener implements Listener {
 
         if (curPage < totalPages) {
             ItemStack next = GuiItemBuilder.from(Material.ARROW)
-                    .name(lang.getMessage("gui.btn_next_page_num", "%page%", String.valueOf(curPage + 1)))
+                    .name(lang.getMessage("gui.btn_next_page_num", "%page%", String.valueOf(curPage + 1), "%total%", String.valueOf(totalPages)))
                     .pdc("nav_shop_page", curPage + 1)
                     .build();
             inv.setItem(53, next);
@@ -1036,7 +1044,7 @@ public class GuiListener implements Listener {
                         ItemStack confirmIcon = topInv.getItem(13);
                         if (confirmIcon == null) confirmIcon = new ItemStack(Material.NETHER_STAR);
                         String petDisplayName = plugin.getLanguage().getPetDisplayName(p.getUniqueId(), petId);
-                        openConfirmDialog(p, plugin.getLanguage().getMessage("gui.confirm_evolve_title", "%pet%", petDisplayName), confirmIcon.clone(), "confirm_evolve:" + petId);
+                        openConfirmDialog(p, plugin.getLanguage().getMessage("gui.confirm_evolve_title", "%pet_name%", petDisplayName, "%pet%", petDisplayName), confirmIcon.clone(), "confirm_evolve:" + petId);
                     } else if (action.startsWith("back:")) {
                         String petId = action.substring("back:".length());
                         openPetDetailMenu(p, petId);
@@ -1278,10 +1286,10 @@ public class GuiListener implements Listener {
                 String petId = parts[1];
                 ItemStack wdIcon = clickedItem.clone();
                 String petDisplayName = plugin.getLanguage().getPetDisplayName(p.getUniqueId(), petId);
-                openConfirmDialog(p, plugin.getLanguage().getMessage("gui.confirm_withdraw_title", "%pet%", petDisplayName), wdIcon, "confirm_withdraw:" + petId);
+                openConfirmDialog(p, plugin.getLanguage().getMessage("gui.confirm_withdraw_title", "%pet_name%", petDisplayName, "%pet%", petDisplayName), wdIcon, "confirm_withdraw:" + petId);
             } else if ("rename_info".equals(action) && parts.length > 1) {
                 p.closeInventory();
-                p.sendMessage(plugin.getLanguage().getMessage("pet.rename_prompt"));
+                plugin.getRenameSessionManager().startSession(p, parts[1]);
                 p.playSound(p.getLocation(), Sound.BLOCK_ANVIL_USE, 1f, 1f);
             }
             return;
@@ -1300,10 +1308,12 @@ public class GuiListener implements Listener {
                 if (activePet != null && activePet.equals(petId)) {
                     plugin.getPetManager().removePet(p.getUniqueId());
                     p.sendMessage(plugin.getLanguage().getMessage("pet.despawn"));
+                    p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1f, 0.8f);
                 } else {
                     plugin.getPetManager().spawnPet(p, petId);
+                    p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
                 }
-                p.closeInventory();
+                openPetMenu(p, 1);
             }
             return;
         }

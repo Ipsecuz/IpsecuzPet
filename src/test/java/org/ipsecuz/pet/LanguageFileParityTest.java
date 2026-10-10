@@ -135,4 +135,34 @@ public class LanguageFileParityTest {
 
         assertTrue(missing.isEmpty(), "The following keys referenced in code are missing in VN.yml: " + missing);
     }
+
+    @Test
+    @DisplayName("Verify stat label keys do not contain raw unresolved placeholder tokens")
+    public void testStatLabelsDoNotContainUnresolvedPlaceholders() {
+        InputStream vnStream = getClass().getClassLoader().getResourceAsStream("languages/VN.yml");
+        assertNotNull(vnStream);
+        YamlConfiguration vnConfig = YamlConfiguration.loadConfiguration(new InputStreamReader(vnStream, StandardCharsets.UTF_8));
+
+        InputStream enStream = getClass().getClassLoader().getResourceAsStream("languages/EN.yml");
+        assertNotNull(enStream);
+        YamlConfiguration enConfig = YamlConfiguration.loadConfiguration(new InputStreamReader(enStream, StandardCharsets.UTF_8));
+
+        String[] labelKeys = {
+                "gui.lore_level",
+                "gui.lore_stars",
+                "gui.lore_happiness",
+                "gui.shop_cur_page",
+                "gui.shop_total_pets"
+        };
+
+        for (String key : labelKeys) {
+            String vnVal = vnConfig.getString(key);
+            assertNotNull(vnVal, "VN.yml missing " + key);
+            assertFalse(vnVal.matches(".*%[a-zA-Z0-9_]+%.*"), "VN.yml " + key + " must not contain placeholder: " + vnVal);
+
+            String enVal = enConfig.getString(key);
+            assertNotNull(enVal, "EN.yml missing " + key);
+            assertFalse(enVal.matches(".*%[a-zA-Z0-9_]+%.*"), "EN.yml " + key + " must not contain placeholder: " + enVal);
+        }
+    }
 }

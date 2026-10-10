@@ -325,6 +325,7 @@ public class GameListener implements Listener {
                 seat.getPersistentDataContainer().set(new NamespacedKey(plugin, "pet_seat"), PersistentDataType.STRING, "true");
                 pet.addPassenger(seat);
                 seat.addPassenger(p);
+                plugin.getPetManager().registerMount(p.getUniqueId(), pet.getUniqueId());
                 p.sendMessage(lang.getMessage("pet.mount"));
             }
         }
@@ -334,6 +335,9 @@ public class GameListener implements Listener {
     public void onDismount(org.bukkit.event.entity.EntityDismountEvent e) {
         if (e.getDismounted().getPersistentDataContainer().has(new NamespacedKey(plugin, "pet_seat"), PersistentDataType.STRING)) {
             e.getDismounted().remove();
+        }
+        if (e.getEntity() instanceof Player p) {
+            plugin.getPetManager().unregisterMount(p.getUniqueId());
         }
     }
 
@@ -794,6 +798,31 @@ public class GameListener implements Listener {
         }
         if (plugin.getSkillManager() != null) {
             plugin.getSkillManager().clearCooldown(uuid);
+        }
+        if (plugin.getRenameSessionManager() != null) {
+            plugin.getRenameSessionManager().cancelSession(uuid);
+        }
+    }
+
+    @EventHandler(priority = org.bukkit.event.EventPriority.LOWEST)
+    public void onPlayerChat(org.bukkit.event.player.AsyncPlayerChatEvent e) {
+        if (plugin.getRenameSessionManager() != null && plugin.getRenameSessionManager().hasSession(e.getPlayer().getUniqueId())) {
+            e.setCancelled(true);
+            String message = e.getMessage();
+            SchedulerUtils.runEntityTask(plugin, e.getPlayer(), () -> {
+                plugin.getRenameSessionManager().handleChatInput(e.getPlayer(), message);
+            });
+        }
+    }
+
+    @EventHandler(priority = org.bukkit.event.EventPriority.LOWEST)
+    public void onPaperChat(io.papermc.paper.event.player.AsyncChatEvent e) {
+        if (plugin.getRenameSessionManager() != null && plugin.getRenameSessionManager().hasSession(e.getPlayer().getUniqueId())) {
+            e.setCancelled(true);
+            String plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(e.message());
+            SchedulerUtils.runEntityTask(plugin, e.getPlayer(), () -> {
+                plugin.getRenameSessionManager().handleChatInput(e.getPlayer(), plain);
+            });
         }
     }
 }

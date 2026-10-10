@@ -26,6 +26,7 @@ public class IpsecuzPet extends JavaPlugin {
     private PetCodexManager codexManager;
     private HappinessModifierEngine happinessModifierEngine;
     private org.ipsecuz.pet.requirement.RequirementManager requirementManager;
+    private RenameSessionManager renameSessionManager;
 
     @Override
     public void onEnable() {
@@ -67,6 +68,7 @@ public class IpsecuzPet extends JavaPlugin {
         // 6. Nạp PetManager & CaptureManager
         this.petManager = new PetManager(this);
         this.captureManager = new CaptureManager(this);
+        this.renameSessionManager = new RenameSessionManager(this);
 
         // 7. Tự động phát hiện phiên bản và đăng ký mob mới (1.20 -> 1.21.x -> 26.x)
         this.dynamicPetRegistry = new DynamicPetRegistry(this);
@@ -161,4 +163,5 @@ public class IpsecuzPet extends JavaPlugin {
     public PetShardManager getShardManager() { return shardManager; }
     public PetCodexManager getCodexManager() { return codexManager; }
     public org.ipsecuz.pet.requirement.RequirementManager getRequirementManager() { return requirementManager; }
+    public RenameSessionManager getRenameSessionManager() { return renameSessionManager; }
 }

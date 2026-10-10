@@ -18,6 +18,10 @@ public class PetManager {
 
     private final Map<UUID, Entity> activePets = new ConcurrentHashMap<>();
     private final Map<UUID, String> activePetIds = new ConcurrentHashMap<>();
+    private final Map<UUID, UUID> mountedPets = new ConcurrentHashMap<>();
+    private final Map<UUID, Location> lastNavGoals = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> lastNavTimes = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> stuckCounters = new ConcurrentHashMap<>();
 
     public final Map<UUID, UUID> duelRequests = new ConcurrentHashMap<>();
     public final Map<UUID, UUID> activeDuels = new ConcurrentHashMap<>();
@@ -39,22 +43,67 @@ public class PetManager {
         return modelHandler;
     }
 
+    public void registerMount(UUID ownerId, UUID petEntityId) {
+        if (ownerId != null && petEntityId != null) {
+            mountedPets.put(ownerId, petEntityId);
+        }
+    }
+
+    public void unregisterMount(UUID ownerId) {
+        if (ownerId != null) {
+            mountedPets.remove(ownerId);
+        }
+    }
+
+    public boolean isMounted(UUID ownerId) {
+        return ownerId != null && mountedPets.containsKey(ownerId);
+    }
+
+    public UUID getMountedPet(UUID ownerId) {
+        return (ownerId != null) ? mountedPets.get(ownerId) : null;
+    }
+
+    public EntityType resolveEntityType(String petId) {
+        if (petId == null) return null;
+        String raw = plugin.getConfig().getString("pets." + petId + ".type");
+        if (raw == null || raw.trim().isEmpty()) {
+            raw = plugin.getConfig().getString("pets." + petId + ".entity_type");
+        }
+        if (raw == null || raw.trim().isEmpty()) {
+            plugin.getLogger().warning("[PetManager] Pet '" + petId + "' is missing 'type' or 'entity_type' in config.yml!");
+            return null;
+        }
+        String normalized = raw.trim().toUpperCase(java.util.Locale.ROOT);
+        try {
+            return EntityType.valueOf(normalized);
+        } catch (IllegalArgumentException e) {
+            plugin.getLogger().warning("[PetManager] Pet '" + petId + "' has invalid entity type '" + raw + "' in config.yml!");
+            return null;
+        }
+    }
+
     public void spawnPet(Player player, String petId) {
         if (plugin.getConfigManager().isPetDead(player.getUniqueId(), petId)) {
             player.sendMessage(plugin.getLanguage().getMessage("pet.death"));
             return;
         }
-        removePet(player.getUniqueId());
 
-        String typeStr = plugin.getConfig().getString("pets." + petId + ".type", "ZOMBIE");
-        EntityType type;
-        try {
-            type = EntityType.valueOf(typeStr);
-        } catch (IllegalArgumentException e) {
-            type = EntityType.ZOMBIE;
+        EntityType type = resolveEntityType(petId);
+        if (type == null) {
+            player.sendMessage(plugin.getLanguage().getMessage("pet.spawn_invalid_type", "%pet_id%", petId));
+            return;
         }
 
-        Entity pet = player.getWorld().spawnEntity(player.getLocation(), type);
+        removePet(player.getUniqueId());
+
+        Entity pet;
+        try {
+            pet = player.getWorld().spawnEntity(player.getLocation(), type);
+        } catch (Throwable t) {
+            plugin.getLogger().severe("[PetManager] Failed to spawn entity of type " + type + " for pet " + petId + ": " + t.getMessage());
+            player.sendMessage(plugin.getLanguage().getMessage("pet.spawn_invalid_type", "%pet_id%", petId));
+            return;
+        }
 
         // --- CODE HIỂN THỊ TÊN (SỬ DỤNG TÊN TÙY CHỈNH) ---
         String defaultName = plugin.getConfig().getString("pets." + petId + ".name", "Pet");
@@ -170,6 +219,10 @@ public class PetManager {
 
     public void removePet(UUID ownerId) {
         dyingPets.remove(ownerId);
+        unregisterMount(ownerId);
+        lastNavGoals.remove(ownerId);
+        lastNavTimes.remove(ownerId);
+        stuckCounters.remove(ownerId);
         if (activePets.containsKey(ownerId)) {
             Entity e = activePets.remove(ownerId);
             activePetIds.remove(ownerId);
@@ -360,6 +413,8 @@ public class PetManager {
         public org.bukkit.GameMode getGameMode() { return gameMode; }
         public double getHealth() { return health; }
         public double getMaxHealth() { return maxHealth; }
+        public float getYaw() { return (location != null) ? location.getYaw() : 0.0f; }
+        public float getPitch() { return (location != null) ? location.getPitch() : 0.0f; }
     }
 
     private long tickCounter = 0;
@@ -436,10 +491,22 @@ public class PetManager {
                     Location ownerLoc = snapshot.getLocation();
                     org.bukkit.util.Vector ownerDir = snapshot.getDirection();
 
+                    if (isMounted(ownerId)) {
+                        handleMountSteering(pet, snapshot);
+                        modelHandler.updatePosition(pet);
+                        if (currentTick % 3 == 0) {
+                            modelHandler.updateMultiplayerVisibility(pet);
+                        }
+                        if (currentTick % 4 == 0) {
+                            playParticles(pet, petId);
+                        }
+                        return;
+                    }
+
                     boolean isFlying = isFlyingType(pet.getType());
                     double distSq = petLoc.distanceSquared(ownerLoc);
 
-                    if (distSq > 400) {
+                    if (distSq > 256) {
                         SchedulerUtils.teleportAsync(pet, ownerLoc);
                     } else if (isFlying) {
                         double bob = Math.sin((System.currentTimeMillis() / 60.0) * 0.15) * 0.15;
@@ -465,8 +532,37 @@ public class PetManager {
                         double flankDistSq = petLoc.distanceSquared(flankTarget);
                         if (flankDistSq > 3.0) {
                             if (pet instanceof Mob mob) {
-                                mob.getPathfinder().moveTo(flankTarget, 1.25);
+                                Location lastGoal = lastNavGoals.get(ownerId);
+                                long lastTime = lastNavTimes.getOrDefault(ownerId, 0L);
+                                long now = System.currentTimeMillis();
+                                if (lastGoal == null || lastGoal.distanceSquared(flankTarget) > 2.25 || (now - lastTime) > 1000) {
+                                    mob.getPathfinder().moveTo(flankTarget, 1.25);
+                                    lastNavGoals.put(ownerId, flankTarget.clone());
+                                    lastNavTimes.put(ownerId, now);
+                                }
+                            } else {
+                                org.bukkit.util.Vector toFlank = flankTarget.toVector().subtract(petLoc.toVector()).setY(0);
+                                if (toFlank.lengthSquared() > 0.01) {
+                                    pet.setVelocity(toFlank.normalize().multiply(0.25).setY(pet.getVelocity().getY()));
+                                }
                             }
+                        } else {
+                            if (pet instanceof Mob mob) {
+                                mob.getPathfinder().stopPathfinding();
+                            }
+                        }
+
+                        // Stuck mitigation: nếu pet kẹt cách xa > 6 block trong 4 giây, dịch chuyển về flank
+                        if (distSq > 36.0) {
+                            int stuck = stuckCounters.getOrDefault(ownerId, 0) + 1;
+                            if (stuck >= 16) {
+                                SchedulerUtils.teleportAsync(pet, flankTarget);
+                                stuckCounters.put(ownerId, 0);
+                            } else {
+                                stuckCounters.put(ownerId, stuck);
+                            }
+                        } else {
+                            stuckCounters.remove(ownerId);
                         }
 
                         double speed = pet.getVelocity().setY(0).length();
@@ -510,6 +606,50 @@ public class PetManager {
                     }
                 });
             });
+        }
+    }
+
+    private void handleMountSteering(Entity pet, PetFollowSnapshot snapshot) {
+        if (pet == null || !pet.isValid() || snapshot == null) return;
+
+        float yaw = snapshot.getYaw();
+        float pitch = snapshot.getPitch();
+        pet.setRotation(yaw, 0);
+
+        if (pitch >= 50.0f) {
+            pet.setVelocity(new org.bukkit.util.Vector(0, pet.getVelocity().getY(), 0));
+            modelHandler.playAnimation(pet, isFlyingType(pet.getType()) ? PetAnimationState.FLY_IDLE : PetAnimationState.IDLE);
+            return;
+        }
+
+        double rad = Math.toRadians(yaw);
+        double vx = -Math.sin(rad);
+        double vz = Math.cos(rad);
+        org.bukkit.util.Vector forward = new org.bukkit.util.Vector(vx, 0, vz).normalize();
+
+        double speed = 0.28;
+        if (pet instanceof LivingEntity living) {
+            var attr = living.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MOVEMENT_SPEED);
+            if (attr != null && attr.getValue() > 0.05) {
+                speed = Math.min(0.55, attr.getValue() * 1.25);
+            }
+        }
+
+        if (isFlyingType(pet.getType())) {
+            double vy = -Math.sin(Math.toRadians(pitch)) * speed;
+            org.bukkit.util.Vector flyVel = forward.clone().multiply(speed).setY(vy);
+            pet.setVelocity(flyVel);
+            modelHandler.playAnimation(pet, PetAnimationState.FLY);
+        } else {
+            org.bukkit.util.Vector targetVel = forward.clone().multiply(speed);
+            targetVel.setY(pet.getVelocity().getY());
+
+            Location frontLoc = pet.getLocation().add(forward.clone().multiply(0.8));
+            if (frontLoc.getBlock().getType().isSolid() && !frontLoc.clone().add(0, 1, 0).getBlock().getType().isSolid()) {
+                targetVel.setY(0.45);
+            }
+            pet.setVelocity(targetVel);
+            modelHandler.playAnimation(pet, PetAnimationState.RUN);
         }
     }
 

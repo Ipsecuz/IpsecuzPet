@@ -60,36 +60,45 @@ public class PetTabCompleter implements TabCompleter {
         }
 
         if (args.length == 2) {
-            if (args[0].equalsIgnoreCase("model") && (sender.hasPermission("ipsecuzpet.admin") || sender.hasPermission("ipsecuzpet.model.status"))) {
+            String sub = args[0].toLowerCase();
+            if (sub.equals("model") && (sender.hasPermission("ipsecuzpet.admin") || sender.hasPermission("ipsecuzpet.model.status"))) {
                 if ("status".startsWith(args[1].toLowerCase())) {
                     results.add("status");
                 }
                 return results;
             }
-            if (args[0].equalsIgnoreCase("withdraw") && sender instanceof Player p) {
+            if ((sub.equals("withdraw") || sub.equals("baby") || sub.equals("stats") || sub.equals("star") || sub.equals("evolve")) && sender instanceof Player p) {
                 if (plugin.getConfigManager().getData().getConfigurationSection(p.getUniqueId() + ".pets") != null) {
-                    results.addAll(plugin.getConfigManager().getData().getConfigurationSection(p.getUniqueId() + ".pets").getKeys(false));
+                    for (String key : plugin.getConfigManager().getData().getConfigurationSection(p.getUniqueId() + ".pets").getKeys(false)) {
+                        if (key.toLowerCase().startsWith(args[1].toLowerCase())) {
+                            results.add(key);
+                        }
+                    }
                 }
                 return results;
             }
-            if (args[0].equalsIgnoreCase("trade")) {
-                results.add("accept");
+            if (sub.equals("trade")) {
+                if ("accept".startsWith(args[1].toLowerCase())) {
+                    results.add("accept");
+                }
                 for (Player online : plugin.getServer().getOnlinePlayers()) {
-                    if (!online.getName().equalsIgnoreCase(sender.getName())) {
+                    if (!online.getName().equalsIgnoreCase(sender.getName()) && online.getName().toLowerCase().startsWith(args[1].toLowerCase())) {
                         results.add(online.getName());
                     }
                 }
                 return results;
             }
-            if (args[0].equalsIgnoreCase("duel") ||
-                    (args[0].equalsIgnoreCase("give") && sender.hasPermission("ipsecuzpet.admin")) ||
-                    (args[0].equalsIgnoreCase("giveball") && sender.hasPermission("ipsecuzpet.admin"))) {
-                return null;
+            if (sub.equals("duel") ||
+                    (sub.equals("give") && sender.hasPermission("ipsecuzpet.admin")) ||
+                    (sub.equals("giveball") && sender.hasPermission("ipsecuzpet.admin")) ||
+                    (sub.equals("giveegg") && sender.hasPermission("ipsecuzpet.admin"))) {
+                return null; // Return null to delegate player name completion to Bukkit
             }
         }
 
         if (args.length == 3) {
-            if (args[0].equalsIgnoreCase("give") && sender.hasPermission("ipsecuzpet.admin")) {
+            String sub = args[0].toLowerCase();
+            if (sub.equals("give") && sender.hasPermission("ipsecuzpet.admin")) {
                 if (plugin.getConfig().getConfigurationSection("pets") != null) {
                     for (String key : plugin.getConfig().getConfigurationSection("pets").getKeys(false)) {
                         if (key.toLowerCase().startsWith(args[2].toLowerCase())) {
@@ -99,20 +108,43 @@ public class PetTabCompleter implements TabCompleter {
                 }
                 return results;
             }
-            if (args[0].equalsIgnoreCase("giveball") && sender.hasPermission("ipsecuzpet.admin")) {
-                return new ArrayList<>(plugin.getCaptureManager().getBallIds());
-            }
-            if (args[0].equalsIgnoreCase("giveegg") && sender.hasPermission("ipsecuzpet.admin")) {
-                if (plugin.getModuleManager() != null && plugin.getModuleManager().getHatchingConfig().isConfigurationSection("eggs")) {
-                    return new ArrayList<>(plugin.getModuleManager().getHatchingConfig().getConfigurationSection("eggs").getKeys(false));
+            if (sub.equals("giveball") && sender.hasPermission("ipsecuzpet.admin")) {
+                for (String ball : plugin.getCaptureManager().getBallIds()) {
+                    if (ball.toLowerCase().startsWith(args[2].toLowerCase())) {
+                        results.add(ball);
+                    }
                 }
+                return results;
             }
-            if (args[0].equalsIgnoreCase("model") && args[1].equalsIgnoreCase("status") && (sender.hasPermission("ipsecuzpet.admin") || sender.hasPermission("ipsecuzpet.model.status"))) {
+            if (sub.equals("giveegg") && sender.hasPermission("ipsecuzpet.admin")) {
+                if (plugin.getModuleManager() != null && plugin.getModuleManager().getHatchingConfig().isConfigurationSection("eggs")) {
+                    for (String egg : plugin.getModuleManager().getHatchingConfig().getConfigurationSection("eggs").getKeys(false)) {
+                        if (egg.toLowerCase().startsWith(args[2].toLowerCase())) {
+                            results.add(egg);
+                        }
+                    }
+                }
+                return results;
+            }
+            if (sub.equals("model") && args[1].equalsIgnoreCase("status") && (sender.hasPermission("ipsecuzpet.admin") || sender.hasPermission("ipsecuzpet.model.status"))) {
                 if (plugin.getConfig().getConfigurationSection("pets") != null) {
                     for (String key : plugin.getConfig().getConfigurationSection("pets").getKeys(false)) {
                         if (key.toLowerCase().startsWith(args[2].toLowerCase())) {
                             results.add(key);
                         }
+                    }
+                }
+                return results;
+            }
+        }
+
+        if (args.length == 4) {
+            String sub = args[0].toLowerCase();
+            if ((sub.equals("giveball") || sub.equals("giveegg")) && sender.hasPermission("ipsecuzpet.admin")) {
+                List<String> amounts = List.of("1", "5", "10", "16", "32", "64");
+                for (String amt : amounts) {
+                    if (amt.startsWith(args[3])) {
+                        results.add(amt);
                     }
                 }
                 return results;

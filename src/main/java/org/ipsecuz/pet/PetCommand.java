@@ -168,15 +168,15 @@ public class PetCommand implements CommandExecutor {
                     return true;
                 }
                 if (args.length < 2) {
-                    p.sendMessage("§cCú pháp: /pet rename <tên_mới>");
+                    p.sendMessage(lang.getMessage("pet.rename_usage"));
                     return true;
                 }
                 String petId = plugin.getPetManager().getActivePetId(p.getUniqueId());
                 String newName = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
 
                 String cleanRaw = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', newName));
-                if (cleanRaw.length() < 2 || cleanRaw.length() > 24) {
-                    p.sendMessage("§cTên thú cưng phải có độ dài từ 2 đến 24 ký tự!");
+                if (cleanRaw.length() < 2 || cleanRaw.length() > 16) {
+                    p.sendMessage(lang.getMessage("pet.rename_length_error"));
                     p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                     return true;
                 }
@@ -323,7 +323,7 @@ public class PetCommand implements CommandExecutor {
                 String curActivePet = plugin.getPetManager().getActivePetId(p.getUniqueId());
                 boolean isBaby = plugin.getConfigManager().isPetBaby(p.getUniqueId(), curActivePet);
                 plugin.getConfigManager().setPetBaby(p.getUniqueId(), curActivePet, !isBaby);
-                p.sendMessage("§aĐã đổi dạng kích thước của Pet thành: " + (!isBaby ? "§b👶 Bé con (Baby)" : "§6🦁 Trưởng thành (Adult)"));
+                p.sendMessage(lang.getMessage(!isBaby ? "pet.size_changed_baby" : "pet.size_changed_adult"));
                 plugin.getPetManager().spawnPet(p, curActivePet);
                 break;
 
@@ -374,7 +374,7 @@ public class PetCommand implements CommandExecutor {
                     return true;
                 }
                 if (args.length < 2) {
-                    p.sendMessage("§cCú pháp: /pet trade <player> hoặc /pet trade accept");
+                    p.sendMessage(lang.getMessage("pet.trade_usage"));
                     return true;
                 }
                 if (args[1].equalsIgnoreCase("accept")) {
@@ -413,8 +413,8 @@ public class PetCommand implements CommandExecutor {
         sender.sendMessage(lang.getMessage("model.modelengine_label", "%status%", meStatus));
         sender.sendMessage(lang.getMessage("model.global_provider", "%provider%", globalProvider));
         sender.sendMessage(lang.getMessage("model.active_provider", "%provider%", activeProvider));
-        sender.sendMessage("  §7- Renderers khả dụng: §f" + summary);
-        sender.sendMessage("  §7- Thú cưng đang hiển thị: §e" + activePetCount);
+        sender.sendMessage(lang.getMessage("model.available_renderers", "%summary%", summary));
+        sender.sendMessage(lang.getMessage("model.active_pets_count", "%count%", String.valueOf(activePetCount)));
 
         if (args != null && args.length > 2 && mm != null) {
             String petId = args[2];

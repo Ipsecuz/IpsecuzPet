@@ -11,6 +11,7 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -492,8 +493,27 @@ public class HatchingManager {
     }
 
     public ItemStack createPetDisplayIcon(String petId, boolean isWinner) {
-        String iconMat = plugin.getConfig().getString("pets." + petId + ".icon", "STONE");
-        ItemStack item = plugin.getItemHookManager().getItem(iconMat, Material.STONE);
+        String iconMat = plugin.getConfig().getString("pets." + petId + ".icon");
+        ItemStack item = null;
+        if (iconMat != null && !iconMat.isEmpty() && !"STONE".equalsIgnoreCase(iconMat)) {
+            item = plugin.getItemHookManager().getItem(iconMat, null);
+        }
+        if (item == null) {
+            String matStr = plugin.getConfig().getString("pets." + petId + ".material");
+            if (matStr != null && !matStr.isEmpty() && !"STONE".equalsIgnoreCase(matStr)) {
+                item = plugin.getItemHookManager().getItem(matStr, null);
+            }
+        }
+        if (item == null) {
+            EntityType entityType = (plugin.getPetManager() != null) ? plugin.getPetManager().resolveEntityType(petId) : null;
+            if (entityType != null) {
+                item = resolveThematicMobIcon(entityType);
+            }
+        }
+        if (item == null) {
+            item = new ItemStack(Material.NAME_TAG);
+        }
+
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             LanguageManager lang = plugin.getLanguage();
@@ -510,6 +530,48 @@ public class HatchingManager {
             item.setItemMeta(meta);
         }
         return item;
+    }
+
+    private ItemStack resolveThematicMobIcon(EntityType type) {
+        try {
+            Material spawnEgg = Material.getMaterial(type.name() + "_SPAWN_EGG");
+            if (spawnEgg != null) {
+                return new ItemStack(spawnEgg);
+            }
+        } catch (Throwable ignored) {}
+
+        Material fallbackMat = switch (type) {
+            case WOLF -> Material.BONE;
+            case CAT, OCELOT -> Material.COD;
+            case CHICKEN -> Material.FEATHER;
+            case COW -> Material.LEATHER;
+            case PIG -> Material.CARROT;
+            case SHEEP -> Material.WHITE_WOOL;
+            case IRON_GOLEM -> Material.IRON_INGOT;
+            case SNOWMAN -> Material.SNOWBALL;
+            case BEE -> Material.HONEYCOMB;
+            case CREEPER -> Material.GUNPOWDER;
+            case SKELETON, WITHER_SKELETON -> Material.BOW;
+            case SPIDER, CAVE_SPIDER -> Material.SPIDER_EYE;
+            case ZOMBIE, ZOMBIE_VILLAGER, DROWNED, HUSK -> Material.ROTTEN_FLESH;
+            case BLAZE -> Material.BLAZE_ROD;
+            case ENDERMAN -> Material.ENDER_PEARL;
+            case SLIME, MAGMA_CUBE -> Material.SLIME_BALL;
+            case ALLAY -> Material.AMETHYST_SHARD;
+            case AXOLOTL -> Material.WATER_BUCKET;
+            case FROG -> Material.SLIME_BALL;
+            case WARDEN -> Material.ECHO_SHARD;
+            case FOX -> Material.SWEET_BERRIES;
+            case RABBIT -> Material.RABBIT_FOOT;
+            case PANDA -> Material.BAMBOO;
+            case HORSE, DONKEY, MULE -> Material.SADDLE;
+            case BAT -> Material.PHANTOM_MEMBRANE;
+            case PARROT -> Material.WHEAT_SEEDS;
+            case TURTLE -> Material.SCUTE;
+            case DOLPHIN -> Material.TROPICAL_FISH;
+            default -> Material.NAME_TAG;
+        };
+        return new ItemStack(fallbackMat);
     }
 
     private void updateRouletteBorders(Inventory inv, int step) {

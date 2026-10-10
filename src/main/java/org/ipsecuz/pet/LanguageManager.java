@@ -156,6 +156,36 @@ public class LanguageManager {
         return getPetName(petId);
     }
 
+    public String applyPlaceholders(String text, String... placeholders) {
+        if (text == null || placeholders == null || placeholders.length == 0) {
+            return text;
+        }
+        String result = text;
+        for (int i = 0; i < placeholders.length; i += 2) {
+            if (i + 1 < placeholders.length && placeholders[i] != null && placeholders[i + 1] != null) {
+                String key = placeholders[i];
+                String val = placeholders[i + 1];
+                result = result.replace(key, val);
+                if ("%pet%".equals(key)) {
+                    result = result.replace("%pet_name%", val);
+                } else if ("%pet_name%".equals(key)) {
+                    result = result.replace("%pet%", val);
+                }
+            }
+        }
+        return result;
+    }
+
+    private void validatePlaceholders(String path, String rendered) {
+        if (plugin.getConfig().getBoolean("debug", false) && rendered != null) {
+            Pattern unresolvedPattern = Pattern.compile("%([a-zA-Z0-9_]+)%");
+            Matcher m = unresolvedPattern.matcher(rendered);
+            while (m.find()) {
+                plugin.getLogger().warning("[LanguageManager] Potential unresolved placeholder '%" + m.group(1) + "%' in key '" + path + "': " + rendered);
+            }
+        }
+    }
+
     public String getRawMessageOrDefault(String path, String defaultValue, String... placeholders) {
         String msg = null;
         if (primaryConfig != null) {
@@ -171,14 +201,8 @@ public class LanguageManager {
             return "§c" + path;
         }
 
-        if (placeholders != null && placeholders.length > 0) {
-            for (int i = 0; i < placeholders.length; i += 2) {
-                if (i + 1 < placeholders.length && placeholders[i] != null && placeholders[i + 1] != null) {
-                    msg = msg.replace(placeholders[i], placeholders[i + 1]);
-                }
-            }
-        }
-
+        msg = applyPlaceholders(msg, placeholders);
+        validatePlaceholders(path, msg);
         return colorize(msg);
     }
 
@@ -205,14 +229,8 @@ public class LanguageManager {
             msg = prefix + msg;
         }
 
-        if (placeholders != null && placeholders.length > 0) {
-            for (int i = 0; i < placeholders.length; i += 2) {
-                if (i + 1 < placeholders.length && placeholders[i] != null && placeholders[i + 1] != null) {
-                    msg = msg.replace(placeholders[i], placeholders[i + 1]);
-                }
-            }
-        }
-
+        msg = applyPlaceholders(msg, placeholders);
+        validatePlaceholders(path, msg);
         return colorize(msg);
     }
 
@@ -228,14 +246,8 @@ public class LanguageManager {
             return "§cMissing language key: " + path;
         }
 
-        if (placeholders != null && placeholders.length > 0) {
-            for (int i = 0; i < placeholders.length; i += 2) {
-                if (i + 1 < placeholders.length && placeholders[i] != null && placeholders[i + 1] != null) {
-                    msg = msg.replace(placeholders[i], placeholders[i + 1]);
-                }
-            }
-        }
-
+        msg = applyPlaceholders(msg, placeholders);
+        validatePlaceholders(path, msg);
         return colorize(msg);
     }
 
@@ -260,15 +272,8 @@ public class LanguageManager {
             msg = prefix + msg;
         }
 
-        // Thay thế placeholders
-        if (placeholders != null && placeholders.length > 0) {
-            for (int i = 0; i < placeholders.length; i += 2) {
-                if (i + 1 < placeholders.length && placeholders[i] != null && placeholders[i + 1] != null) {
-                    msg = msg.replace(placeholders[i], placeholders[i + 1]);
-                }
-            }
-        }
-
+        msg = applyPlaceholders(msg, placeholders);
+        validatePlaceholders(path, msg);
         return colorize(msg);
     }
 
@@ -287,14 +292,7 @@ public class LanguageManager {
         List<String> result = new ArrayList<>(list.size());
         for (String line : list) {
             if (line == null) continue;
-            String processed = line;
-            if (placeholders != null && placeholders.length > 0) {
-                for (int i = 0; i < placeholders.length; i += 2) {
-                    if (i + 1 < placeholders.length && placeholders[i] != null && placeholders[i + 1] != null) {
-                        processed = processed.replace(placeholders[i], placeholders[i + 1]);
-                    }
-                }
-            }
+            String processed = applyPlaceholders(line, placeholders);
             result.add(colorize(processed));
         }
         return result;
