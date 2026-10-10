@@ -75,11 +75,26 @@ public class PetCommand implements CommandExecutor {
         }
 
         if (args.length == 0) {
-            GuiListener.openPetMenu(p);
+            plugin.getDialogService().openPetHub(p);
             return true;
         }
 
         switch (args[0].toLowerCase()) {
+            case "guide":
+                int chapterIdx = -1;
+                if (args.length > 1) {
+                    try {
+                        chapterIdx = Integer.parseInt(args[1]) - 1;
+                        if (chapterIdx < 0 || chapterIdx >= 18) chapterIdx = -1;
+                    } catch (NumberFormatException ignored) {}
+                }
+                plugin.getDialogService().openPetGuide(p, chapterIdx);
+                return true;
+
+            case "settings":
+                plugin.getDialogService().openSettingsDialog(p);
+                return true;
+
             case "help":
                 p.sendMessage(lang.getMessage("help.header"));
                 p.sendMessage(lang.getMessage("help.title"));

@@ -802,6 +802,9 @@ public class GameListener implements Listener {
         if (plugin.getRenameSessionManager() != null) {
             plugin.getRenameSessionManager().cancelSession(uuid);
         }
+        if (plugin.getDialogService() != null) {
+            plugin.getDialogService().cleanup(uuid);
+        }
     }
 
     @EventHandler(priority = org.bukkit.event.EventPriority.LOWEST)

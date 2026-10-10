@@ -409,6 +409,8 @@ help:
   cmd_hatch: "&e/pet hatch &7- Open Egg Incubator"
   cmd_codex: "&e/pet codex &7- Open Pet Codex"
   cmd_shards: "&e/pet shards &7- View Pet Shards"
+  cmd_guide: "&e/pet guide [chapter] &7- A-Z Comprehensive Guide"
+  cmd_settings: "&e/pet settings &7- Toggle effects & UI preferences"
   cmd_model_status: "&e/pet model status &7- Check ModelEngine / BetterModel Status"
   cmd_give: "&c/pet give <player> <pet_id> &7- Admin Give Pet"
   cmd_giveball: "&c/pet giveball <player> <ball_id> <amount> &7- Give Ball"
@@ -569,3 +571,174 @@ pets:
     name: "&bOcean Drowned"
   parrot_pet:
     name: "&aRainbow Parrot"
+
+dialog:
+  hub_title: "&8&lIPSECUZPET &7- &6Pet Hub"
+  hub_welcome: "&eWelcome to the Pet Hub!"
+  hub_active_pet: "Active Pet:"
+  hub_no_active_pet: "No active pet currently"
+  hub_owned_pets: "Owned Pets: &e%count%&7/&6%max%"
+  btn_my_pets: "&6🐾 My Pets"
+  btn_details: "&b📋 Pet Details"
+  btn_shop: "&a🛒 Pet Shop"
+  btn_hatch: "&e🥚 Hatching"
+  btn_codex: "&d📚 Pet Codex"
+  btn_guide: "&e📖 Pet Guide (A-Z)"
+  btn_settings: "&6⚙ Settings"
+  detail_title: "&8&lPET DETAILS: &6%pet_name%"
+  rename_title: "&8&lRENAME PET"
+  evolution_title: "&8&lPET EVOLUTION"
+  evo_current_stars: "Current Stars"
+  evo_next_stars: "Next Stars"
+  evo_confirm: "&a✓ EVOLVE NOW"
+  evo_cancel: "&c✘ CANCEL"
+  shop_confirm_title: "&8&lCONFIRM PURCHASE"
+  shop_confirm_desc: "Are you sure you want to purchase this pet?"
+  shop_confirm_buy: "&a✓ BUY NOW"
+  shop_confirm_cancel: "&c✘ CANCEL"
+  hatch_title: "&8&lPET HATCHING"
+  hatch_select_egg: "Confirm egg hatching & spin Gacha Roulette"
+  hatch_confirm: "&a▶ SPIN NOW"
+  hatch_cancel: "&c✘ CANCEL"
+  settings_title: "&8&lPET SETTINGS"
+  setting_particles: "Particle Effects"
+  setting_sounds: "Sound Effects"
+  setting_follow_dist: "Follow Distance"
+  trade_invite_title: "&8&lTRADE INVITATION"
+  trade_accept: "&a✓ ACCEPT"
+  trade_decline: "&c✘ DECLINE"
+  trade_confirm_title: "&8&lCONFIRM TRADE COMMIT"
+  trade_confirm_commit: "&a✓ COMMIT TRANSFER"
+  trade_confirm_cancel: "&c✘ CANCEL"
+  guide_title: "&8&lPET GUIDEBOOK (A-Z)"
+  guide_btn_next: "&aNext Page ▶"
+  guide_btn_prev: "&c◀ Previous Page"
+  guide_btn_hub: "&e📖 Table of Contents"
+  guide:
+    ch1_title: "Getting Started & Basics"
+    ch1_body: |
+      &eWelcome to IpsecuzPet!
+      &7IpsecuzPet is an advanced RPG companion system.
+      &7- Type &e/pet &7to open the Pet Hub anytime.
+      &7- Players can own multiple pets up to the server maximum.
+      &7- Your pet will follow, fight, and support you on all your journeys!
+    ch2_title: "Pet Ownership & Summoning"
+    ch2_body: |
+      &eManaging your companion:
+      &7- View your owned pets under &6My Pets&7.
+      &7- Left click any pet to &aSummon &7or &cDismiss&7.
+      &7- Only 1 active pet can accompany you at a time.
+      &7- Type &e/pet despawn &7to quickly store your pet.
+    ch3_title: "Levels & Experience (EXP)"
+    ch3_body: |
+      &eRPG progression system:
+      &7- Pets earn EXP when you slay monsters or complete quests.
+      &7- Maximum pet level is 100.
+      &7- Each level grants permanent stats: Damage, Health, Defense, and Speed.
+      &7- Leveling up gives the owner a temporary combat buff!
+    ch4_title: "Feeding & Happiness"
+    ch4_body: |
+      &eCaring for your pet:
+      &7- Happiness ranges from 0% to 100%.
+      &7- Happiness decays over time if your pet is neglected.
+      &7- Hold your pet's preferred food in main hand and type &e/pet feed&7.
+      &7- When happiness is above 80%, pets receive powerful stat multipliers!
+    ch5_title: "Pet Rarity System"
+    ch5_body: |
+      &eRarity tiers:
+      &71. &fCommon&7: Basic companion, standard growth.
+      &72. &aUncommon&7: Wildly found, slightly improved stats.
+      &73. &bRare&7: Superior stats with unique abilities.
+      &74. &5Epic&7: Mighty combat prowess.
+      &75. &6Legendary&7: Extremely rare with immense growth rates.
+      &76. &dMythic&7: Ultimate tier, majestic particle aura and overwhelming power.
+    ch6_title: "Skills & Ultimate Abilities"
+    ch6_body: |
+      &eCombat skills:
+      &7- Pets possess passive perks and active Ultimate abilities.
+      &7- Type &e/pet skill &7to unleash your pet's active skill in combat.
+      &7- Each skill has an independent cooldown timer.
+      &7- Unlock new abilities in the Pet Detail interface!
+    ch7_title: "Evolution & Star Tiers"
+    ch7_body: |
+      &eStar ascension:
+      &7- Pets can ascend from 1 star up to 5 stars (★).
+      &7- Each star grants a massive multiplicative boost to all stats.
+      &7- Ascension requires money, pet shards, or rare materials.
+      &7- Preview requirements and projected stats in the Evolution menu!
+    ch8_title: "Egg Hatching & Roulette"
+    ch8_body: |
+      &eThrilling Hatching Roulette:
+      &7- Open via &e/pet hatch &7or right-clicking an egg in hand.
+      &7- Engaging Gacha Roulette animation with authentic sound effects.
+      &7- Duplicate hatches award valuable Pet Shards and bonus EXP!
+      &7- Protected by atomic transactions against crash or disconnect item loss.
+    ch9_title: "Wild Capture (Pet Balls)"
+    ch9_body: |
+      &eCatching wild creatures:
+      &7- Throw Pet Balls: Pokeball, Greatball, Ultraball, Masterball.
+      &7- Weaken the target's HP to drastically improve catch chance.
+      &7- VIP and MVP players receive bonus capture probability!
+    ch10_title: "Pet Shop"
+    ch10_body: |
+      &eExclusive pet marketplace:
+      &7- Access the shop via &e/pet shop &7or the Pet Hub.
+      &7- Purchase with Vault Economy currency or PlayerPoints.
+      &7- Inspect full previews and stats before confirming purchase.
+    ch11_title: "Pet Cards & Withdrawal"
+    ch11_body: |
+      &ePackaging pets into safe items:
+      &7- Type &e/pet withdraw <id> &7to seal your pet into a Pet Card.
+      &7- Preserves level, EXP, stars, nickname, and trait perfectly.
+      &7- Right-click the card in hand to redeem safely.
+      &7- Protected by cryptographic UUIDs against duplication.
+    ch12_title: "Traits & Pet Shards"
+    ch12_body: |
+      &eCustomization & crafting:
+      &7- Every hatched pet rolls a unique Trait (Tanker, Berserker, etc.).
+      &7- Pet Shards are acquired from duplicate hatches or events.
+      &7- Type &e/pet shards &7to craft shards into new pets!
+    ch13_title: "Two-Player Trading"
+    ch13_body: |
+      &eSecure player trading:
+      &7- Invite players via &e/pet trade <player>&7.
+      &7- Partner receives an instant interactive Accept / Decline dialog.
+      &7- Bidirectional trade window with lock countdown and final confirmation.
+    ch14_title: "Pet Duels"
+    ch14_body: |
+      &eCompetitive pet battles:
+      &7- Challenge trainers with &e/pet duel <player>&7.
+      &7- Accept duel challenges with &e/pet accept&7.
+      &7- Pets battle in the arena based on real authoritative stats!
+    ch15_title: "Mounting & Steering"
+    ch15_body: |
+      &eRide your faithful companions:
+      &7- Right-click your active pet to ride.
+      &7- Turn and steer seamlessly based on rider look direction.
+      &7- Ground pets automatically step-hop 1-block obstacles.
+      &7- Flying pets feature full 3D pitch flight control!
+      &7- Look sharply downward to brake. Shift to dismount.
+    ch16_title: "Pet Codex Encyclopedia"
+    ch16_body: |
+      &eCollection compendium:
+      &7- Open via &e/pet codex &7or the Pet Hub.
+      &7- Catalogs all discovered and collected pets in your journey.
+      &7- Track completion percentage and rarity distributions!
+    ch17_title: "Troubleshooting & Tips"
+    ch17_body: |
+      &eHelpful gameplay tips:
+      &7- Pet died? Mine Diamond ore to resurrect your companion!
+      &7- Pet stuck? The AI watchdog will teleport your pet to catch up automatically.
+      &7- Performance: Toggle particles or sounds in &e/pet settings&7.
+    ch18_title: "Commands & Permissions"
+    ch18_body: |
+      &eEssential player commands:
+      &7- &e/pet &7: Open the central Pet Hub
+      &7- &e/pet guide [1-18] &7: Open the guidebook chapters
+      &7- &e/pet settings &7: Customize sound and particle preferences
+      &7- &e/pet shop &7: Open the pet store
+      &7- &e/pet hatch &7: Open the incubator roulette
+      &7- &e/pet rename <name> &7: Rename active pet
+      &7- &e/pet baby &7: Toggle Baby / Adult model scale
+      &7- &e/pet despawn &7: Store active pet
+

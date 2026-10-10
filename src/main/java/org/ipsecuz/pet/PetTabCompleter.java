@@ -30,6 +30,8 @@ public class PetTabCompleter implements TabCompleter {
             commands.add("accept");
             commands.add("stats");
 
+            commands.add("guide");
+            commands.add("settings");
             if (sender.hasPermission("ipsecuzpet.shop")) commands.add("shop");
             if (sender.hasPermission("ipsecuzpet.hatch")) commands.add("hatch");
             if (sender.hasPermission("ipsecuzpet.codex")) commands.add("codex");
@@ -61,6 +63,15 @@ public class PetTabCompleter implements TabCompleter {
 
         if (args.length == 2) {
             String sub = args[0].toLowerCase();
+            if (sub.equals("guide")) {
+                for (int i = 1; i <= 18; i++) {
+                    String ch = String.valueOf(i);
+                    if (ch.startsWith(args[1])) {
+                        results.add(ch);
+                    }
+                }
+                return results;
+            }
             if (sub.equals("model") && (sender.hasPermission("ipsecuzpet.admin") || sender.hasPermission("ipsecuzpet.model.status"))) {
                 if ("status".startsWith(args[1].toLowerCase())) {
                     results.add("status");

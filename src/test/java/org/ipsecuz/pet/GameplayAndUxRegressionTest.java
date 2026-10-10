@@ -93,3 +93,4 @@ public class GameplayAndUxRegressionTest {
         assertEquals("ALLAY", config.getString("pets.allay_pet.type").toUpperCase(Locale.ROOT));
     }
 }
+

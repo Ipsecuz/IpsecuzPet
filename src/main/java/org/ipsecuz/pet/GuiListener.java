@@ -106,7 +106,17 @@ public class GuiListener implements Listener {
                 holder instanceof ConfirmHolder ||
                 holder instanceof HatchingManager.HatchMenuHolder ||
                 holder instanceof HatchingManager.RouletteHolder ||
-                holder instanceof TradeSession.TradeHolder;
+                holder instanceof TradeSession.TradeHolder ||
+                holder instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetHubHolder ||
+                holder instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetGuideHolder ||
+                holder instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetSettingsHolder ||
+                holder instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetEvolutionConfirmHolder ||
+                holder instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetShopConfirmHolder ||
+                holder instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetHatchConfirmHolder ||
+                holder instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetTradeInviteHolder ||
+                holder instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetTradeConfirmHolder ||
+                holder instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetNoticeHolder ||
+                holder instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetConfirmHolder;
     }
 
     public static String buildProgressBar(int current, int max, int totalBars) {
@@ -1033,6 +1043,171 @@ public class GuiListener implements Listener {
         if (clickedItem == null || clickedItem.getItemMeta() == null) return;
         ItemMeta meta = clickedItem.getItemMeta();
 
+        // --- Xử lý các Menu Chest Fallback cho Dialog System ---
+        if (topInv.getHolder() instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetHubHolder) {
+            int slot = e.getRawSlot();
+            if (slot == 10) {
+                openPetMenu(p, 1);
+            } else if (slot == 12) {
+                String activeId = plugin.getPetManager().getActivePetId(p.getUniqueId());
+                if (activeId != null) {
+                    plugin.getDialogService().openPetDetails(p, activeId);
+                } else {
+                    p.sendMessage(plugin.getLanguage().getMessage("pet.no_pet"));
+                    p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                }
+            } else if (slot == 14) {
+                openShopMenu(p, 1);
+            } else if (slot == 16) {
+                plugin.getHatchingManager().openHatchingGui(p);
+            } else if (slot == 28) {
+                openCodexMenu(p, 1);
+            } else if (slot == 30) {
+                plugin.getDialogService().openPetGuide(p, -1);
+            } else if (slot == 32) {
+                plugin.getDialogService().openSettingsDialog(p);
+            } else if (slot == 34) {
+                openShardsMenu(p);
+            } else if (slot == 40) {
+                p.closeInventory();
+            }
+            return;
+        }
+
+        if (topInv.getHolder() instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetGuideHolder guideHolder) {
+            int slot = e.getRawSlot();
+            int chIdx = guideHolder.getChapterIndex();
+            if (chIdx < 0) {
+                int[] slots = {
+                    10, 11, 12, 13, 14, 15, 16,
+                    19, 20, 21, 22, 23, 24, 25,
+                    28, 29, 30, 31
+                };
+                for (int i = 0; i < slots.length; i++) {
+                    if (slot == slots[i]) {
+                        plugin.getDialogService().openPetGuide(p, i);
+                        return;
+                    }
+                }
+                if (slot == 49) {
+                    p.closeInventory();
+                }
+            } else {
+                if (slot == 45 && chIdx > 0) {
+                    plugin.getDialogService().openPetGuide(p, chIdx - 1);
+                } else if (slot == 49) {
+                    plugin.getDialogService().openPetGuide(p, -1);
+                } else if (slot == 53 && chIdx < 17) {
+                    plugin.getDialogService().openPetGuide(p, chIdx + 1);
+                } else if (slot == 40) {
+                    plugin.getDialogService().openPetHub(p);
+                }
+            }
+            return;
+        }
+
+        if (topInv.getHolder() instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetSettingsHolder) {
+            int slot = e.getRawSlot();
+            if (slot == 11) {
+                boolean cur = plugin.getPlayerSettingsManager().isParticlesEnabled(p.getUniqueId());
+                plugin.getPlayerSettingsManager().setParticlesEnabled(p.getUniqueId(), !cur);
+                plugin.getDialogService().openSettingsDialog(p);
+            } else if (slot == 13) {
+                boolean cur = plugin.getPlayerSettingsManager().isSoundsEnabled(p.getUniqueId());
+                plugin.getPlayerSettingsManager().setSoundsEnabled(p.getUniqueId(), !cur);
+                plugin.getDialogService().openSettingsDialog(p);
+            } else if (slot == 15) {
+                String curMode = plugin.getPlayerSettingsManager().getFollowMode(p.getUniqueId());
+                String nextMode = "CLOSE".equalsIgnoreCase(curMode) ? "NORMAL" : "CLOSE";
+                plugin.getPlayerSettingsManager().setFollowMode(p.getUniqueId(), nextMode);
+                plugin.getDialogService().openSettingsDialog(p);
+            } else if (slot == 22) {
+                plugin.getDialogService().openPetHub(p);
+            }
+            return;
+        }
+
+        if (topInv.getHolder() instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetEvolutionConfirmHolder evoHolder) {
+            int slot = e.getRawSlot();
+            if (slot == 11) {
+                p.closeInventory();
+                plugin.getDialogService().processEvolution(p, evoHolder.getPetId());
+            } else if (slot == 15) {
+                p.closeInventory();
+                p.sendMessage(plugin.getLanguage().getMessage("general.action_cancelled"));
+            }
+            return;
+        }
+
+        if (topInv.getHolder() instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetShopConfirmHolder shopHolder) {
+            int slot = e.getRawSlot();
+            if (slot == 11) {
+                p.closeInventory();
+                plugin.getDialogService().processShopPurchase(p, shopHolder.getPetId());
+            } else if (slot == 15) {
+                p.closeInventory();
+                p.sendMessage(plugin.getLanguage().getMessage("general.action_cancelled"));
+            }
+            return;
+        }
+
+        if (topInv.getHolder() instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetHatchConfirmHolder hatchHolder) {
+            int slot = e.getRawSlot();
+            if (slot == 11) {
+                p.closeInventory();
+                plugin.getDialogService().processHatchConfirm(p, hatchHolder.getEggId());
+            } else if (slot == 15) {
+                p.closeInventory();
+                p.sendMessage(plugin.getLanguage().getMessage("general.action_cancelled"));
+            }
+            return;
+        }
+
+        if (topInv.getHolder() instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetTradeInviteHolder tradeInvite) {
+            int slot = e.getRawSlot();
+            if (slot == 11) {
+                p.closeInventory();
+                plugin.getTradeManager().acceptTrade(p);
+            } else if (slot == 15) {
+                p.closeInventory();
+                p.sendMessage(plugin.getLanguage().getMessage("general.action_cancelled"));
+            }
+            return;
+        }
+
+        if (topInv.getHolder() instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetTradeConfirmHolder tradeConfirm) {
+            int slot = e.getRawSlot();
+            if (slot == 11) {
+                p.closeInventory();
+                if (tradeConfirm.getCallback() != null) tradeConfirm.getCallback().accept(true);
+            } else if (slot == 15) {
+                p.closeInventory();
+                if (tradeConfirm.getCallback() != null) tradeConfirm.getCallback().accept(false);
+            }
+            return;
+        }
+
+        if (topInv.getHolder() instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetNoticeHolder noticeHolder) {
+            int slot = e.getRawSlot();
+            if (slot == 22) {
+                p.closeInventory();
+                if (noticeHolder.getOnClose() != null) noticeHolder.getOnClose().run();
+            }
+            return;
+        }
+
+        if (topInv.getHolder() instanceof org.ipsecuz.pet.dialog.ChestGuiFallback.PetConfirmHolder confHolder) {
+            int slot = e.getRawSlot();
+            if (slot == 11) {
+                p.closeInventory();
+                if (confHolder.getCallback() != null) confHolder.getCallback().accept(true);
+            } else if (slot == 15) {
+                p.closeInventory();
+                if (confHolder.getCallback() != null) confHolder.getCallback().accept(false);
+            }
+            return;
+        }
+
         // 0.1 Xử lý giao diện Tiến Hóa Chuyên Sâu (EvolutionHolder)
         if (topInv.getHolder() instanceof EvolutionHolder) {
             NamespacedKey evoKey = new NamespacedKey(plugin, "evo_action");
@@ -1289,8 +1464,7 @@ public class GuiListener implements Listener {
                 openConfirmDialog(p, plugin.getLanguage().getMessage("gui.confirm_withdraw_title", "%pet_name%", petDisplayName, "%pet%", petDisplayName), wdIcon, "confirm_withdraw:" + petId);
             } else if ("rename_info".equals(action) && parts.length > 1) {
                 p.closeInventory();
-                plugin.getRenameSessionManager().startSession(p, parts[1]);
-                p.playSound(p.getLocation(), Sound.BLOCK_ANVIL_USE, 1f, 1f);
+                plugin.getDialogService().openRenameDialog(p, parts[1]);
             }
             return;
         }

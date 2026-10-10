@@ -27,6 +27,8 @@ public class IpsecuzPet extends JavaPlugin {
     private HappinessModifierEngine happinessModifierEngine;
     private org.ipsecuz.pet.requirement.RequirementManager requirementManager;
     private RenameSessionManager renameSessionManager;
+    private PlayerSettingsManager playerSettingsManager;
+    private org.ipsecuz.pet.dialog.DialogService dialogService;
 
     @Override
     public void onEnable() {
@@ -69,6 +71,8 @@ public class IpsecuzPet extends JavaPlugin {
         this.petManager = new PetManager(this);
         this.captureManager = new CaptureManager(this);
         this.renameSessionManager = new RenameSessionManager(this);
+        this.playerSettingsManager = new PlayerSettingsManager(this);
+        this.dialogService = new org.ipsecuz.pet.dialog.DialogService(this);
 
         // 7. Tự động phát hiện phiên bản và đăng ký mob mới (1.20 -> 1.21.x -> 26.x)
         this.dynamicPetRegistry = new DynamicPetRegistry(this);
@@ -140,6 +144,9 @@ public class IpsecuzPet extends JavaPlugin {
         if (configManager != null) {
             configManager.forceSave();
         }
+        if (dialogService != null) {
+            dialogService.shutdown();
+        }
     }
 
     public static IpsecuzPet getInstance() { return instance; }
@@ -164,4 +171,6 @@ public class IpsecuzPet extends JavaPlugin {
     public PetCodexManager getCodexManager() { return codexManager; }
     public org.ipsecuz.pet.requirement.RequirementManager getRequirementManager() { return requirementManager; }
     public RenameSessionManager getRenameSessionManager() { return renameSessionManager; }
+    public PlayerSettingsManager getPlayerSettingsManager() { return playerSettingsManager; }
+    public org.ipsecuz.pet.dialog.DialogService getDialogService() { return dialogService; }
 }

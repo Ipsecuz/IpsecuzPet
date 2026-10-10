@@ -248,6 +248,9 @@ public class TradeManager {
         sender.sendMessage(plugin.getLanguage().getMessage("trade.invite_sent", "%player%", target.getName()));
         target.sendMessage(plugin.getLanguage().getMessage("trade.invite_received", "%player%", sender.getName()));
         target.playSound(target.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
+        if (plugin.getDialogService() != null) {
+            plugin.getDialogService().openTradeInviteDialog(target, sender);
+        }
     }
 
     public void acceptTrade(Player accepter) {

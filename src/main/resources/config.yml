@@ -22,6 +22,27 @@ model:
 max_pets: 2
 
 # ==========================================================
+#               GIAO DIỆN HỘI THOẠI (DIALOG UI)
+# ==========================================================
+ui:
+  dialog:
+    # Chế độ giao diện:
+    # AUTO   - Tự động dùng Minecraft Native Dialog (1.21.6+) nếu máy chủ và người chơi hỗ trợ, nếu không sẽ dùng Chest GUI.
+    # NATIVE - Ưu tiên tối đa Native Dialog (fallback an toàn về Chest GUI nếu client/server không hỗ trợ để không crash).
+    # CHEST  - Luôn sử dụng giao diện Rương truyền thống (Chest GUI).
+    mode: AUTO
+    fallback: CHEST
+    # Tích hợp tùy chọn với plugin DialogWindow nếu được cài đặt
+    dialogwindow_bridge: true
+
+# Thiết lập mặc định cho người chơi (có thể đổi qua /pet settings)
+settings:
+  particles_enabled: true
+  sounds_enabled: true
+  default_follow_distance: 16
+
+
+# ==========================================================
 #               HỆ THỐNG RPG & CẤP ĐỘ
 # ==========================================================
 rpg_system:

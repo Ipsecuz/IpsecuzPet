@@ -409,6 +409,8 @@ help:
   cmd_hatch: "&e/pet hatch &7- Mở Lò Ấp Trứng"
   cmd_codex: "&e/pet codex &7- Mở Thư Viện Codex"
   cmd_shards: "&e/pet shards &7- Xem Mảnh Pet"
+  cmd_guide: "&e/pet guide [chương] &7- Cẩm nang hướng dẫn A-Z"
+  cmd_settings: "&e/pet settings &7- Cài đặt hiệu ứng & giao diện"
   cmd_model_status: "&e/pet model status &7- Kiểm tra kết nối ModelEngine / BetterModel"
   cmd_give: "&c/pet give <player> <pet_id> &7- Admin Give Pet"
   cmd_giveball: "&c/pet giveball <player> <ball_id> <amount> &7- Give Ball"
@@ -569,3 +571,177 @@ pets:
     name: "&bThây Ma Biển Cả"
   parrot_pet:
     name: "&aVẹt Sắc Màu"
+
+dialog:
+  hub_title: "&8&lIPSECUZPET &7- &6Pet Hub"
+  hub_welcome: "&eChào mừng đến với Trung tâm Thú cưng!"
+  hub_active_pet: "Thú cưng đang hoạt động:"
+  hub_no_active_pet: "Chưa có thú cưng hoạt động"
+  hub_owned_pets: "Thú cưng sở hữu: &e%count%&7/&6%max%"
+  btn_my_pets: "&6🐾 Bộ Sưu Tập (My Pets)"
+  btn_details: "&b📋 Chi Tiết Pet"
+  btn_shop: "&a🛒 Cửa Hàng Pet"
+  btn_hatch: "&e🥚 Lò Ấp Trứng"
+  btn_codex: "&d📚 Bách Khoa Codex"
+  btn_guide: "&e📖 Hướng Dẫn Pet (A-Z)"
+  btn_settings: "&6⚙ Cài Đặt (Settings)"
+  detail_title: "&8&lCHI TIẾT PET: &6%pet_name%"
+  rename_title: "&8&lĐỔI TÊN THÚ CƯNG"
+  evolution_title: "&8&lTIẾN HÓA THÚ CƯNG"
+  evo_current_stars: "Cấp sao hiện tại"
+  evo_next_stars: "Cấp sao tiếp theo"
+  evo_confirm: "&a✓ TIẾN HÓA NGAY"
+  evo_cancel: "&c✘ HỦY TIẾN HÓA"
+  shop_confirm_title: "&8&lXÁC NHẬN MUA PET"
+  shop_confirm_desc: "Bạn có chắc chắn muốn mua thú cưng này?"
+  shop_confirm_buy: "&a✓ MUA NGAY"
+  shop_confirm_cancel: "&c✘ HỦY BỎ"
+  hatch_title: "&8&lLÒ ẤP TRỨNG"
+  hatch_select_egg: "Xác nhận mở trứng và quay Gacha Roulette"
+  hatch_confirm: "&a▶ QUAY NGAY"
+  hatch_cancel: "&c✘ HỦY BỎ"
+  settings_title: "&8&lCÀI ĐẶT THÚ CƯNG"
+  setting_particles: "Hiệu ứng hạt (Particles)"
+  setting_sounds: "Âm thanh (Sounds)"
+  setting_follow_dist: "Khoảng cách theo sau (Follow Distance)"
+  trade_invite_title: "&8&lLỜI MỜI GIAO DỊCH"
+  trade_accept: "&a✓ CHẤP NHẬN"
+  trade_decline: "&c✘ TỪ CHỐI"
+  trade_confirm_title: "&8&lXÁC NHẬN GIAO DỊCH"
+  trade_confirm_commit: "&a✓ CAM KẾT BÀN GIAO"
+  trade_confirm_cancel: "&c✘ HỦY BỎ"
+  guide_title: "&8&lCẨM NANG THÚ CƯNG (A-Z)"
+  guide_btn_next: "&aTrang sau ▶"
+  guide_btn_prev: "&c◀ Trang trước"
+  guide_btn_hub: "&e📖 Danh mục chương"
+  guide:
+    ch1_title: "Bắt Đầu & Khái Niệm Cơ Bản"
+    ch1_body: |
+      &eChào mừng bạn đến với IpsecuzPet!
+      &7IpsecuzPet là hệ thống thú cưng RPG chuyên sâu.
+      &7- Gõ lệnh &e/pet &7để mở Pet Hub bất kỳ lúc nào.
+      &7- Mỗi người chơi có thể sở hữu tối đa pet theo cấu hình máy chủ.
+      &7- Thú cưng sẽ đồng hành, chiến đấu và hỗ trợ bạn trong mọi cuộc phiêu lưu!
+    ch2_title: "Sở Hữu & Triệu Hồi Thú Cưng"
+    ch2_body: |
+      &eQuản lý và đồng hành cùng thú cưng:
+      &7- Xem danh sách pet sở hữu tại mục &6Bộ Sưu Tập (My Pets)&7.
+      &7- Nhấp chuột trái vào pet để &aTriệu hồi &7hoặc &cCất đi&7.
+      &7- Chỉ có 1 pet hoạt động bên cạnh bạn tại một thời điểm.
+      &7- Dùng lệnh &e/pet despawn &7để cất pet nhanh chóng vào kho.
+    ch3_title: "Cấp Độ & Điểm Kinh Nghiệm (EXP)"
+    ch3_body: |
+      &eHệ thống tiến trình cấp độ RPG:
+      &7- Pet nhận EXP khi bạn tiêu diệt quái vật hoặc hoàn thành nhiệm vụ.
+      &7- Cấp tối đa của pet là cấp 100.
+      &7- Mỗi khi lên cấp, pet được cộng chỉ số: Sát thương, Máu, Giáp và Tốc độ.
+      &7- Khi lên cấp, chủ nhân sẽ nhận được hiệu ứng Buff sức mạnh trong thời gian ngắn!
+    ch4_title: "Cho Ăn & Điểm Vui Vẻ (Happiness)"
+    ch4_body: |
+      &eChăm sóc người bạn đồng hành:
+      &7- Độ vui vẻ dao động từ 0% đến 100%.
+      &7- Độ vui vẻ sẽ giảm dần theo thời gian nếu pet bị bỏ đói.
+      &7- Cầm thức ăn yêu thích trên tay chính và dùng lệnh &e/pet feed&7.
+      &7- Khi độ vui vẻ trên 80%, pet nhận thêm Buff chỉ số chiến đấu đặc biệt!
+    ch5_title: "Phân Cấp Độ Hiếm (Rarity)"
+    ch5_body: |
+      &eCác cấp độ hiếm của thú cưng:
+      &71. &fThường (Common)&7: Dễ tìm kiếm, tăng trưởng cơ bản.
+      &72. &aKhông Thường (Uncommon)&7: Khá phổ biến trong tự nhiên.
+      &73. &bHiếm (Rare)&7: Chỉ số vượt trội, sở hữu kỹ năng riêng.
+      &74. &5Sử Thi (Epic)&7: Sức mạnh chiến đấu rất mạnh.
+      &75. &6Huyền Thoại (Legendary)&7: Cực hiếm, tăng trưởng cực cao.
+      &76. &dThần Thoại (Mythic)&7: Tối thượng, sở hữu hào quang và kỹ năng bá đạo.
+    ch6_title: "Kỹ Năng & Tuyệt Chiêu (Ultimate)"
+    ch6_body: |
+      &eSử dụng tuyệt chiêu trong chiến đấu:
+      &7- Một số pet sở hữu kỹ năng bị động hoặc Tuyệt chiêu kích hoạt.
+      &7- Dùng lệnh &e/pet skill &7để kích hoạt tuyệt chiêu khi chiến đấu.
+      &7- Mỗi tuyệt chiêu có thời gian hồi chiêu (Cooldown) riêng biệt.
+      &7- Hãy mở khóa kỹ năng mới thông qua giao diện Chi Tiết Pet!
+    ch7_title: "Tiến Hóa & Cấp Sao (Stars)"
+    ch7_body: |
+      &eNâng cấp sao để đột phá sức mạnh:
+      &7- Pet có thể nâng từ 1 sao lên tối đa 5 sao (★).
+      &7- Mỗi sao tăng % chỉ số tổng thể của thú cưng theo cấp số nhân.
+      &7- Nâng sao yêu cầu tiền, mảnh pet hoặc vật phẩm thu thập.
+      &7- Kiểm tra điều kiện và xem trước chỉ số tại menu Tiến Hóa!
+    ch8_title: "Ấp Trứng & Gacha Roulette"
+    ch8_body: |
+      &eHệ thống Lò Ấp Trứng sống động:
+      &7- Mở giao diện bằng lệnh &e/pet hatch &7hoặc chuột phải vào quả trứng.
+      &7- Vòng quay Roulette mang lại cảm giác mở thưởng hồi hộp.
+      &7- Nếu quay trúng pet bạn đã sở hữu: Nhận ngay Mảnh Pet và EXP dồi dào!
+      &7- Dữ liệu ấp trứng được bảo vệ nguyên tử, không sợ mất trứng khi ngắt kết nối.
+    ch9_title: "Bắt Thú Cưng Bằng Bóng (Capture)"
+    ch9_body: |
+      &eSăn bắt sinh vật hoang dã:
+      &7- Sử dụng các loại bóng bắt Pet: Pokeball, Greatball, Ultraball, Masterball.
+      &7- Ném bóng vào mob hoang dã để thử vận may bắt giữ.
+      &7- Máu của mob càng thấp, tỷ lệ bắt thành công càng cao!
+      &7- Người chơi sở hữu quyền VIP/MVP có thêm % tỷ lệ bắt thành công.
+    ch10_title: "Cửa Hàng Thú Cưng (Pet Shop)"
+    ch10_body: |
+      &eMua sắm pet độc quyền:
+      &7- Mở cửa hàng qua lệnh &e/pet shop &7hoặc nút Shop trong Pet Hub.
+      &7- Hỗ trợ thanh toán bằng tiền xu Vault hoặc PlayerPoints.
+      &7- Xem trước hình dáng, chỉ số và giá cả trước khi xác nhận mua.
+    ch11_title: "Thẻ Pet & Đóng Gói (Withdraw)"
+    ch11_body: |
+      &eChuyển đổi pet thành vật phẩm giao dịch:
+      &7- Dùng lệnh &e/pet withdraw <id> &7để đóng gói pet thành Thẻ Pet.
+      &7- Thẻ Pet lưu trữ toàn bộ cấp độ, kinh nghiệm, sao và đặc chất.
+      &7- Chuột phải vào Thẻ Pet trên tay để mở lại thú cưng an toàn.
+      &7- Hệ thống chữ ký số chống nhân bản đồ và chống thẻ giả 100%.
+    ch12_title: "Đặc Chất (Traits) & Mảnh Ghép (Shards)"
+    ch12_body: |
+      &eTùy biến bản sắc thú cưng:
+      &7- Mỗi pet khi nở ra sẽ mang một Đặc chất ngẫu nhiên (Tanker, Berserker,...).
+      &7- Mảnh Pet thu thập được khi ấp trùng hoặc tham gia sự kiện.
+      &7- Mở &e/pet shards &7để ghép các mảnh thành thú cưng hoàn chỉnh!
+    ch13_title: "Giao Dịch Hai Chiều (Trade)"
+    ch13_body: |
+      &eTrao đổi thú cưng an toàn tuyệt đối:
+      &7- Mời giao dịch bằng lệnh &e/pet trade <tên_người_chơi>&7.
+      &7- Đối phương nhận giao diện chấp nhận / từ chối ngay lập tức.
+      &7- Sàn giao dịch 2 chiều hiển thị minh bạch vật phẩm của cả 2 bên.
+      &7- Đếm ngược khóa và xác nhận kép bảo vệ chống lừa đảo.
+    ch14_title: "Đấu Trường Thú Cưng (Duel)"
+    ch14_body: |
+      &eThách đấu so tài giữa các huấn luyện viên:
+      &7- Thách đấu người chơi khác bằng lệnh &e/pet duel <tên>&7.
+      &7- Đối phương chấp nhận bằng lệnh &e/pet accept&7.
+      &7- Hai thú cưng sẽ giao chiến tự động dựa trên chỉ số và kỹ năng.
+      &7- Người chiến thắng nhận vinh quang và phần thưởng danh giá!
+    ch15_title: "Cưỡi Thú Cưng (Mount)"
+    ch15_body: |
+      &ePhiêu lưu trên lưng bạn đồng hành:
+      &7- Nhấp chuột phải vào pet của bạn để bắt đầu cưỡi.
+      &7- Điều khiển hướng đi bằng góc nhìn của bạn.
+      &7- Thú cưng mặt đất tự động nhảy qua các chướng ngại vật 1 khối.
+      &7- Thú cưng bay hỗ trợ bay 3D tự do theo góc nhìn chúi/ngẩng đầu!
+      &7- Nhìn dốc xuống để phanh hãm tốc độ. Nhấn Shift để xuống pet.
+    ch16_title: "Bách Khoa Toàn Thư (Pet Codex)"
+    ch16_body: |
+      &eSổ tay khám phá thế giới thú cưng:
+      &7- Mở codex bằng lệnh &e/pet codex &7hoặc trong Pet Hub.
+      &7- Ghi chép toàn bộ loài pet đã được bạn thu thập và khám phá.
+      &7- Xem thông tin chi tiết về từng loài và tiến độ hoàn thành bộ sưu tập!
+    ch17_title: "Khắc Phục Sự Cố & Mẹo Hay"
+    ch17_body: |
+      &eNhững mẹo hữu ích khi chơi:
+      &7- Pet bị chết? Hãy khai thác quặng Kim Cương để hồi sinh pet!
+      &7- Pet bị kẹt? Đừng lo, pet sẽ tự động dịch chuyển về phía bạn sau vài giây.
+      &7- Giảm giật lag: Tắt hiệu ứng hạt hoặc âm thanh trong &e/pet settings&7.
+    ch18_title: "Danh Sách Lệnh & Quyền Hạn"
+    ch18_body: |
+      &eCác lệnh thường dùng:
+      &7- &e/pet &7: Mở Pet Hub trung tâm
+      &7- &e/pet guide [1-18] &7: Mở cẩm nang hướng dẫn
+      &7- &e/pet settings &7: Mở cài đặt cá nhân
+      &7- &e/pet shop &7: Mở cửa hàng
+      &7- &e/pet hatch &7: Mở lò ấp trứng
+      &7- &e/pet rename <tên> &7: Đổi tên thú cưng
+      &7- &e/pet baby &7: Đổi dạng Bé con / Trưởng thành
+      &7- &e/pet despawn &7: Cất pet vào kho
+
