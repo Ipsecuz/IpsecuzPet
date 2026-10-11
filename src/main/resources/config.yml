@@ -27,13 +27,13 @@ max_pets: 2
 ui:
   dialog:
     # Chế độ giao diện:
-    # AUTO   - Tự động dùng Minecraft Native Dialog (1.21.6+) nếu máy chủ và người chơi hỗ trợ, nếu không sẽ dùng Chest GUI.
+    # AUTO   - Tự động dùng Minecraft Native Dialog (1.21.6+ / Paper 1.21.7+) nếu máy chủ và người chơi hỗ trợ, nếu không sẽ dùng Chest GUI.
     # NATIVE - Ưu tiên tối đa Native Dialog (fallback an toàn về Chest GUI nếu client/server không hỗ trợ để không crash).
     # CHEST  - Luôn sử dụng giao diện Rương truyền thống (Chest GUI).
     mode: AUTO
     fallback: CHEST
-    # Tích hợp tùy chọn với plugin DialogWindow nếu được cài đặt
-    dialogwindow_bridge: true
+    # Cầu nối phụ tùy chọn với plugin bên ngoài DialogWindow nếu được cài đặt (IpsecuzPet mặc định dùng Native Paper Dialog tích hợp sẵn)
+    dialogwindow_bridge: false
 
 # Thiết lập mặc định cho người chơi (có thể đổi qua /pet settings)
 settings:

@@ -152,6 +152,52 @@ public class DialogService {
         getProviderFor(player).openConfirmation(player, title, message, confirmText, cancelText, callback);
     }
 
+    public void openMyPets(Player player, int page) {
+        if (player == null || !player.isOnline()) return;
+        DialogSession session = sessionManager.createSession(player, DialogType.SELECTION, null, Map.of("page", page));
+        getProviderFor(player).openMyPets(player, session, page);
+    }
+
+    public void openShopBrowse(Player player, int page) {
+        if (player == null || !player.isOnline()) return;
+        if (!player.hasPermission("ipsecuzpet.shop")) {
+            player.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
+            return;
+        }
+        DialogSession session = sessionManager.createSession(player, DialogType.SHOP_BROWSE, null, Map.of("page", page));
+        getProviderFor(player).openShopBrowse(player, session, page);
+    }
+
+    public void openHatchSelect(Player player) {
+        if (player == null || !player.isOnline()) return;
+        if (!player.hasPermission("ipsecuzpet.hatch")) {
+            player.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
+            return;
+        }
+        DialogSession session = sessionManager.createSession(player, DialogType.HATCH_SELECT, null, null);
+        getProviderFor(player).openHatchSelect(player, session);
+    }
+
+    public void openCodexBrowse(Player player, int page) {
+        if (player == null || !player.isOnline()) return;
+        if (!player.hasPermission("ipsecuzpet.codex")) {
+            player.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
+            return;
+        }
+        DialogSession session = sessionManager.createSession(player, DialogType.CODEX_BROWSE, null, Map.of("page", page));
+        getProviderFor(player).openCodexBrowse(player, session, page);
+    }
+
+    public void openShardsOverview(Player player) {
+        if (player == null || !player.isOnline()) return;
+        if (!player.hasPermission("ipsecuzpet.shards")) {
+            player.sendMessage(plugin.getLanguage().getMessage("general.no_permission"));
+            return;
+        }
+        DialogSession session = sessionManager.createSession(player, DialogType.SHARDS_OVERVIEW, null, null);
+        getProviderFor(player).openShardsOverview(player, session);
+    }
+
     // --- Authoritative Gameplay Processors ---
 
     public boolean processRename(Player player, String petId, String newName) {

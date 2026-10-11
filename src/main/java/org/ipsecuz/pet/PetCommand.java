@@ -43,7 +43,7 @@ public class PetCommand implements CommandExecutor {
                 p.sendMessage(lang.getMessage("general.no_permission"));
                 return true;
             }
-            plugin.getHatchingManager().openHatchingGui(p);
+            plugin.getDialogService().openHatchSelect(p);
             return true;
         }
 
@@ -145,7 +145,7 @@ public class PetCommand implements CommandExecutor {
                     p.sendMessage(lang.getMessage("general.no_permission"));
                     return true;
                 }
-                GuiListener.openShopMenu(p);
+                plugin.getDialogService().openShopBrowse(p, 1);
                 break;
 
             case "codex":
@@ -153,7 +153,7 @@ public class PetCommand implements CommandExecutor {
                     p.sendMessage(lang.getMessage("general.no_permission"));
                     return true;
                 }
-                GuiListener.openCodexMenu(p);
+                plugin.getDialogService().openCodexBrowse(p, 1);
                 break;
 
             case "shards":
@@ -161,7 +161,7 @@ public class PetCommand implements CommandExecutor {
                     p.sendMessage(lang.getMessage("general.no_permission"));
                     return true;
                 }
-                GuiListener.openShardsMenu(p);
+                plugin.getDialogService().openShardsOverview(p);
                 break;
 
             case "despawn":
@@ -195,7 +195,7 @@ public class PetCommand implements CommandExecutor {
                     return true;
                 }
                 if (args.length < 2) {
-                    p.sendMessage(lang.getMessage("pet.rename_usage"));
+                    plugin.getDialogService().openRenameDialog(p, plugin.getPetManager().getActivePetId(p.getUniqueId()));
                     return true;
                 }
                 String petId = plugin.getPetManager().getActivePetId(p.getUniqueId());
@@ -361,7 +361,7 @@ public class PetCommand implements CommandExecutor {
                     p.sendMessage(lang.getMessage("general.no_permission"));
                     return true;
                 }
-                plugin.getHatchingManager().openHatchingGui(p);
+                plugin.getDialogService().openHatchSelect(p);
                 break;
 
             case "feed":

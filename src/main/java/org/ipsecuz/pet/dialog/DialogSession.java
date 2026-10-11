@@ -46,6 +46,10 @@ public class DialogSession {
         return submitted.get();
     }
 
+    public boolean isValid() {
+        return !isSubmitted() && !isExpired(300_000L);
+    }
+
     public Map<String, Object> getData() {
         return Collections.unmodifiableMap(data);
     }

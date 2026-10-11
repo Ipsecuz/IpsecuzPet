@@ -39,5 +39,15 @@ public interface DialogProvider {
     void openTradeInviteDialog(Player player, DialogSession session, Player sender);
 
     void openTradeConfirmDialog(Player player, DialogSession session, UUID tradeId, List<ItemStack> myItems, List<ItemStack> theirItems, Consumer<Boolean> callback);
+
+    void openMyPets(Player player, DialogSession session, int page);
+
+    void openShopBrowse(Player player, DialogSession session, int page);
+
+    void openHatchSelect(Player player, DialogSession session);
+
+    void openCodexBrowse(Player player, DialogSession session, int page);
+
+    void openShardsOverview(Player player, DialogSession session);
 }
 

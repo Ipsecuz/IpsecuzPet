@@ -606,6 +606,31 @@ public class ChestGuiFallback implements DialogProvider {
         player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 0.5f, 1.5f);
     }
 
+    @Override
+    public void openMyPets(Player player, DialogSession session, int page) {
+        org.ipsecuz.pet.GuiListener.openPetMenu(player, Math.max(1, page));
+    }
+
+    @Override
+    public void openShopBrowse(Player player, DialogSession session, int page) {
+        org.ipsecuz.pet.GuiListener.openShopMenu(player, Math.max(1, page));
+    }
+
+    @Override
+    public void openHatchSelect(Player player, DialogSession session) {
+        plugin.getHatchingManager().openHatchingGui(player);
+    }
+
+    @Override
+    public void openCodexBrowse(Player player, DialogSession session, int page) {
+        org.ipsecuz.pet.GuiListener.openCodexMenu(player, Math.max(1, page));
+    }
+
+    @Override
+    public void openShardsOverview(Player player, DialogSession session) {
+        org.ipsecuz.pet.GuiListener.openShardsMenu(player);
+    }
+
     // --- Helpers ---
 
     private void fillBorders(Inventory inv, Material mat) {
