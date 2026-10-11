@@ -33,7 +33,7 @@ public class PetCommand implements CommandExecutor {
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String label, @NotNull String[] args) {
         LanguageManager lang = plugin.getLanguage();
 
-        // 1. Điều hướng trực tiếp bí danh /pethatch
+        // 1. Điều hướng trực tiếp bí danh /pethatch hoặc /givepet
         if (label.equalsIgnoreCase("pethatch")) {
             if (!(sender instanceof Player p)) {
                 sender.sendMessage(lang.getMessage("general.player_only"));
@@ -47,6 +47,17 @@ public class PetCommand implements CommandExecutor {
             return true;
         }
 
+        if (label.equalsIgnoreCase("givepet")) {
+            if (!sender.hasPermission("ipsecuzpet.admin")) {
+                sender.sendMessage(lang.getMessage("general.no_permission"));
+                return true;
+            }
+            String[] giveArgs = new String[args.length + 1];
+            giveArgs[0] = "give";
+            System.arraycopy(args, 0, giveArgs, 1, args.length);
+            return handleGive(sender, giveArgs, lang);
+        }
+
         // 2. Hỗ trợ thực thi lệnh Quản trị viên từ máy chủ (Console)
         if (args.length > 0) {
             String sub = args[0].toLowerCase();
@@ -54,6 +65,7 @@ public class PetCommand implements CommandExecutor {
                 case "reload":
                     return handleReload(sender, lang);
                 case "give":
+                case "givepet":
                     return handleGive(sender, args, lang);
                 case "giveball":
                     return handleGiveBall(sender, args, lang);
@@ -321,6 +333,7 @@ public class PetCommand implements CommandExecutor {
                 break;
 
             case "give":
+            case "givepet":
                 return handleGive(p, args, lang);
 
             case "giveball":

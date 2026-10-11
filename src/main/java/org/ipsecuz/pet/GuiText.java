@@ -19,6 +19,7 @@ import java.util.regex.Pattern;
 public final class GuiText {
 
     private static final Pattern HEX_PATTERN = Pattern.compile("&#([A-Fa-f0-9]{6})");
+    private static final Pattern PREFIX_PATTERN = Pattern.compile("(?i)^(?:\\s*(?:§[0-9a-fk-orx]|&[0-9a-fk-orx]|&#[A-Fa-f0-9]{6}))*\\[(?:\\s*(?:§[0-9a-fk-orx]|&[0-9a-fk-orx]|&#[A-Fa-f0-9]{6}))*IpsecuzPets?(?:\\s*(?:§[0-9a-fk-orx]|&[0-9a-fk-orx]|&#[A-Fa-f0-9]{6}))*\\](?:\\s*(?:§r|&r))*\\s*");
 
     private static final LegacyComponentSerializer SECTION_SERIALIZER =
             LegacyComponentSerializer.builder()
@@ -28,6 +29,19 @@ public final class GuiText {
                     .build();
 
     private GuiText() {}
+
+    /**
+     * Strips any unintentional plugin prefix (e.g., "[IpsecuzPets]") and surrounding color codes
+     * from GUI titles, item names, and lore lines.
+     */
+    public static String stripPrefix(String text) {
+        if (text == null || text.isEmpty()) return "";
+        Matcher matcher = PREFIX_PATTERN.matcher(text);
+        if (matcher.find()) {
+            return matcher.replaceFirst("");
+        }
+        return text;
+    }
 
     /**
      * Translates alternate color codes ('&') and hex format (&#RRGGBB) to section sign formatted text.
@@ -50,25 +64,29 @@ public final class GuiText {
 
     /**
      * Converts formatted text to an Adventure Component with italics disabled by default.
+     * Automatically purges any unwanted prefix tags.
      */
     public static Component component(String text) {
         if (text == null || text.isEmpty()) {
             return Component.empty().decoration(TextDecoration.ITALIC, false);
         }
-        String formatted = colorize(text);
+        String clean = stripPrefix(text);
+        String formatted = colorize(clean);
         Component deserialized = SECTION_SERIALIZER.deserialize(formatted);
         return stripItalics(deserialized);
     }
 
     /**
      * Converts formatted text to an Adventure Component specifically for inventory titles.
+     * Automatically purges any unwanted prefix tags and suppresses italic.
      */
     public static Component title(String text) {
         if (text == null || text.isEmpty()) {
             return Component.empty();
         }
-        String formatted = colorize(text);
-        return SECTION_SERIALIZER.deserialize(formatted);
+        String clean = stripPrefix(text);
+        String formatted = colorize(clean);
+        return stripItalics(SECTION_SERIALIZER.deserialize(formatted));
     }
 
     /**

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -91,6 +92,35 @@ public class GameplayAndUxRegressionTest {
         assertEquals("CHICKEN", config.getString("pets.chicken_pet.type").toUpperCase(Locale.ROOT));
         assertEquals("IRON_GOLEM", config.getString("pets.iron_golem_pet.type").toUpperCase(Locale.ROOT));
         assertEquals("ALLAY", config.getString("pets.allay_pet.type").toUpperCase(Locale.ROOT));
+    }
+
+    @Test
+    @DisplayName("Verify GuiText.stripPrefix strips prefix and cleans GUI titles/components")
+    public void testGuiTextStripPrefix() {
+        assertEquals("&b🐾 Bộ Sưu Tập Pet", GuiText.stripPrefix("&#00AAFF[IpsecuzPets] &r&b🐾 Bộ Sưu Tập Pet"));
+        assertEquals("&8&lIPSECUZPET &7- &6Pet Hub", GuiText.stripPrefix("[IpsecuzPets] &8&lIPSECUZPET &7- &6Pet Hub"));
+        assertEquals("Đang đồng hành", GuiText.stripPrefix("[IpsecuzPet] Đang đồng hành"));
+        assertEquals("§aChi Tiết Pet", GuiText.stripPrefix("§x§0§0§a§a§f§f[IpsecuzPets] §r§aChi Tiết Pet"));
+        assertEquals("&6Tên Thú Cưng", GuiText.stripPrefix("&6Tên Thú Cưng"));
+
+        net.kyori.adventure.text.Component comp = GuiText.component("&#00AAFF[IpsecuzPets] &r&b🐾 Bộ Sưu Tập Pet");
+        assertNotNull(comp);
+        // Verify component serialization doesn't contain [IpsecuzPets]
+        String plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(comp);
+        assertFalse(plain.contains("[IpsecuzPets]"), "Component must not contain [IpsecuzPets]: " + plain);
+        assertTrue(plain.contains("Bộ Sưu Tập Pet"), "Component must contain actual name: " + plain);
+    }
+
+    @Test
+    @DisplayName("Verify plugin.yml registers givepet as an alias")
+    public void testPluginYmlAliases() {
+        InputStream stream = getClass().getClassLoader().getResourceAsStream("plugin.yml");
+        assertNotNull(stream);
+        YamlConfiguration yml = YamlConfiguration.loadConfiguration(new InputStreamReader(stream, StandardCharsets.UTF_8));
+        List<String> aliases = yml.getStringList("commands.ipsecuzpet.aliases");
+        assertTrue(aliases.contains("givepet"), "plugin.yml aliases must contain 'givepet'");
+        assertTrue(aliases.contains("pet"), "plugin.yml aliases must contain 'pet'");
+        assertTrue(aliases.contains("pethatch"), "plugin.yml aliases must contain 'pethatch'");
     }
 }
 

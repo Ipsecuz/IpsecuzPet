@@ -17,7 +17,7 @@ commands:
       §e/pet baby §7- Đổi kích thước Bé con/Trưởng thành
       §e/pet despawn §7- Cất pet đi
       §e/pet duel <tên> §7- Thách đấu
-    aliases: [pet, pethatch]
+    aliases: [pet, pethatch, givepet]
     permission: ipsecuzpet.use
     permission-message: "§cBạn không có quyền sử dụng lệnh này!"
 

@@ -1,7 +1,6 @@
 package org.ipsecuz.pet.dialog;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -172,7 +171,7 @@ public class ChestGuiFallback implements DialogProvider {
     @Override
     public void openNotice(Player player, String title, String message, Runnable onClose) {
         PetNoticeHolder holder = new PetNoticeHolder(onClose);
-        Component titleComp = LegacyComponentSerializer.legacyAmpersand().deserialize(title);
+        Component titleComp = GuiText.title(title);
         Inventory inv = Bukkit.createInventory(holder, 27, titleComp);
         holder.setInventory(inv);
 
@@ -184,7 +183,7 @@ public class ChestGuiFallback implements DialogProvider {
             meta.displayName(titleComp);
             List<Component> lore = new ArrayList<>();
             for (String line : message.split("\n")) {
-                lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&7" + line));
+                lore.add(GuiText.component("&7" + line));
             }
             meta.lore(lore);
             item.setItemMeta(meta);
@@ -201,7 +200,7 @@ public class ChestGuiFallback implements DialogProvider {
     @Override
     public void openConfirmation(Player player, String title, String message, String confirmText, String cancelText, Consumer<Boolean> callback) {
         PetConfirmHolder holder = new PetConfirmHolder(callback);
-        Component titleComp = LegacyComponentSerializer.legacyAmpersand().deserialize(title);
+        Component titleComp = GuiText.title(title);
         Inventory inv = Bukkit.createInventory(holder, 27, titleComp);
         holder.setInventory(inv);
 
@@ -213,7 +212,7 @@ public class ChestGuiFallback implements DialogProvider {
             meta.displayName(titleComp);
             List<Component> lore = new ArrayList<>();
             for (String line : message.split("\n")) {
-                lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&7" + line));
+                lore.add(GuiText.component("&7" + line));
             }
             meta.lore(lore);
             info.setItemMeta(meta);
@@ -236,7 +235,7 @@ public class ChestGuiFallback implements DialogProvider {
         PetHubHolder holder = new PetHubHolder(session);
         String rawTitle = lang.getMessage("dialog.hub_title");
         if (rawTitle == null || rawTitle.isEmpty()) rawTitle = "&8&lIPSECUZPET &7- &6Pet Hub";
-        Component titleComp = LegacyComponentSerializer.legacyAmpersand().deserialize(rawTitle);
+        Component titleComp = GuiText.title(rawTitle);
         Inventory inv = Bukkit.createInventory(holder, 45, titleComp);
         holder.setInventory(inv);
 
@@ -266,16 +265,16 @@ public class ChestGuiFallback implements DialogProvider {
             ItemStack petItem = new ItemStack(Material.PLAYER_HEAD);
             ItemMeta pMeta = petItem.getItemMeta();
             if (pMeta != null) {
-                pMeta.displayName(LegacyComponentSerializer.legacyAmpersand().deserialize("&a&l" + petName));
+                pMeta.displayName(GuiText.component("&a&l" + petName));
                 List<Component> lore = new ArrayList<>();
-                lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&7" + lang.getMessage("dialog.hub_active_pet")));
+                lore.add(GuiText.component("&7" + lang.getMessage("dialog.hub_active_pet")));
                 lore.add(Component.empty());
-                lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&e" + lang.getMessage("gui.lore_level") + ": &f" + level));
-                lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&6" + lang.getMessage("gui.lore_stars") + ": &f" + stars + " ⭐"));
-                lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&d" + lang.getMessage("gui.lore_rarity") + ": " + rarity.getChatColor() + rarity.getLocalizedName(plugin)));
-                lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&c" + lang.getMessage("gui.lore_happiness") + ": &f" + happiness + "%"));
+                lore.add(GuiText.component("&e" + lang.getMessage("gui.lore_level") + ": &f" + level));
+                lore.add(GuiText.component("&6" + lang.getMessage("gui.lore_stars") + ": &f" + stars + " ⭐"));
+                lore.add(GuiText.component("&d" + lang.getMessage("gui.lore_rarity") + ": " + rarity.getChatColor() + rarity.getLocalizedName(plugin)));
+                lore.add(GuiText.component("&c" + lang.getMessage("gui.lore_happiness") + ": &f" + happiness + "%"));
                 lore.add(Component.empty());
-                lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&7" + lang.getMessage("dialog.hub_owned_pets", "%count%", String.valueOf(ownedCount), "%max%", String.valueOf(maxPets))));
+                lore.add(GuiText.component("&7" + lang.getMessage("dialog.hub_owned_pets", "%count%", String.valueOf(ownedCount), "%max%", String.valueOf(maxPets))));
                 pMeta.lore(lore);
                 petItem.setItemMeta(pMeta);
             }
@@ -329,7 +328,7 @@ public class ChestGuiFallback implements DialogProvider {
         PetEvolutionConfirmHolder holder = new PetEvolutionConfirmHolder(session, petId);
         String rawTitle = lang.getMessage("dialog.evolution_title");
         if (rawTitle == null) rawTitle = "&8&lTIẾN HÓA &7- &6" + petId;
-        Component titleComp = LegacyComponentSerializer.legacyAmpersand().deserialize(rawTitle);
+        Component titleComp = GuiText.title(rawTitle);
         Inventory inv = Bukkit.createInventory(holder, 27, titleComp);
         holder.setInventory(inv);
 
@@ -346,12 +345,12 @@ public class ChestGuiFallback implements DialogProvider {
         ItemStack center = new ItemStack(Material.NETHER_STAR);
         ItemMeta meta = center.getItemMeta();
         if (meta != null) {
-            meta.displayName(LegacyComponentSerializer.legacyAmpersand().deserialize("&6&l★ TIẾN HÓA SAO: " + petId));
+            meta.displayName(GuiText.component("&6&l★ TIẾN HÓA SAO: " + petId));
             List<Component> lore = new ArrayList<>();
-            lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&7" + lang.getMessage("dialog.evo_current_stars") + ": &e" + currentStars + " ⭐ &7➔ &6" + nextStars + " ⭐"));
+            lore.add(GuiText.component("&7" + lang.getMessage("dialog.evo_current_stars") + ": &e" + currentStars + " ⭐ &7➔ &6" + nextStars + " ⭐"));
             lore.add(Component.empty());
-            lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&c⚔ Sát thương: &f" + String.format("%.1f", curDmg) + " &7➔ &a" + String.format("%.1f", nextDmg)));
-            lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&a❤ Máu tối đa: &f" + String.format("%.1f", curHp) + " &7➔ &a" + String.format("%.1f", nextHp)));
+            lore.add(GuiText.component("&c⚔ Sát thương: &f" + String.format("%.1f", curDmg) + " &7➔ &a" + String.format("%.1f", nextDmg)));
+            lore.add(GuiText.component("&a❤ Máu tối đa: &f" + String.format("%.1f", curHp) + " &7➔ &a" + String.format("%.1f", nextHp)));
             lore.add(Component.empty());
 
             // Requirements from RequirementManager
@@ -361,10 +360,10 @@ public class ChestGuiFallback implements DialogProvider {
                 var group = plugin.getRequirementManager().parse(reqSec);
                 var ctx = new org.ipsecuz.pet.requirement.RequirementContext(player, petId, 1, currentStars, plugin);
                 var eval = plugin.getRequirementManager().evaluate(group, ctx);
-                lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&6✦ Yêu cầu nâng cấp:"));
+                lore.add(GuiText.component("&6✦ Yêu cầu nâng cấp:"));
                 lore.addAll(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(eval));
             } else {
-                lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&a✓ " + lang.getMessage("gui.evo_free")));
+                lore.add(GuiText.component("&a✓ " + lang.getMessage("gui.evo_free")));
             }
             meta.lore(lore);
             center.setItemMeta(meta);
@@ -384,7 +383,7 @@ public class ChestGuiFallback implements DialogProvider {
         PetShopConfirmHolder holder = new PetShopConfirmHolder(session, petId);
         String rawTitle = lang.getMessage("dialog.shop_confirm_title");
         if (rawTitle == null) rawTitle = "&8&lMUA PET &7- &6" + petId;
-        Component titleComp = LegacyComponentSerializer.legacyAmpersand().deserialize(rawTitle);
+        Component titleComp = GuiText.title(rawTitle);
         Inventory inv = Bukkit.createInventory(holder, 27, titleComp);
         holder.setInventory(inv);
 
@@ -396,11 +395,11 @@ public class ChestGuiFallback implements DialogProvider {
         ItemStack preview = new ItemStack(Material.NAME_TAG);
         ItemMeta meta = preview.getItemMeta();
         if (meta != null) {
-            meta.displayName(LegacyComponentSerializer.legacyAmpersand().deserialize("&e&lMUA: " + petId));
+            meta.displayName(GuiText.component("&e&lMUA: " + petId));
             List<Component> lore = new ArrayList<>();
-            lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&7" + lang.getMessage("dialog.shop_confirm_desc")));
+            lore.add(GuiText.component("&7" + lang.getMessage("dialog.shop_confirm_desc")));
             lore.add(Component.empty());
-            lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&6Giá bán: &f" + cost + " &e(" + curr + ")"));
+            lore.add(GuiText.component("&6Giá bán: &f" + cost + " &e(" + curr + ")"));
             meta.lore(lore);
             preview.setItemMeta(meta);
         }
@@ -419,7 +418,7 @@ public class ChestGuiFallback implements DialogProvider {
         PetHatchConfirmHolder holder = new PetHatchConfirmHolder(session, eggId);
         String rawTitle = lang.getMessage("dialog.hatch_title");
         if (rawTitle == null) rawTitle = "&8&lẤP TRỨNG &7- &6" + eggId;
-        Component titleComp = LegacyComponentSerializer.legacyAmpersand().deserialize(rawTitle);
+        Component titleComp = GuiText.title(rawTitle);
         Inventory inv = Bukkit.createInventory(holder, 27, titleComp);
         holder.setInventory(inv);
 
@@ -428,11 +427,11 @@ public class ChestGuiFallback implements DialogProvider {
         ItemStack eggItem = new ItemStack(Material.EGG);
         ItemMeta meta = eggItem.getItemMeta();
         if (meta != null) {
-            meta.displayName(LegacyComponentSerializer.legacyAmpersand().deserialize("&e&l" + eggId));
+            meta.displayName(GuiText.component("&e&l" + eggId));
             List<Component> lore = new ArrayList<>();
-            lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&7" + lang.getMessage("dialog.hatch_select_egg")));
+            lore.add(GuiText.component("&7" + lang.getMessage("dialog.hatch_select_egg")));
             lore.add(Component.empty());
-            lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&a▶ Nhấp Xác nhận để bắt đầu vòng quay Roulette!"));
+            lore.add(GuiText.component("&a▶ Nhấp Xác nhận để bắt đầu vòng quay Roulette!"));
             meta.lore(lore);
             eggItem.setItemMeta(meta);
         }
@@ -451,7 +450,7 @@ public class ChestGuiFallback implements DialogProvider {
         PetGuideHolder holder = new PetGuideHolder(session, chapterIndex);
         String rawTitle = lang.getMessage("dialog.guide_title");
         if (rawTitle == null) rawTitle = "&8&lHƯỚNG DẪN PET &7- &6A đến Z";
-        Component titleComp = LegacyComponentSerializer.legacyAmpersand().deserialize(rawTitle);
+        Component titleComp = GuiText.title(rawTitle);
         Inventory inv = Bukkit.createInventory(holder, 54, titleComp);
         holder.setInventory(inv);
 
@@ -487,11 +486,11 @@ public class ChestGuiFallback implements DialogProvider {
             ItemStack centerBook = new ItemStack(Material.WRITTEN_BOOK);
             ItemMeta bMeta = centerBook.getItemMeta();
             if (bMeta != null) {
-                bMeta.displayName(LegacyComponentSerializer.legacyAmpersand().deserialize("&6&lCHƯƠNG " + chNum + ": &e" + chTitle));
+                bMeta.displayName(GuiText.component("&6&lCHƯƠNG " + chNum + ": &e" + chTitle));
                 List<Component> lore = new ArrayList<>();
                 lore.add(Component.empty());
                 for (String line : chBody.split("\n")) {
-                    lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize("&f" + line));
+                    lore.add(GuiText.component("&f" + line));
                 }
                 bMeta.lore(lore);
                 centerBook.setItemMeta(bMeta);
@@ -517,7 +516,7 @@ public class ChestGuiFallback implements DialogProvider {
         PetSettingsHolder holder = new PetSettingsHolder(session);
         String rawTitle = lang.getMessage("dialog.settings_title");
         if (rawTitle == null) rawTitle = "&8&lCÀI ĐẶT THÚ CƯNG &7- &6Settings";
-        Component titleComp = LegacyComponentSerializer.legacyAmpersand().deserialize(rawTitle);
+        Component titleComp = GuiText.title(rawTitle);
         Inventory inv = Bukkit.createInventory(holder, 27, titleComp);
         holder.setInventory(inv);
 
@@ -563,7 +562,7 @@ public class ChestGuiFallback implements DialogProvider {
         PetTradeInviteHolder holder = new PetTradeInviteHolder(session, sender.getUniqueId());
         String rawTitle = lang.getMessage("dialog.trade_invite_title");
         if (rawTitle == null) rawTitle = "&8&lLỜI MỜI GIAO DỊCH";
-        Component titleComp = LegacyComponentSerializer.legacyAmpersand().deserialize(rawTitle);
+        Component titleComp = GuiText.title(rawTitle);
         Inventory inv = Bukkit.createInventory(holder, 27, titleComp);
         holder.setInventory(inv);
 
@@ -586,7 +585,7 @@ public class ChestGuiFallback implements DialogProvider {
         PetTradeConfirmHolder holder = new PetTradeConfirmHolder(session, tradeId, callback);
         String rawTitle = lang.getMessage("dialog.trade_confirm_title");
         if (rawTitle == null) rawTitle = "&8&lXÁC NHẬN GIAO DỊCH CUỐI";
-        Component titleComp = LegacyComponentSerializer.legacyAmpersand().deserialize(rawTitle);
+        Component titleComp = GuiText.title(rawTitle);
         Inventory inv = Bukkit.createInventory(holder, 27, titleComp);
         holder.setInventory(inv);
 
@@ -628,11 +627,11 @@ public class ChestGuiFallback implements DialogProvider {
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(LegacyComponentSerializer.legacyAmpersand().deserialize(name != null ? name : ""));
+            meta.displayName(GuiText.component(name != null ? name : ""));
             if (loreLines != null && !loreLines.isEmpty()) {
                 List<Component> lore = new ArrayList<>();
                 for (String line : loreLines) {
-                    lore.add(LegacyComponentSerializer.legacyAmpersand().deserialize(line));
+                    lore.add(GuiText.component(line));
                 }
                 meta.lore(lore);
             }

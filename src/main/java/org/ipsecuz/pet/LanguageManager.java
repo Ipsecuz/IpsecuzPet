@@ -110,6 +110,7 @@ public class LanguageManager {
                path.startsWith("rarity.") ||
                path.startsWith("card.") ||
                path.startsWith("gui.") ||
+               path.startsWith("dialog.") ||
                path.startsWith("help.") ||
                path.startsWith("model.") ||
                path.startsWith("stats.") ||
@@ -130,6 +131,9 @@ public class LanguageManager {
                path.startsWith("trade.ready") ||
                path.startsWith("trade.waiting_lock") ||
                path.startsWith("trade.cancel_") ||
+               path.startsWith("trade.confirm_") ||
+               path.startsWith("trade.accept") ||
+               path.startsWith("trade.decline") ||
                path.equals("trade.title") ||
                path.equals("pet.display_format") ||
                path.equals("prefix");
