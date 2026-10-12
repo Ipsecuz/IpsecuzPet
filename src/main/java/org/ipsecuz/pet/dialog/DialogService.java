@@ -64,6 +64,23 @@ public class DialogService {
         return fallbackProvider;
     }
 
+    public Map<String, String> getDiagnosticStatus(Player player) {
+        Map<String, String> status = new java.util.LinkedHashMap<>();
+        status.put("configured_mode", plugin.getConfig().getString("ui.dialog.mode", "AUTO"));
+        status.put("effective_mode", getEffectiveMode(player).name());
+        status.put("server_version", org.bukkit.Bukkit.getName() + " " + org.bukkit.Bukkit.getVersion());
+        status.put("bukkit_version", org.bukkit.Bukkit.getBukkitVersion());
+        status.put("native_api_available", String.valueOf(nativeProvider.getEngine().isAvailable()));
+        status.put("native_class_available", String.valueOf(nativeProvider.getEngine().isClassAvailable()));
+        status.put("native_methods_available", String.valueOf(nativeProvider.getEngine().isMethodsAvailable()));
+        status.put("dialogwindow_bridge_available", String.valueOf(dialogWindowBridge.isAvailable()));
+        status.put("selected_backend", getProviderFor(player).getClass().getSimpleName());
+        status.put("init_status", nativeProvider.getEngine().getInitStatusMessage());
+        String lastFail = nativeProvider.getEngine().getLastFailureReason();
+        status.put("last_failure", lastFail != null ? lastFail : "None");
+        return status;
+    }
+
     // --- Public API UI Navigation ---
 
     public void openPetHub(Player player) {
@@ -233,16 +250,7 @@ public class DialogService {
         // Update active entity if spawned
         Entity activePet = plugin.getPetManager().getPet(player.getUniqueId());
         if (activePet != null && petId.equals(plugin.getPetManager().getActivePetId(player.getUniqueId()))) {
-            int lvl = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".level", 1);
-            String format = lang.getMessage("pet.display_format");
-            if (format == null) format = "&8[&eLv.%level%&8] &a%name% &7(&f%owner%&7)";
-            String displayName = format
-                    .replace("%name%", raw)
-                    .replace("%level%", String.valueOf(lvl))
-                    .replace("%player%", player.getName())
-                    .replace("%owner%", player.getName());
-            activePet.setCustomName(ChatColor.translateAlternateColorCodes('&', displayName));
-            activePet.setCustomNameVisible(true);
+            plugin.getPetManager().updatePetNameplate(activePet, player.getUniqueId(), petId);
         }
 
         player.sendMessage(lang.getMessage("pet.rename_success", "%new_name%", raw));

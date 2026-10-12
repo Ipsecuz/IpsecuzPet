@@ -310,6 +310,11 @@ public class ChestGuiFallback implements DialogProvider {
             petId = plugin.getPetManager().getActivePetId(player.getUniqueId());
         }
         if (petId == null) {
+            List<String> owned = plugin.getOwnershipManager().getOwnedPetIds(player.getUniqueId());
+            if (!owned.isEmpty()) {
+                openMyPets(player, session, 1);
+                return;
+            }
             player.sendMessage(plugin.getLanguage().getMessage("pet.no_pet"));
             return;
         }
@@ -424,12 +429,14 @@ public class ChestGuiFallback implements DialogProvider {
 
         fillBorders(inv, Material.YELLOW_STAINED_GLASS_PANE);
 
-        ItemStack eggItem = new ItemStack(Material.EGG);
+        ItemStack eggItem = plugin.getHatchingManager().createEggItem(eggId, 1);
+        if (eggItem == null) {
+            eggItem = new ItemStack(Material.EGG);
+        }
         ItemMeta meta = eggItem.getItemMeta();
         if (meta != null) {
-            meta.displayName(GuiText.component("&e&l" + eggId));
-            List<Component> lore = new ArrayList<>();
-            lore.add(GuiText.component("&7" + lang.getMessage("dialog.hatch_select_egg")));
+            List<Component> lore = meta.lore();
+            if (lore == null) lore = new ArrayList<>();
             lore.add(Component.empty());
             lore.add(GuiText.component("&a▶ Nhấp Xác nhận để bắt đầu vòng quay Roulette!"));
             meta.lore(lore);

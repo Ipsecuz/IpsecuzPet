@@ -1053,8 +1053,13 @@ public class GuiListener implements Listener {
                 if (activeId != null) {
                     plugin.getDialogService().openPetDetails(p, activeId);
                 } else {
-                    p.sendMessage(plugin.getLanguage().getMessage("pet.no_pet"));
-                    p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                    List<String> owned = plugin.getOwnershipManager().getOwnedPetIds(p.getUniqueId());
+                    if (!owned.isEmpty()) {
+                        openPetMenu(p, 1);
+                    } else {
+                        p.sendMessage(plugin.getLanguage().getMessage("pet.no_pet"));
+                        p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                    }
                 }
             } else if (slot == 14) {
                 openShopMenu(p, 1);

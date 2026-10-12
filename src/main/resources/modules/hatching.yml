@@ -16,18 +16,20 @@ gui:
 #   + "oraxen:custom_egg_item"
 #   + "nexo:custom_egg_item"
 # - requirements (Điều kiện chi phí để quay Gacha ấp trứng):
-#   + money: Số tiền Vault cần có (ví dụ: 1000)
-#   + points: Số PlayerPoints cần có (ví dụ: 10)
-#   + items: Danh sách vật phẩm cần nộp (Hỗ trợ Vanilla, ItemsAdder, Oraxen, Nexo)
+#   + all: Tất cả các điều kiện đều bắt buộc (MONEY, POINTS, ITEM)
+#   + one_of: Chọn 1 trong các lựa chọn thanh toán thay thế
+#   + free: true (Nếu trứng được cấu hình hoàn toàn miễn phí)
 eggs:
   common_egg:
     name: "&a🥚 Trứng Thường (Common Egg)"
     material: EGG
     requirements:
-      money: 500
-      points: 0
-      items:
-        - "WHEAT:10"
+      all:
+        - type: MONEY
+          amount: 500
+        - type: ITEM
+          id: WHEAT
+          amount: 10
     lore:
       - "&7Độ hiếm: &aPhổ Thông"
       - "&7Chứa đựng linh hồn các loài thú hiền lành."
@@ -49,10 +51,14 @@ eggs:
     name: "&b🔮 Trứng Hiếm (Rare Egg)"
     material: TURTLE_EGG
     requirements:
-      money: 3000
-      points: 10
-      items:
-        - "DIAMOND:2"
+      all:
+        - type: MONEY
+          amount: 3000
+        - type: POINTS
+          amount: 10
+        - type: ITEM
+          id: DIAMOND
+          amount: 2
         # - "itemsadder:ruby:1"      # Hỗ trợ vật phẩm từ ItemsAdder
         # - "oraxen:sapphire:1"     # Hỗ trợ vật phẩm từ Oraxen
         # - "nexo:amethyst_core:1"  # Hỗ trợ vật phẩm từ Nexo

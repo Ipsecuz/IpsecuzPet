@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class PetCommand implements CommandExecutor {
@@ -125,12 +126,20 @@ public class PetCommand implements CommandExecutor {
                 p.sendMessage(lang.getMessage("help.cmd_accept"));
                 if (p.hasPermission("ipsecuzpet.admin")) {
                     p.sendMessage(lang.getMessage("help.cmd_model_status"));
+                    p.sendMessage(lang.getMessage("help.cmd_ui_status"));
                     p.sendMessage(lang.getMessage("help.cmd_give"));
                     p.sendMessage(lang.getMessage("help.cmd_giveball"));
                     p.sendMessage(lang.getMessage("help.cmd_giveegg"));
                     p.sendMessage(lang.getMessage("help.cmd_reload"));
                 }
                 p.sendMessage(lang.getMessage("help.footer"));
+                break;
+
+            case "ui":
+                if (args.length > 1 && args[1].equalsIgnoreCase("status")) {
+                    return handleUiStatus(p, lang);
+                }
+                p.sendMessage("§cUsage: /pet ui status");
                 break;
 
             case "model":
@@ -212,16 +221,7 @@ public class PetCommand implements CommandExecutor {
 
                 Entity petEntity = plugin.getPetManager().getPet(p.getUniqueId());
                 if (petEntity != null) {
-                    int lvl = plugin.getConfigManager().getData().getInt(p.getUniqueId() + ".pets." + petId + ".level", 1);
-                    String format = plugin.getLanguage().getMessage("pet.display_format");
-
-                    String displayName = format.replace("%name%", newName)
-                            .replace("%level%", String.valueOf(lvl))
-                            .replace("%player%", p.getName())
-                            .replace("%owner%", p.getName());
-
-                    petEntity.setCustomName(ChatColor.translateAlternateColorCodes('&', displayName));
-                    petEntity.setCustomNameVisible(true);
+                    plugin.getPetManager().updatePetNameplate(petEntity, p.getUniqueId(), petId);
                 }
 
                 p.sendMessage(lang.getMessage("pet.rename_success", "%new_name%", newName));
@@ -393,7 +393,7 @@ public class PetCommand implements CommandExecutor {
                     return true;
                 }
                 String starPetId = plugin.getPetManager().getActivePetId(p.getUniqueId());
-                plugin.getEvolutionManager().upgradeStar(p, starPetId);
+                plugin.getDialogService().openEvolutionDialog(p, starPetId);
                 break;
 
             case "trade":
@@ -618,6 +618,33 @@ public class PetCommand implements CommandExecutor {
 
         sender.sendMessage(lang.getMessage("admin.giveegg_success", "%amount%", String.valueOf(eggAmount), "%egg_id%", eggId, "%player%", targetEggP.getName()));
         targetEggP.sendMessage(lang.getMessage("admin.giveegg_received"));
+        return true;
+    }
+
+    private boolean handleUiStatus(CommandSender sender, LanguageManager lang) {
+        if (!sender.hasPermission("ipsecuzpet.admin")) {
+            sender.sendMessage(lang.getMessage("general.no_permission"));
+            return true;
+        }
+        Player p = (sender instanceof Player player) ? player : null;
+        Map<String, String> diag = plugin.getDialogService().getDiagnosticStatus(p);
+
+        sender.sendMessage("§8§m--------------------------------------------------");
+        sender.sendMessage("§b✦ §lIPSECUZPET UI & DIALOG DIAGNOSTIC STATUS §b✦");
+        sender.sendMessage("§7Configured Mode: §e" + diag.get("configured_mode"));
+        sender.sendMessage("§7Effective Mode: §e" + diag.get("effective_mode"));
+        sender.sendMessage("§7Server Version: §f" + diag.get("server_version"));
+        sender.sendMessage("§7Bukkit Version: §f" + diag.get("bukkit_version"));
+        sender.sendMessage("§7Native API Bound: " + (Boolean.parseBoolean(diag.get("native_api_available")) ? "§aYES (Active)" : "§cNO (Unavailable)"));
+        sender.sendMessage("§7Dialog Classes Present: " + (Boolean.parseBoolean(diag.get("native_class_available")) ? "§aYES" : "§cNO"));
+        sender.sendMessage("§7Dialog Methods Present: " + (Boolean.parseBoolean(diag.get("native_methods_available")) ? "§aYES" : "§cNO"));
+        sender.sendMessage("§7DialogWindow Bridge: " + (Boolean.parseBoolean(diag.get("dialogwindow_bridge_available")) ? "§aDetected" : "§7Not Installed"));
+        sender.sendMessage("§7Selected UI Backend: §b" + diag.get("selected_backend"));
+        sender.sendMessage("§7Init Status: §6" + diag.get("init_status"));
+        if (!"None".equals(diag.get("last_failure"))) {
+            sender.sendMessage("§cLast Failure: §c" + diag.get("last_failure"));
+        }
+        sender.sendMessage("§8§m--------------------------------------------------");
         return true;
     }
 }

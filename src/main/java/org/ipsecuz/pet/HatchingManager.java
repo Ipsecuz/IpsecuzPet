@@ -115,7 +115,52 @@ public class HatchingManager {
     public HatchingManager(IpsecuzPet plugin) {
         this.plugin = plugin;
         this.eggKey = new NamespacedKey(plugin, "pet_egg_id");
+        validateAllEggs();
         loadPendingSessions();
+    }
+
+    public void validateAllEggs() {
+        FileConfiguration config = plugin.getModuleManager() != null ? plugin.getModuleManager().getHatchingConfig() : null;
+        if (config == null) return;
+        ConfigurationSection eggsSec = config.getConfigurationSection("eggs");
+        if (eggsSec == null) return;
+        for (String eggId : eggsSec.getKeys(false)) {
+            ConfigurationSection sec = eggsSec.getConfigurationSection(eggId);
+            if (!validateEgg(eggId, sec)) {
+                plugin.getLogger().warning("[Hatching] Egg configuration validation failed for: " + eggId);
+            }
+        }
+    }
+
+    public boolean validateEgg(String eggId, ConfigurationSection eggSec) {
+        if (eggSec == null) {
+            plugin.getLogger().warning("[Hatching] Egg '" + eggId + "' configuration section is null!");
+            return false;
+        }
+
+        ConfigurationSection lootTable = eggSec.getConfigurationSection("loot_table");
+        if (lootTable == null || lootTable.getKeys(false).isEmpty()) {
+            plugin.getLogger().warning("[Hatching] Egg '" + eggId + "' has missing or empty loot_table!");
+            return false;
+        }
+
+        if (eggSec.getBoolean("free", false)) {
+            return true;
+        }
+
+        boolean hasReqs = eggSec.contains("requirements") || eggSec.contains("all") || eggSec.contains("one_of");
+        if (!hasReqs) {
+            plugin.getLogger().warning("[Hatching] Egg '" + eggId + "' has no requirement block and is not marked 'free: true'!");
+            return false;
+        }
+
+        org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(eggSec);
+        if (group == null || group.getRequirements().isEmpty()) {
+            plugin.getLogger().warning("[Hatching] Egg '" + eggId + "' has unrecognized or empty requirement structure! Refusing to allow free hatch without 'free: true'.");
+            return false;
+        }
+
+        return true;
     }
 
     public void loadPendingSessions() {
@@ -350,7 +395,21 @@ public class HatchingManager {
     }
 
     public boolean checkAndDeductRequirements(Player player, ConfigurationSection eggSec, ItemStack consumedItem) {
+        if (eggSec == null) return false;
+
+        if (eggSec.getBoolean("free", false)) {
+            if (consumedItem != null) {
+                consumedItem.setAmount(consumedItem.getAmount() - 1);
+            }
+            return true;
+        }
+
         org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(eggSec);
+        if (group == null || group.getRequirements().isEmpty()) {
+            plugin.getLogger().warning("[Hatching] Refusing to deduct requirements: egg requirement group is empty and egg is not marked 'free: true'.");
+            return false;
+        }
+
         org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(player, plugin);
 
         if (!plugin.getRequirementManager().executeTransaction(group, ctx)) {
@@ -377,6 +436,13 @@ public class HatchingManager {
         if (eggSec == null) {
             String msg = lang != null ? lang.getMessage("hatching.invalid_egg") : null;
             player.sendMessage(msg != null ? msg : "§cKhông tìm thấy dữ liệu cho loại trứng này!");
+            return;
+        }
+
+        if (!validateEgg(eggId, eggSec)) {
+            String msg = lang != null ? lang.getMessage("hatching.invalid_requirements") : null;
+            player.sendMessage(msg != null ? msg : "§cĐiều kiện hoặc chi phí của trứng này không hợp lệ!");
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
             return;
         }
 

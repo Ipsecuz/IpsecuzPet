@@ -312,7 +312,7 @@ public class LanguageManager {
         return "";
     }
 
-    public String colorize(String message) {
+    public static String colorize(String message) {
         if (message == null) return "";
 
         // 1. Xử lý Hex Color dạng &#RRGGBB

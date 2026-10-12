@@ -92,6 +92,7 @@ public class PetTabCompleter implements TabCompleter {
                 commands.add("giveball");
                 commands.add("giveegg");
                 commands.add("reload");
+                commands.add("ui");
             }
             if (sender.hasPermission("ipsecuzpet.admin") || sender.hasPermission("ipsecuzpet.model.status")) {
                 commands.add("model");
@@ -108,6 +109,14 @@ public class PetTabCompleter implements TabCompleter {
         // 4. Đối số 2
         if (args.length == 2) {
             String sub = args[0].toLowerCase();
+
+            // /pet ui status
+            if (sub.equals("ui") && sender.hasPermission("ipsecuzpet.admin")) {
+                if ("status".startsWith(args[1].toLowerCase())) {
+                    results.add("status");
+                }
+                return results;
+            }
 
             // /pet guide [1-18]
             if (sub.equals("guide")) {

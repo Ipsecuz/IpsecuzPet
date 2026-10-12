@@ -18,10 +18,11 @@ public class OptionalDialogWindowBridge {
         this.plugin = plugin;
         boolean found = false;
         try {
-            Plugin dw = Bukkit.getPluginManager().getPlugin("DialogWindow");
-            if (dw != null && dw.isEnabled()) {
+            boolean enabledInConfig = plugin != null && plugin.getConfig().getBoolean("ui.dialog.dialogwindow_bridge", false);
+            Plugin dw = Bukkit.getPluginManager() != null ? Bukkit.getPluginManager().getPlugin("DialogWindow") : null;
+            if (enabledInConfig && dw != null && dw.isEnabled()) {
                 found = true;
-                if (plugin != null) plugin.getLogger().info("§a[IpsecuzPet] Optional DialogWindow integration detected and active.");
+                if (plugin != null) plugin.getLogger().info("§a[IpsecuzPet] Optional DialogWindow integration detected and active via /dwopen.");
             }
         } catch (Throwable t) {
             found = false;
@@ -34,7 +35,7 @@ public class OptionalDialogWindowBridge {
     }
 
     /**
-     * Executes a dialog through DialogWindow's registered command interface if available.
+     * Executes a dialog through DialogWindow's registered command interface (/dwopen) if available.
      * All security and permission checks are maintained authoritatively by IpsecuzPet.
      */
     public boolean openExternalDialog(Player player, String dialogIdentifier) {
@@ -42,9 +43,11 @@ public class OptionalDialogWindowBridge {
             return false;
         }
         try {
-            return Bukkit.dispatchCommand(player, "dialogwindow open " + dialogIdentifier);
+            return Bukkit.dispatchCommand(player, "dwopen " + dialogIdentifier);
         } catch (Throwable t) {
-            plugin.getLogger().warning("§c[IpsecuzPet] Failed to dispatch DialogWindow command: " + t.getMessage());
+            if (plugin != null) {
+                plugin.getLogger().warning("§c[IpsecuzPet] Failed to dispatch DialogWindow /dwopen command: " + t.getMessage());
+            }
             return false;
         }
     }

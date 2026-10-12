@@ -21,6 +21,10 @@ public class PaperNativeDialogEngine {
 
     private final IpsecuzPet plugin;
     private final boolean available;
+    private final String initStatusMessage;
+    private final boolean classAvailable;
+    private final boolean methodsAvailable;
+    private volatile String lastFailureReason;
 
     // Reflection cache
     private Class<?> dialogClass;
@@ -66,7 +70,11 @@ public class PaperNativeDialogEngine {
 
     public PaperNativeDialogEngine(IpsecuzPet plugin) {
         this.plugin = plugin;
+        boolean clsAvail = false;
+        boolean methAvail = false;
+        String statusMsg = "";
         boolean initialized = false;
+
         try {
             dialogClass = Class.forName("io.papermc.paper.dialog.Dialog");
             dialogBaseClass = Class.forName("io.papermc.paper.registry.data.dialog.DialogBase");
@@ -81,6 +89,7 @@ public class PaperNativeDialogEngine {
             registryBuilderFactoryClass = Class.forName("io.papermc.paper.registry.RegistryBuilderFactory");
             dialogRegistryEntryBuilderClass = Class.forName("io.papermc.paper.registry.data.dialog.DialogRegistryEntry$Builder");
             clickCallbackOptionsClass = Class.forName("net.kyori.adventure.text.event.ClickCallback$Options");
+            clsAvail = true;
 
             dialogCreateMethod = dialogClass.getMethod("create", Consumer.class);
             dialogBaseBuilderMethod = dialogBaseClass.getMethod("builder", Component.class);
@@ -130,19 +139,57 @@ public class PaperNativeDialogEngine {
                 }
             }
 
-            initialized = (dialogCreateMethod != null && showDialogMethod != null && dialogBaseBuilderMethod != null);
-        } catch (Throwable t) {
+            initialized = (dialogCreateMethod != null && showDialogMethod != null && dialogBaseBuilderMethod != null && dialogActionCustomClickMethod != null);
+            methAvail = initialized;
+            if (initialized) {
+                statusMsg = "Paper Native Dialog API (1.21.7+) successfully bound.";
+            } else {
+                statusMsg = "Paper Dialog classes found but missing required reflective methods (showDialog=" + (showDialogMethod != null) + ").";
+            }
+        } catch (ClassNotFoundException e) {
+            clsAvail = false;
+            methAvail = false;
             initialized = false;
+            statusMsg = "Paper Dialog API classes not found (server is not Paper 1.21.7+).";
+        } catch (Throwable t) {
+            clsAvail = false;
+            methAvail = false;
+            initialized = false;
+            statusMsg = "Paper Dialog reflection failed: " + t.getClass().getSimpleName() + ": " + t.getMessage();
         }
 
+        this.classAvailable = clsAvail;
+        this.methodsAvailable = methAvail;
         this.available = initialized;
-        if (available && plugin != null) {
-            plugin.getLogger().info("§a[IpsecuzPet] Paper Native Dialog Engine active with real reflection bindings.");
+        this.initStatusMessage = statusMsg;
+
+        if (plugin != null) {
+            if (available) {
+                plugin.getLogger().info("§a[IpsecuzPet] Paper Native Dialog Engine active with real reflection bindings.");
+            } else if (plugin.getConfig().getBoolean("debug", false)) {
+                plugin.getLogger().info("[DialogEngine] Native Dialog unavailable: " + initStatusMessage);
+            }
         }
     }
 
     public boolean isAvailable() {
         return available;
+    }
+
+    public boolean isClassAvailable() {
+        return classAvailable;
+    }
+
+    public boolean isMethodsAvailable() {
+        return methodsAvailable;
+    }
+
+    public String getInitStatusMessage() {
+        return initStatusMessage;
+    }
+
+    public String getLastFailureReason() {
+        return lastFailureReason;
     }
 
     public Object createActionButton(Component label, Component tooltip, int width, NativeDialogActionHandler handler) throws Exception {
@@ -277,12 +324,16 @@ public class PaperNativeDialogEngine {
     }
 
     public boolean showDialog(Player player, Object dialogInstance) {
-        if (!available || player == null || dialogInstance == null) return false;
+        if (!available || player == null || dialogInstance == null) {
+            lastFailureReason = "Engine not available or player/dialog null";
+            return false;
+        }
         try {
             showDialogMethod.invoke(player, dialogInstance);
             return true;
         } catch (Throwable t) {
-            if (plugin != null) {
+            lastFailureReason = "showDialog invocation: " + t.getClass().getSimpleName() + ": " + t.getMessage();
+            if (plugin != null && plugin.getConfig().getBoolean("debug", false)) {
                 plugin.getLogger().warning("§c[IpsecuzPet] Failed to show native Dialog to " + player.getName() + ": " + t.getMessage());
             }
             return false;
@@ -290,7 +341,10 @@ public class PaperNativeDialogEngine {
     }
 
     public boolean showNotice(Player player, Component title, List<Component> bodyLines, Component buttonText, Runnable onClose) {
-        if (!available) return false;
+        if (!available) {
+            lastFailureReason = "Engine not available";
+            return false;
+        }
         try {
             Object btn = createActionButton(buttonText, null, 140, (p, resp) -> {
                 if (onClose != null) onClose.run();
@@ -299,12 +353,16 @@ public class PaperNativeDialogEngine {
             Object dialog = buildDialog(title, bodyLines, null, noticeType);
             return showDialog(player, dialog);
         } catch (Throwable t) {
+            lastFailureReason = "showNotice: " + t.getClass().getSimpleName() + ": " + t.getMessage();
             return false;
         }
     }
 
     public boolean showConfirmation(Player player, Component title, List<Component> bodyLines, Component confirmText, Component cancelText, Consumer<Boolean> callback) {
-        if (!available) return false;
+        if (!available) {
+            lastFailureReason = "Engine not available";
+            return false;
+        }
         try {
             Object yesBtn = createActionButton(confirmText, null, 120, (p, resp) -> {
                 if (callback != null) callback.accept(true);
@@ -316,12 +374,16 @@ public class PaperNativeDialogEngine {
             Object dialog = buildDialog(title, bodyLines, null, confirmType);
             return showDialog(player, dialog);
         } catch (Throwable t) {
+            lastFailureReason = "showConfirmation: " + t.getClass().getSimpleName() + ": " + t.getMessage();
             return false;
         }
     }
 
     public boolean showMultiAction(Player player, Component title, List<Component> bodyLines, List<Object> inputs, List<NativeButton> buttons, NativeButton exitButton, int columns) {
-        if (!available) return false;
+        if (!available) {
+            lastFailureReason = "Engine not available";
+            return false;
+        }
         try {
             List<Object> actionButtons = new ArrayList<>();
             if (buttons != null) {
@@ -341,13 +403,16 @@ public class PaperNativeDialogEngine {
                 if (exitBtn != null) actionButtons.add(exitBtn);
                 multiActionType = dialogTypeMultiActionMethod.invoke(null, actionButtons);
             } else {
+                lastFailureReason = "No multiAction method available on DialogType";
                 return false;
             }
 
             Object dialog = buildDialog(title, bodyLines, inputs, multiActionType);
             return showDialog(player, dialog);
         } catch (Throwable t) {
+            lastFailureReason = "showMultiAction: " + t.getClass().getSimpleName() + ": " + t.getMessage();
             return false;
         }
     }
 }
+

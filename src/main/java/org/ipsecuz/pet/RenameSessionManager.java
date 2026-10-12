@@ -85,16 +85,7 @@ public class RenameSessionManager {
         // Update currently active pet if spawned
         Entity activePet = plugin.getPetManager().getPet(player.getUniqueId());
         if (activePet != null && session.petId().equals(plugin.getPetManager().getActivePetId(player.getUniqueId()))) {
-            int lvl = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + session.petId() + ".level", 1);
-            String format = plugin.getLanguage().getMessage("pet.display_format");
-            if (format == null) format = "&7Lv.%level% &e%name% &7(%player%)";
-            String displayName = format
-                    .replace("%name%", raw)
-                    .replace("%level%", String.valueOf(lvl))
-                    .replace("%player%", player.getName())
-                    .replace("%owner%", player.getName());
-            activePet.setCustomName(ChatColor.translateAlternateColorCodes('&', displayName));
-            activePet.setCustomNameVisible(true);
+            plugin.getPetManager().updatePetNameplate(activePet, player.getUniqueId(), session.petId());
         }
 
         player.sendMessage(plugin.getLanguage().getMessage("pet.rename_success", "%new_name%", raw));

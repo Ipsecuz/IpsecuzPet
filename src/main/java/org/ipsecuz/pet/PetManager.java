@@ -82,6 +82,30 @@ public class PetManager {
         }
     }
 
+    public String getFormattedNameplate(UUID ownerId, String petId, int level, String ownerName) {
+        String petName = plugin.getLanguage().getPetDisplayName(ownerId, petId);
+        String format = plugin.getLanguage().getRawMessage("pet.display_format");
+        if (format == null || format.startsWith("§cMissing")) {
+            format = "&8[&eLv.%level%&8] &a%name% &7(&f%owner%&7)";
+        }
+        String nameplate = format
+                .replace("%name%", petName)
+                .replace("%level%", String.valueOf(level))
+                .replace("%owner%", ownerName != null ? ownerName : "Player")
+                .replace("%player%", ownerName != null ? ownerName : "Player");
+        return LanguageManager.colorize(nameplate);
+    }
+
+    public void updatePetNameplate(Entity petEntity, UUID ownerId, String petId) {
+        if (petEntity == null || !petEntity.isValid() || ownerId == null || petId == null) return;
+        int level = plugin.getConfigManager().getData().getInt(ownerId + ".pets." + petId + ".level", 1);
+        String ownerName = Bukkit.getOfflinePlayer(ownerId).getName();
+        if (ownerName == null) ownerName = "Player";
+        String nameplate = getFormattedNameplate(ownerId, petId, level, ownerName);
+        petEntity.setCustomName(nameplate);
+        petEntity.setCustomNameVisible(true);
+    }
+
     public void spawnPet(Player player, String petId) {
         if (plugin.getConfigManager().isPetDead(player.getUniqueId(), petId)) {
             player.sendMessage(plugin.getLanguage().getMessage("pet.death"));
@@ -105,23 +129,8 @@ public class PetManager {
             return;
         }
 
-        // --- CODE HIỂN THỊ TÊN (SỬ DỤNG TÊN TÙY CHỈNH) ---
-        String defaultName = plugin.getConfig().getString("pets." + petId + ".name", "Pet");
-        String customName = plugin.getConfigManager().getCustomName(player.getUniqueId(), petId);
-        String name = (customName != null) ? customName : defaultName;
-
-        int lvl = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".level", 1);
-        String format = plugin.getLanguage().getMessage("pet.display_format");
-        if (format == null) format = "&7Lv.%level% &e%name% &7(%player%)";
-
-        String displayName = format
-                .replace("%name%", name)
-                .replace("%level%", String.valueOf(lvl))
-                .replace("%player%", player.getName())
-                .replace("%owner%", player.getName());
-
-        pet.setCustomName(ChatColor.translateAlternateColorCodes('&', displayName));
-        pet.setCustomNameVisible(true);
+        // --- HIỂN THỊ TÊN THỰC THỂ (TẬP TRUNG HÓA QUA FORMAT CHUNG) ---
+        updatePetNameplate(pet, player.getUniqueId(), petId);
         // ------------------------------------------------------------
 
         pet.getPersistentDataContainer().set(petKey, PersistentDataType.STRING, player.getUniqueId().toString());
@@ -166,6 +175,7 @@ public class PetManager {
             tameable.setTamed(true);
         }
 
+        int lvl = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".level", 1);
         updatePetStats(pet, petId, lvl, player.getUniqueId());
 
         activePets.put(player.getUniqueId(), pet);
@@ -175,8 +185,9 @@ public class PetManager {
             pet.getWorld().spawnParticle(rarity.getRevealParticle(), pet.getLocation().add(0, 0.8, 0), 25, 0.35, 0.35, 0.35, 0.05);
         } catch (Exception ignored) {}
 
-        String msg = plugin.getLanguage().getMessage("pet.spawn");
-        if (msg != null) player.sendMessage(msg.replace("%pet_name%", displayName));
+        String petDisplayName = plugin.getLanguage().getPetDisplayName(player.getUniqueId(), petId);
+        String msg = plugin.getLanguage().getMessage("pet.spawn", "%pet_name%", petDisplayName);
+        if (msg != null) player.sendMessage(msg);
         player.playSound(player.getLocation(), rarity.getRevealSound(), 1f, 1.1f);
     }
 
@@ -961,19 +972,7 @@ public class PetManager {
             if (petEntity != null && petEntity.isValid()) {
                 updatePetStats(petEntity, petId, currentLvl, ownerId);
 
-                String defaultName = plugin.getConfig().getString("pets." + petId + ".name", "Pet");
-                String customName = plugin.getConfigManager().getCustomName(ownerId, petId);
-                String name = (customName != null) ? customName : defaultName;
-                String format = plugin.getLanguage().getMessage("pet.display_format");
-                if (format == null) format = "&7Lv.%level% &e%name% &7(%player%)";
-
-                String displayName = format.replace("%name%", name)
-                        .replace("%level%", String.valueOf(currentLvl))
-                        .replace("%player%", onlinePlayer.getName())
-                        .replace("%owner%", onlinePlayer.getName());
-
-                petEntity.setCustomName(ChatColor.translateAlternateColorCodes('&', displayName));
-                petEntity.setCustomNameVisible(true);
+                updatePetNameplate(petEntity, ownerId, petId);
 
                 boolean isFlying = isFlyingType(petEntity.getType());
                 modelHandler.playTransientAnimation(petEntity, PetAnimationState.CELEBRATE, 45L, isFlying ? PetAnimationState.FLY_IDLE : PetAnimationState.IDLE);

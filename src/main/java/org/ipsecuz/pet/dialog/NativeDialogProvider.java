@@ -4,6 +4,8 @@ import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.Sound;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.ipsecuz.pet.*;
@@ -655,15 +657,22 @@ public class NativeDialogProvider implements DialogProvider {
     }
 
     public boolean showDynamicHatchSelect(Player player, DialogSession session) {
+        LanguageManager lang = plugin.getLanguage();
         List<Component> body = new ArrayList<>();
         body.add(GuiText.component("&eChọn loại Trứng để tiến hành ấp và quay Roulette!"));
+        body.add(GuiText.component("&7Mỗi loại trứng chứa những linh hồn thú cưng độc nhất."));
 
         List<NativeButton> buttons = new ArrayList<>();
         if (plugin.getModuleManager() != null && plugin.getModuleManager().getHatchingConfig() != null) {
             var eggs = plugin.getModuleManager().getHatchingConfig().getConfigurationSection("eggs");
             if (eggs != null) {
                 for (String eggId : eggs.getKeys(false)) {
-                    String eggName = eggs.getString(eggId + ".name", eggId);
+                    ConfigurationSection eggSec = eggs.getConfigurationSection(eggId);
+                    String eggName = eggSec != null ? eggSec.getString("name", eggId) : eggId;
+                    String eggKeyName = "eggs." + eggId + ".name";
+                    if (lang != null && !lang.getRawMessage(eggKeyName).startsWith("§cMissing")) {
+                        eggName = lang.getRawMessage(eggKeyName);
+                    }
                     buttons.add(new NativeButton(GuiText.component("&e" + eggName), null, 180, (p, resp) -> openHatchConfirmDialog(p, session, eggId)));
                 }
             }
@@ -677,14 +686,45 @@ public class NativeDialogProvider implements DialogProvider {
         if (eggId == null) return false;
         LanguageManager lang = plugin.getLanguage();
 
-        String eggName = eggId;
-        if (plugin.getModuleManager() != null && plugin.getModuleManager().getHatchingConfig() != null) {
-            eggName = plugin.getModuleManager().getHatchingConfig().getString("eggs." + eggId + ".name", eggId);
+        ConfigurationSection eggSec = (plugin.getModuleManager() != null && plugin.getModuleManager().getHatchingConfig() != null)
+                ? plugin.getModuleManager().getHatchingConfig().getConfigurationSection("eggs." + eggId)
+                : null;
+        if (eggSec == null) return false;
+
+        String eggName = eggSec.getString("name", eggId);
+        String eggKeyName = "eggs." + eggId + ".name";
+        if (lang != null && !lang.getRawMessage(eggKeyName).startsWith("§cMissing")) {
+            eggName = lang.getRawMessage(eggKeyName);
         }
 
         List<Component> body = new ArrayList<>();
-        body.add(GuiText.component("&7Trứng chuẩn bị ấp: &e" + eggName));
-        body.add(GuiText.component("&7" + lang.getMessage("dialog.hatch_select_egg")));
+        body.add(GuiText.component("&7Trứng chuẩn bị ấp: &6&l" + eggName));
+        body.add(Component.empty());
+
+        // Egg lore / description
+        List<String> transLore = (lang != null) ? lang.getMessageList("eggs." + eggId + ".lore") : null;
+        List<String> rawLore = (transLore != null && !transLore.isEmpty()) ? transLore : eggSec.getStringList("lore");
+        for (String l : rawLore) {
+            body.add(GuiText.component(l));
+        }
+
+        // Requirements & Status
+        boolean isFree = eggSec.getBoolean("free", false);
+        org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(eggSec);
+        if (isFree) {
+            body.add(Component.empty());
+            body.add(GuiText.component("&a✦ Chi phí: Miễn phí hoàn toàn!"));
+        } else if (!group.getRequirements().isEmpty()) {
+            body.add(Component.empty());
+            body.add(GuiText.component("&6✦ Chi phí để quay:"));
+            org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(player, plugin);
+            org.ipsecuz.pet.requirement.RequirementCheckResult result = plugin.getRequirementManager().evaluate(group, ctx);
+            for (String line : org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToStrings(result)) {
+                if (!line.startsWith("§7----")) {
+                    body.add(GuiText.component(line));
+                }
+            }
+        }
 
         List<NativeButton> buttons = new ArrayList<>();
         buttons.add(new NativeButton(GuiText.component(lang.getMessage("dialog.hatch_confirm")), null, 140, (p, resp) -> {
@@ -814,30 +854,104 @@ public class NativeDialogProvider implements DialogProvider {
     }
 
     public boolean showDynamicCodexBrowse(Player player, DialogSession session, int page) {
+        LanguageManager lang = plugin.getLanguage();
+        List<String> allPetKeys = new ArrayList<>();
+        var petsSec = plugin.getConfig().getConfigurationSection("pets");
+        if (petsSec != null) {
+            allPetKeys.addAll(petsSec.getKeys(false));
+        }
+
+        int pageSize = 6;
+        int totalPages = Math.max(1, (int) Math.ceil((double) allPetKeys.size() / pageSize));
+        int curPage = Math.max(1, Math.min(page, totalPages));
+
+        int discovered = plugin.getCodexManager().getDiscoveredCount(player.getUniqueId());
+        int total = allPetKeys.size();
+        int percent = total > 0 ? (discovered * 100 / total) : 0;
+
         List<Component> body = new ArrayList<>();
-        body.add(GuiText.component("&dBách Khoa Toàn Thư Codex Thú Cưng."));
-        body.add(GuiText.component("&7Khám phá và mở khóa các loài thú cưng trên khắp thế giới!"));
+        body.add(GuiText.component("&dBách Khoa Toàn Thư Codex Thú Cưng"));
+        body.add(GuiText.component("&7Tiến độ khám phá: &a" + discovered + "&7/&6" + total + " &e(" + percent + "%)"));
+        body.add(GuiText.component("&7Trang: &e" + curPage + "&7/&6" + totalPages));
+        body.add(Component.empty());
 
         List<NativeButton> buttons = new ArrayList<>();
-        buttons.add(new NativeButton(GuiText.component("&6Mở Menu Rương Chi Tiết"), null, 180, (p, resp) -> {
-            org.ipsecuz.pet.GuiListener.openCodexMenu(p, page);
-        }));
+        int start = (curPage - 1) * pageSize;
+        int end = Math.min(start + pageSize, allPetKeys.size());
+
+        for (int i = start; i < end; i++) {
+            String petId = allPetKeys.get(i);
+            boolean isDiscovered = plugin.getCodexManager().isDiscovered(player.getUniqueId(), petId);
+            String name = plugin.getConfig().getString("pets." + petId + ".name", petId);
+            String rarityStr = plugin.getConfig().getString("pets." + petId + ".rarity", "COMMON");
+            PetRarity rarity = PetRarity.fromString(rarityStr);
+
+            if (isDiscovered) {
+                buttons.add(new NativeButton(GuiText.component(rarity.getChatColor() + "✓ " + name), null, 180, (p, resp) -> {
+                    String desc = plugin.getConfig().getString("pets." + petId + ".description", "Chưa có mô tả.");
+                    openNotice(p, name, "§7Độ hiếm: " + rarity.getLocalizedName(plugin) + "\n§7Mô tả: " + desc + "\n§aĐã mở khóa vào bách khoa thư!", () -> openCodexBrowse(p, session, curPage));
+                }));
+            } else {
+                buttons.add(new NativeButton(GuiText.component("&8? ??? (" + rarity.getLocalizedName(plugin) + "&8)"), null, 180, (p, resp) -> {
+                    openNotice(p, "Chưa Mở Khóa", "§7Thú cưng này chưa được mở khóa!\n§7Hãy tìm bắt hoặc mở trứng để bổ sung vào Codex.", () -> openCodexBrowse(p, session, curPage));
+                }));
+            }
+        }
+
+        if (curPage > 1) {
+            buttons.add(new NativeButton(GuiText.component("&c◀ Trang trước"), null, 120, (p, resp) -> openCodexBrowse(p, session, curPage - 1)));
+        }
+        if (curPage < totalPages) {
+            buttons.add(new NativeButton(GuiText.component("&aTrang sau ▶"), null, 120, (p, resp) -> openCodexBrowse(p, session, curPage + 1)));
+        }
 
         NativeButton exitBtn = new NativeButton(GuiText.component("&6🏠 Pet Hub"), null, 120, (p, resp) -> openPetHub(p, session));
-        return engine.showMultiAction(player, GuiText.title("&8&lBÁCH KHOA CODEX"), body, null, buttons, exitBtn, 1);
+        return engine.showMultiAction(player, GuiText.title("&8&lBÁCH KHOA CODEX"), body, null, buttons, exitBtn, 2);
     }
 
     public boolean showDynamicShardsOverview(Player player, DialogSession session) {
+        LanguageManager lang = plugin.getLanguage();
+        Map<String, Integer> shards = plugin.getShardManager().getAllShards(player.getUniqueId());
+
         List<Component> body = new ArrayList<>();
-        body.add(GuiText.component("&dQuản lý mảnh ghép và tinh hoa Thú cưng."));
-        body.add(GuiText.component("&7Thu thập đủ mảnh ghép để triệu hồi những người bạn quý hiếm!"));
+        body.add(GuiText.component("&dQuản lý mảnh ghép và tinh hoa Thú Cưng"));
+        body.add(Component.empty());
+
+        if (shards.isEmpty()) {
+            body.add(GuiText.component("&7Hiện bạn chưa có mảnh thú cưng nào."));
+            body.add(GuiText.component("&7Mở trứng trùng lặp hoặc hoàn thành nhiệm vụ để thu thập!"));
+        } else {
+            body.add(GuiText.component("&7Danh sách các mảnh hiện có (Nhấp để ghép pet):"));
+        }
 
         List<NativeButton> buttons = new ArrayList<>();
-        buttons.add(new NativeButton(GuiText.component("&6Mở Bàn Ghép Mảnh"), null, 180, (p, resp) -> {
-            org.ipsecuz.pet.GuiListener.openShardsMenu(p);
-        }));
+        for (Map.Entry<String, Integer> entry : shards.entrySet()) {
+            String petId = entry.getKey();
+            int amount = entry.getValue();
+            if (amount <= 0) continue;
+
+            String name = plugin.getConfig().getString("pets." + petId + ".name", petId);
+            int req = plugin.getShardManager().getRequiredShardsToCraft(petId);
+            String status = (amount >= req) ? "&a[Đủ Ghép]" : "&e[" + amount + "/" + req + "]";
+
+            buttons.add(new NativeButton(GuiText.component("&6" + name + " " + status), null, 180, (p, resp) -> {
+                if (amount >= req) {
+                    if (plugin.getOwnershipManager().canAcquirePet(p)) {
+                        plugin.getShardManager().takeShards(p.getUniqueId(), petId, req);
+                        plugin.getOwnershipManager().acquirePet(p, petId, 1, 0, 1, PetTrait.rollRandomTrait(), null);
+                        p.sendMessage(lang.getMessage("shards.craft_success", "%pet_name%", name));
+                        p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+                        openShardsOverview(p, session);
+                    } else {
+                        p.sendMessage(lang.getMessage("pet.limit_reached", "%max_pets%", String.valueOf(plugin.getOwnershipManager().getMaxOwnedPets(p))));
+                    }
+                } else {
+                    p.sendMessage(lang.getMessage("shards.not_enough_shards", "%current%", String.valueOf(amount), "%required%", String.valueOf(req)));
+                }
+            }));
+        }
 
         NativeButton exitBtn = new NativeButton(GuiText.component("&6🏠 Pet Hub"), null, 120, (p, resp) -> openPetHub(p, session));
-        return engine.showMultiAction(player, GuiText.title("&8&lMẢNH THÚ CƯNG"), body, null, buttons, exitBtn, 1);
+        return engine.showMultiAction(player, GuiText.title("&8&lMẢNH THÚ CƯNG"), body, null, buttons, exitBtn, 2);
     }
 }
