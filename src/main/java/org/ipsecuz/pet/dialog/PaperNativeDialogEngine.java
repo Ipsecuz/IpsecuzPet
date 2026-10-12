@@ -123,11 +123,15 @@ public class PaperNativeDialogEngine {
             } catch (NoSuchMethodException ignored) {}
 
             try {
-                dialogInputRangeMethod = dialogInputClass.getMethod("range", String.class, Component.class, float.class, float.class, float.class);
-            } catch (NoSuchMethodException ignored) {
+                dialogInputRangeMethod = dialogInputClass.getMethod("numberRange", String.class, Component.class, float.class, float.class);
+            } catch (NoSuchMethodException e1) {
                 try {
                     dialogInputRangeMethod = dialogInputClass.getMethod("numberRange", String.class, Component.class, float.class, float.class, float.class);
-                } catch (NoSuchMethodException ignored2) {}
+                } catch (NoSuchMethodException e2) {
+                    try {
+                        dialogInputRangeMethod = dialogInputClass.getMethod("range", String.class, Component.class, float.class, float.class, float.class);
+                    } catch (NoSuchMethodException ignored) {}
+                }
             }
 
             // Build default ClickCallback.Options
@@ -362,6 +366,59 @@ public class PaperNativeDialogEngine {
     public Object createBoolInput(String key, Component label, boolean initial, String onTrue, String onFalse) throws Exception {
         if (dialogInputBoolMethod == null) return null;
         return dialogInputBoolMethod.invoke(null, key, label, initial, onTrue, onFalse);
+    }
+
+    public Object createRangeInput(String key, Component label, float start, float end, float step, float initial, int width, String labelFormat) throws Exception {
+        return createNumberRangeInput(key, label, start, end, step, initial, width, labelFormat);
+    }
+
+    public Object createNumberRangeInput(String key, Component label, float start, float end, float step, float initial, int width, String labelFormat) throws Exception {
+        if (dialogInputRangeMethod == null) return null;
+        Object builder;
+        if (dialogInputRangeMethod.getParameterCount() == 4) {
+            builder = dialogInputRangeMethod.invoke(null, key, label, start, end);
+        } else if (dialogInputRangeMethod.getParameterCount() == 5) {
+            builder = dialogInputRangeMethod.invoke(null, key, label, start, end, step);
+        } else {
+            builder = dialogInputRangeMethod.invoke(null, key, label, start, end, step);
+        }
+        if (builder == null) return null;
+
+        try {
+            Method m = builder.getClass().getMethod("step", float.class);
+            m.invoke(builder, step);
+        } catch (Throwable ignored) {}
+
+        try {
+            Method m = builder.getClass().getMethod("initial", float.class);
+            m.invoke(builder, initial);
+        } catch (Throwable ignored) {}
+
+        if (width > 0) {
+            try {
+                Method m = builder.getClass().getMethod("width", int.class);
+                m.invoke(builder, width);
+            } catch (Throwable ignored) {}
+        }
+
+        if (labelFormat != null) {
+            try {
+                Method m = builder.getClass().getMethod("labelFormat", String.class);
+                m.invoke(builder, labelFormat);
+            } catch (Throwable e) {
+                try {
+                    Method m = builder.getClass().getMethod("format", String.class);
+                    m.invoke(builder, labelFormat);
+                } catch (Throwable ignored) {}
+            }
+        }
+
+        try {
+            Method buildM = builder.getClass().getMethod("build");
+            return buildM.invoke(builder);
+        } catch (NoSuchMethodException e) {
+            return builder;
+        }
     }
 
     public Object buildDialog(Component title, List<Component> bodyLines, List<Object> inputs, Object dialogType) throws Exception {

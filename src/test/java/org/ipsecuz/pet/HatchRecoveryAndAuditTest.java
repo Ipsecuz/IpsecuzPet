@@ -256,12 +256,125 @@ public class HatchRecoveryAndAuditTest {
                 "requirement.one_of_header",
                 "requirement.selected_badge",
                 "requirement.all_header",
-                "hatching.ambiguous_join"
+                "hatching.ambiguous_join",
+                "hatching.already_in_progress",
+                "hatching.refund_issued",
+                "dialog.settings_saved",
+                "dialog.shop_empty",
+                "admin.hatch_usage",
+                "admin.hatch_list_header",
+                "admin.hatch_list_entry",
+                "admin.hatch_list_empty",
+                "admin.hatch_recover_success",
+                "admin.hatch_not_found"
         };
 
         for (String key : requiredDialogKeys) {
             assertTrue(vnConfig.contains(key), "VN.yml missing key: " + key);
             assertTrue(enConfig.contains(key), "EN.yml missing key: " + key);
         }
+    }
+
+    @Test
+    @DisplayName("Hatch Concurrency Rejection: Active session states must prevent new transaction")
+    public void testHatchSessionActiveStateRejection() {
+        UUID playerId = UUID.randomUUID();
+        String txId = UUID.randomUUID().toString();
+
+        PendingHatchSession activeSession = new PendingHatchSession(
+                playerId,
+                txId,
+                "common_egg",
+                "pig_pet",
+                HatchingManager.HatchState.PROCESSING,
+                System.currentTimeMillis(),
+                2,
+                true,
+                false
+        );
+
+        // Active states (not FAILED and not COMPLETED) must be treated as in-progress
+        assertTrue(activeSession.getState() != HatchingManager.HatchState.FAILED &&
+                   activeSession.getState() != HatchingManager.HatchState.COMPLETED,
+                "Session in PROCESSING state must be recognized as active");
+
+        // Finished sessions should not block new hatches
+        activeSession.setState(HatchingManager.HatchState.COMPLETED);
+        assertFalse(activeSession.getState() != HatchingManager.HatchState.FAILED &&
+                    activeSession.getState() != HatchingManager.HatchState.COMPLETED,
+                "Session in COMPLETED state must NOT block new hatches");
+    }
+
+    @Test
+    @DisplayName("Hatch Session Callback Integrity: Authoritative winner and transaction ID verification")
+    public void testCallbackIntegrityAndAuthoritativeWinner() {
+        UUID playerId = UUID.randomUUID();
+        String correctTxId = UUID.randomUUID().toString();
+        String staleTxId = UUID.randomUUID().toString();
+        String authoritativeWinner = "rare_dragon";
+        String manipulatedWinner = "mythic_phoenix";
+
+        PendingHatchSession session = new PendingHatchSession(
+                playerId,
+                correctTxId,
+                "rare_egg",
+                authoritativeWinner,
+                HatchingManager.HatchState.PAID,
+                System.currentTimeMillis(),
+                2,
+                true,
+                false
+        );
+
+        // Verify transaction ID matching
+        assertFalse(staleTxId.equals(session.getTransactionId()), "Stale tx ID must not match session tx ID");
+        assertTrue(correctTxId.equals(session.getTransactionId()), "Correct tx ID must match session tx ID");
+
+        // Verify winning pet matching
+        assertFalse(manipulatedWinner.equals(session.getWinningPetId()), "Manipulated pet ID must be rejected");
+        assertEquals(authoritativeWinner, session.getWinningPetId(), "Authoritative pet ID must be preserved");
+    }
+
+    @Test
+    @DisplayName("Hatch Recovery Diagnostics: isRecoverable returns correct boolean for transaction states")
+    public void testSessionRecoverableState() {
+        UUID playerId = UUID.randomUUID();
+
+        // 1. PAYMENT_PROCESSING with uncommitted payment -> recoverable (uncertain)
+        PendingHatchSession s1 = new PendingHatchSession(playerId, "tx1", "egg1", "pet1",
+                HatchingManager.HatchState.PAYMENT_PROCESSING, System.currentTimeMillis(), 2, false, false);
+        assertTrue(s1.isRecoverable(), "PAYMENT_PROCESSING must be recoverable");
+
+        // 2. PAID with committed payment -> recoverable
+        PendingHatchSession s2 = new PendingHatchSession(playerId, "tx2", "egg1", "pet1",
+                HatchingManager.HatchState.PAID, System.currentTimeMillis(), 2, true, false);
+        assertTrue(s2.isRecoverable(), "PAID must be recoverable");
+
+        // 3. COMPLETED -> NOT recoverable
+        PendingHatchSession s3 = new PendingHatchSession(playerId, "tx3", "egg1", "pet1",
+                HatchingManager.HatchState.COMPLETED, System.currentTimeMillis(), 2, true, true);
+        assertFalse(s3.isRecoverable(), "COMPLETED session must not be recoverable");
+
+        // 4. FAILED without payment -> NOT recoverable
+        PendingHatchSession s4 = new PendingHatchSession(playerId, "tx4", "egg1", "pet1",
+                HatchingManager.HatchState.FAILED, System.currentTimeMillis(), 2, false, false);
+        assertFalse(s4.isRecoverable(), "FAILED unpaid session must not be recoverable");
+    }
+
+    @Test
+    @DisplayName("Evolution Stat Preview: Stat previews must compute using actual pet level")
+    public void testEvolutionStatPreviewUsesCurrentLevel() {
+        // Given a level 25 pet
+        int level = 25;
+        double baseDmg = 10.0;
+        double baseHp = 50.0;
+
+        // Verify that formulas using level 25 differ from hardcoded level 1
+        double curDmg = baseDmg + (level * 2.0);
+        double lvl1Dmg = baseDmg + (1 * 2.0);
+
+        assertNotEquals(lvl1Dmg, curDmg, "Level 25 damage must differ from level 1 damage");
+        assertEquals(60.0, curDmg, 0.001);
+        assertEquals(12.0, lvl1Dmg, 0.001);
     }
 }

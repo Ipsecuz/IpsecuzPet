@@ -78,6 +78,13 @@ public class PetCommand implements CommandExecutor {
                     }
                     sender.sendMessage("§cUsage: /pet model status [pet_id]");
                     return true;
+                case "admin":
+                    return handleAdmin(sender, args, lang);
+                case "hatch":
+                    if (args.length > 1 && (args[1].equalsIgnoreCase("list") || args[1].equalsIgnoreCase("recover"))) {
+                        return handleDirectHatchAdmin(sender, args, lang);
+                    }
+                    break;
             }
         }
 
@@ -355,8 +362,14 @@ public class PetCommand implements CommandExecutor {
                 plugin.getPetManager().spawnPet(p, curActivePet);
                 break;
 
+            case "admin":
+                return handleAdmin(p, args, lang);
+
             case "hatch":
             case "incubator":
+                if (args.length > 1 && (args[1].equalsIgnoreCase("list") || args[1].equalsIgnoreCase("recover"))) {
+                    return handleDirectHatchAdmin(p, args, lang);
+                }
                 if (!p.hasPermission("ipsecuzpet.hatch")) {
                     p.sendMessage(lang.getMessage("general.no_permission"));
                     return true;
@@ -647,6 +660,92 @@ public class PetCommand implements CommandExecutor {
             sender.sendMessage("§cLast Failure: §c" + diag.get("last_failure"));
         }
         sender.sendMessage("§8§m--------------------------------------------------");
+        return true;
+    }
+
+    private boolean handleAdmin(CommandSender sender, String[] args, LanguageManager lang) {
+        if (!sender.hasPermission("ipsecuzpet.admin")) {
+            sender.sendMessage(lang.getMessage("general.no_permission"));
+            return true;
+        }
+        if (args.length > 1 && args[1].equalsIgnoreCase("hatch")) {
+            if (args.length > 2 && args[2].equalsIgnoreCase("list")) {
+                return handleAdminHatchList(sender, lang);
+            }
+            if (args.length > 4 && args[2].equalsIgnoreCase("recover")) {
+                return handleAdminHatchRecover(sender, args[3], args[4], lang);
+            }
+            sender.sendMessage(lang.getMessageOrDefault("admin.hatch_usage", "§cUsage: /pet admin hatch <list|recover <tx_id> <grant|refund|discard>>"));
+            return true;
+        }
+        sender.sendMessage(lang.getMessageOrDefault("admin.hatch_usage", "§cUsage: /pet admin hatch <list|recover <tx_id> <grant|refund|discard>>"));
+        return true;
+    }
+
+    private boolean handleDirectHatchAdmin(CommandSender sender, String[] args, LanguageManager lang) {
+        if (!sender.hasPermission("ipsecuzpet.admin")) {
+            sender.sendMessage(lang.getMessage("general.no_permission"));
+            return true;
+        }
+        if (args.length > 1 && args[1].equalsIgnoreCase("list")) {
+            return handleAdminHatchList(sender, lang);
+        }
+        if (args.length > 3 && args[1].equalsIgnoreCase("recover")) {
+            return handleAdminHatchRecover(sender, args[2], args[3], lang);
+        }
+        sender.sendMessage(lang.getMessageOrDefault("admin.hatch_usage", "§cUsage: /pet admin hatch <list|recover <tx_id> <grant|refund|discard>>"));
+        return true;
+    }
+
+    private boolean handleAdminHatchList(CommandSender sender, LanguageManager lang) {
+        List<HatchingManager.PendingHatchSession> sessions = plugin.getHatchingManager().getAllPendingSessions();
+        if (sessions.isEmpty()) {
+            sender.sendMessage(lang.getMessageOrDefault("admin.hatch_list_empty", "§7Không có giao dịch ấp trứng nào đang chờ xử lý."));
+            return true;
+        }
+        sender.sendMessage(lang.getMessageOrDefault("admin.hatch_list_header", "§6§l[IPSECUZ PET] §eDanh sách giao dịch ấp trứng đang chờ (%count%):", "%count%", String.valueOf(sessions.size())));
+        for (HatchingManager.PendingHatchSession s : sessions) {
+            String pName = "Unknown";
+            Player target = Bukkit.getPlayer(s.getPlayerUuid());
+            if (target != null) {
+                pName = target.getName();
+            } else {
+                var op = Bukkit.getOfflinePlayer(s.getPlayerUuid());
+                if (op.getName() != null) pName = op.getName();
+            }
+            String pUuidStr = s.getPlayerUuid().toString();
+            String shortUuid = pUuidStr.length() >= 8 ? pUuidStr.substring(0, 8) + "..." : pUuidStr;
+            String entry = lang.getMessageOrDefault("admin.hatch_list_entry",
+                    "§7- TX: §f%tx_id% §7| Player: §e%player% §7| Egg: §b%egg_id% §7| Winner: §a%win_pet% §7| State: §6%state% §7| Paid: §f%paid% §7| Recov: §e%recoverable%",
+                    "%tx_id%", s.getTransactionId(),
+                    "%player%", pName + " (" + shortUuid + ")",
+                    "%egg_id%", s.getEggId(),
+                    "%win_pet%", s.getWinningPetId(),
+                    "%state%", s.getState().name(),
+                    "%paid%", String.valueOf(s.isPaymentCommitted()),
+                    "%recoverable%", String.valueOf(s.isRecoverable()),
+                    "%timestamp%", String.valueOf(s.getTimestamp())
+            );
+            sender.sendMessage(entry);
+        }
+        return true;
+    }
+
+    private boolean handleAdminHatchRecover(CommandSender sender, String txId, String action, LanguageManager lang) {
+        if (txId == null || action == null || (!action.equalsIgnoreCase("grant") && !action.equalsIgnoreCase("refund") && !action.equalsIgnoreCase("discard"))) {
+            sender.sendMessage(lang.getMessageOrDefault("admin.hatch_usage", "§cUsage: /pet admin hatch <list|recover <tx_id> <grant|refund|discard>>"));
+            return true;
+        }
+        boolean ok = plugin.getHatchingManager().resolvePendingTransaction(txId, action, sender.getName());
+        if (ok) {
+            sender.sendMessage(lang.getMessageOrDefault("admin.hatch_recover_success",
+                    "§aĐã xử lý giao dịch %tx_id% với hành động %action% thành công!",
+                    "%tx_id%", txId, "%action%", action.toLowerCase()));
+        } else {
+            sender.sendMessage(lang.getMessageOrDefault("admin.hatch_not_found",
+                    "§cKhông tìm thấy giao dịch hoặc trạng thái không hợp lệ: %tx_id%",
+                    "%tx_id%", txId));
+        }
         return true;
     }
 }

@@ -339,13 +339,14 @@ public class ChestGuiFallback implements DialogProvider {
 
         fillBorders(inv, Material.ORANGE_STAINED_GLASS_PANE);
 
+        int currentLevel = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".level", 1);
         int currentStars = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".stars", 1);
         int nextStars = Math.min(5, currentStars + 1);
 
-        double curDmg = PetStatEngine.calculateStatPreview(plugin, petId, 1, currentStars, "damage");
-        double nextDmg = PetStatEngine.calculateStatPreview(plugin, petId, 1, nextStars, "damage");
-        double curHp = PetStatEngine.calculateStatPreview(plugin, petId, 1, currentStars, "health");
-        double nextHp = PetStatEngine.calculateStatPreview(plugin, petId, 1, nextStars, "health");
+        double curDmg = PetStatEngine.calculateStatPreview(plugin, petId, currentLevel, currentStars, "damage");
+        double nextDmg = PetStatEngine.calculateStatPreview(plugin, petId, currentLevel, nextStars, "damage");
+        double curHp = PetStatEngine.calculateStatPreview(plugin, petId, currentLevel, currentStars, "health");
+        double nextHp = PetStatEngine.calculateStatPreview(plugin, petId, currentLevel, nextStars, "health");
 
         ItemStack center = new ItemStack(Material.NETHER_STAR);
         ItemMeta meta = center.getItemMeta();
@@ -363,7 +364,7 @@ public class ChestGuiFallback implements DialogProvider {
             ConfigurationSection reqSec = evoCfg != null ? evoCfg.getConfigurationSection("requirements.star_" + nextStars) : null;
             if (reqSec != null) {
                 var group = plugin.getRequirementManager().parse(reqSec);
-                var ctx = new org.ipsecuz.pet.requirement.RequirementContext(player, petId, 1, currentStars, plugin);
+                var ctx = new org.ipsecuz.pet.requirement.RequirementContext(player, petId, currentLevel, currentStars, plugin);
                 var eval = plugin.getRequirementManager().evaluate(group, ctx);
                 lore.add(GuiText.component("&6✦ Yêu cầu nâng cấp:"));
                 lore.addAll(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(eval));

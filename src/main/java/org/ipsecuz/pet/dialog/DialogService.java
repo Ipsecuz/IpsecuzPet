@@ -10,9 +10,12 @@ import org.ipsecuz.pet.IpsecuzPet;
 import org.ipsecuz.pet.LanguageManager;
 import org.ipsecuz.pet.SchedulerUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
@@ -26,6 +29,7 @@ public class DialogService {
     private final ChestGuiFallback fallbackProvider;
     private final OptionalDialogWindowBridge dialogWindowBridge;
     private final DialogSessionManager sessionManager;
+    private final Set<UUID> inProgressPurchases = ConcurrentHashMap.newKeySet();
 
     public DialogService(IpsecuzPet plugin) {
         this.plugin = plugin;
@@ -286,12 +290,44 @@ public class DialogService {
         return plugin.getEvolutionManager().upgradeStar(player, petId);
     }
 
+    public boolean isPetShopVisible(Player player, String petId) {
+        if (petId == null) return false;
+        ConfigurationSection sec = plugin.getConfig().getConfigurationSection("pets." + petId);
+        if (sec == null) return false;
+        if (!sec.getBoolean("enabled", true)) return false;
+        if (!sec.getBoolean("buyable", true)) return false;
+        if (!sec.getBoolean("visible_in_shop", true)) return false;
+        if (sec.getBoolean("draft", false) || sec.getBoolean("disabled", false)) return false;
+        String perm = sec.getString("permission");
+        if (perm != null && !perm.isEmpty() && player != null) {
+            if (!player.hasPermission(perm)) return false;
+        }
+        return true;
+    }
+
+    public List<String> getShopEligiblePets(Player player) {
+        List<String> list = new ArrayList<>();
+        ConfigurationSection petsSec = plugin.getConfig().getConfigurationSection("pets");
+        if (petsSec == null) return list;
+        for (String petId : petsSec.getKeys(false)) {
+            if (isPetShopVisible(player, petId)) {
+                list.add(petId);
+            }
+        }
+        return list;
+    }
+
     public boolean processShopPurchase(Player player, String petId) {
         if (player == null || petId == null) return false;
         LanguageManager lang = plugin.getLanguage();
 
         if (!player.hasPermission("ipsecuzpet.shop")) {
             player.sendMessage(lang.getMessage("general.no_permission"));
+            return false;
+        }
+
+        if (!isPetShopVisible(player, petId)) {
+            player.sendMessage(lang.getMessageOrDefault("shop.pet_not_buyable", "&cThú cưng này hiện không có sẵn để mua!"));
             return false;
         }
 
@@ -307,14 +343,46 @@ public class DialogService {
             return false;
         }
 
-        if (plugin.getCurrencyManager().processTransaction(player, petId)) {
-            plugin.getOwnershipManager().acquirePet(player, petId, 1, 0, 1, org.ipsecuz.pet.PetTrait.rollRandomTrait(), null);
+        // Prevent double-click / concurrent purchase
+        if (!inProgressPurchases.add(player.getUniqueId())) {
+            return false;
+        }
+
+        try {
+            String type = plugin.getConfig().getString("pets." + petId + ".currency", "ITEM");
+            double cost = plugin.getConfig().getDouble("pets." + petId + ".price", 0);
+
+            if (!plugin.getCurrencyManager().processTransaction(player, petId)) {
+                return false;
+            }
+
+            boolean acquired = plugin.getOwnershipManager().acquirePet(player, petId, 1, 0, 1, org.ipsecuz.pet.PetTrait.rollRandomTrait(), null);
+            if (!acquired) {
+                // Explicit rollback / refund on acquisition failure
+                plugin.getLogger().warning("[DialogService] Failed to acquire pet " + petId + " for " + player.getName() + " after payment deduction. Executing refund.");
+                if ("MONEY".equalsIgnoreCase(type)) {
+                    plugin.getCurrencyManager().depositMoney(player, cost);
+                } else if ("POINTS".equalsIgnoreCase(type)) {
+                    plugin.getCurrencyManager().givePoints(player, (int) cost);
+                } else {
+                    String matName = plugin.getConfig().getString("pets." + petId + ".material", "DIAMOND");
+                    if (plugin.getItemHookManager() != null) {
+                        ItemStack refundItem = plugin.getItemHookManager().getItem(matName, org.bukkit.Material.DIAMOND);
+                        refundItem.setAmount((int) cost);
+                        player.getInventory().addItem(refundItem);
+                    }
+                }
+                player.sendMessage(lang.getMessageOrDefault("shop.purchase_failed_refunded", "&cKhông thể tiếp nhận Thú cưng vào kho! Đã hoàn trả lại chi phí giao dịch."));
+                return false;
+            }
+
             plugin.getCodexManager().discover(player.getUniqueId(), petId);
             player.sendMessage(lang.getMessage("pet.buy_success", "%pet_name%", lang.getPetName(petId)));
             player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
             return true;
+        } finally {
+            inProgressPurchases.remove(player.getUniqueId());
         }
-        return false;
     }
 
     public boolean processHatchConfirm(Player player, String eggId) {

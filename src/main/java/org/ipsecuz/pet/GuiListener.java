@@ -766,17 +766,23 @@ public class GuiListener implements Listener {
         ConfigManager cm = plugin.getConfigManager();
         LanguageManager lang = plugin.getLanguage();
 
-        ConfigurationSection sec = plugin.getConfig().getConfigurationSection("pets");
-        if (sec == null) return;
-
-        List<String> allKeys = new ArrayList<>();
-        for (String k : sec.getKeys(false)) {
-            boolean enabled = plugin.getConfig().getBoolean("pets." + k + ".enabled", true);
-            boolean visibleInShop = plugin.getConfig().getBoolean("pets." + k + ".visible_in_shop", true);
-            if (enabled && visibleInShop) {
-                allKeys.add(k);
+        List<String> allKeys = plugin.getDialogService().getShopEligiblePets(p);
+        if (allKeys.isEmpty()) {
+            ShopMenuHolder holder = new ShopMenuHolder(1);
+            String rawTitle = lang.getMessage("gui.shop_title");
+            Inventory inv = Bukkit.createInventory(holder, 27, GuiText.title(rawTitle));
+            holder.setInventory(inv);
+            ItemStack emptyItem = new ItemStack(Material.BARRIER);
+            ItemMeta meta = emptyItem.getItemMeta();
+            if (meta != null) {
+                meta.displayName(GuiText.component(lang.getMessageOrDefault("dialog.shop_empty", "&7Hiện tại không có thú cưng nào được bày bán trong cửa hàng.")));
+                emptyItem.setItemMeta(meta);
             }
+            inv.setItem(13, emptyItem);
+            p.openInventory(inv);
+            return;
         }
+
         int pageSize = 45;
         int totalPages = Math.max(1, (int) Math.ceil((double) allKeys.size() / pageSize));
         int curPage = Math.max(1, Math.min(page, totalPages));

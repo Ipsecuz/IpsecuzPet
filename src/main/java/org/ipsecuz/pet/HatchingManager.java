@@ -36,11 +36,17 @@ public class HatchingManager {
 
     public static class RouletteHolder implements InventoryHolder {
         private Inventory inventory;
+        private final String transactionId;
         private final String eggId;
         private final String winningPetId;
         private boolean finished = false;
 
         public RouletteHolder(String eggId, String winningPetId) {
+            this(null, eggId, winningPetId);
+        }
+
+        public RouletteHolder(String transactionId, String eggId, String winningPetId) {
+            this.transactionId = transactionId;
             this.eggId = eggId;
             this.winningPetId = winningPetId;
         }
@@ -48,6 +54,7 @@ public class HatchingManager {
         @Override
         public Inventory getInventory() { return inventory; }
         public void setInventory(Inventory inventory) { this.inventory = inventory; }
+        public String getTransactionId() { return transactionId; }
         public String getEggId() { return eggId; }
         public String getWinningPetId() { return winningPetId; }
         public boolean isFinished() { return finished; }
@@ -120,6 +127,13 @@ public class HatchingManager {
             this.state = HatchState.COMPLETED;
             this.rewardGranted = true;
             return true;
+        }
+
+        public boolean isRecoverable() {
+            if (this.state == HatchState.COMPLETED) return false;
+            return this.paymentCommitted || this.state == HatchState.PAYMENT_PROCESSING
+                    || this.state == HatchState.PAID || this.state == HatchState.PROCESSING
+                    || this.state == HatchState.RECOVERABLE;
         }
     }
 
@@ -545,6 +559,15 @@ public class HatchingManager {
             return;
         }
 
+        // 2.5 Kiểm tra phiên ấp trứng chưa hoàn tất (anti-concurrency)
+        PendingHatchSession existing = pendingHatchSessions.get(player.getUniqueId());
+        if (existing != null && existing.getState() != HatchState.FAILED && existing.getState() != HatchState.COMPLETED) {
+            String msg = lang != null ? lang.getMessage("hatching.already_in_progress") : null;
+            player.sendMessage(msg != null ? msg : "§cBạn đang có một phiên ấp trứng chưa hoàn tất! Vui lòng chờ phiên hiện tại kết thúc.");
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+            return;
+        }
+
         // 3. Ghi nhận giao dịch CREATED bền vững
         String txId = UUID.randomUUID().toString();
         PendingHatchSession session = new PendingHatchSession(player.getUniqueId(), txId, eggId, winningPetId, HatchState.CREATED, System.currentTimeMillis(), PendingHatchSession.CURRENT_SCHEMA, false, false);
@@ -572,10 +595,10 @@ public class HatchingManager {
         persistPendingSession(session);
 
         // 6. Bắt đầu vòng quay Roulette với phiên theo dõi an toàn
-        startGachaRoulette(player, eggId, eggSec, candidatePetIds, winningPetId);
+        startGachaRoulette(player, session.getTransactionId(), eggId, eggSec, candidatePetIds, winningPetId);
     }
 
-    private void startGachaRoulette(Player player, String eggId, ConfigurationSection eggSec, List<String> candidatePetIds, String winningPetId) {
+    private void startGachaRoulette(Player player, String transactionId, String eggId, ConfigurationSection eggSec, List<String> candidatePetIds, String winningPetId) {
 
         int totalSteps = 36;
         int winningIndex = totalSteps + 4;
@@ -589,7 +612,7 @@ public class HatchingManager {
             }
         }
 
-        RouletteHolder holder = new RouletteHolder(eggId, winningPetId);
+        RouletteHolder holder = new RouletteHolder(transactionId, eggId, winningPetId);
         String eggName = eggSec.getString("name", "Trứng Pet");
         Inventory inv = Bukkit.createInventory(holder, 27, LegacyComponentSerializer.legacySection().deserialize(
                 ChatColor.translateAlternateColorCodes('&', "&0✦ Quay: " + eggName)));
@@ -604,7 +627,7 @@ public class HatchingManager {
         player.openInventory(inv);
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1f);
 
-        scheduleRouletteStep(player, inv, holder, rollingItems, 0, totalSteps, winningPetId);
+        scheduleRouletteStep(player, inv, holder, rollingItems, 0, totalSteps, transactionId, eggId, winningPetId);
     }
 
     public ItemStack createPetDisplayIcon(String petId, boolean isWinner) {
@@ -733,7 +756,7 @@ public class HatchingManager {
         }
     }
 
-    private void scheduleRouletteStep(Player player, Inventory inv, RouletteHolder holder, List<ItemStack> items, int currentStep, int totalSteps, String winningPetId) {
+    private void scheduleRouletteStep(Player player, Inventory inv, RouletteHolder holder, List<ItemStack> items, int currentStep, int totalSteps, String transactionId, String eggId, String winningPetId) {
         // 5 Giai đoạn giảm tốc độ tự nhiên (Natural Deceleration Curve)
         long delayTicks;
         Sound tickSound = Sound.BLOCK_NOTE_BLOCK_PLING;
@@ -769,7 +792,7 @@ public class HatchingManager {
             if (!player.isOnline()) {
                 if (!holder.isFinished()) {
                     holder.setFinished(true);
-                    completeHatchReward(player, winningPetId, false);
+                    completeHatchReward(player, transactionId, eggId, winningPetId, false);
                 }
                 return;
             }
@@ -786,26 +809,26 @@ public class HatchingManager {
             }
 
             if (step < totalSteps) {
-                scheduleRouletteStep(player, inv, holder, items, step, totalSteps, winningPetId);
+                scheduleRouletteStep(player, inv, holder, items, step, totalSteps, transactionId, eggId, winningPetId);
             } else {
                 holder.setFinished(true);
                 if (isGuiOpen) {
-                    finishRoulette(player, inv, winningPetId);
+                    finishRoulette(player, inv, transactionId, eggId, winningPetId);
                 } else {
-                    completeHatchReward(player, winningPetId, true);
+                    completeHatchReward(player, transactionId, eggId, winningPetId, true);
                 }
             }
         }, delayTicks);
     }
 
-    private void finishRoulette(Player player, Inventory inv, String winningPetId) {
+    private void finishRoulette(Player player, Inventory inv, String transactionId, String eggId, String winningPetId) {
         ItemStack winGlass = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
         ItemMeta wgMeta = winGlass.getItemMeta();
         if (wgMeta != null) { wgMeta.displayName(Component.text(" ")); winGlass.setItemMeta(wgMeta); }
         inv.setItem(12, winGlass);
         inv.setItem(14, winGlass);
 
-        completeHatchReward(player, winningPetId, true);
+        completeHatchReward(player, transactionId, eggId, winningPetId, true);
 
         SchedulerUtils.runEntityTaskLater(plugin, player, () -> {
             if (player.getOpenInventory().getTopInventory().getHolder() instanceof RouletteHolder) {
@@ -816,16 +839,25 @@ public class HatchingManager {
 
     public void completeHatchReward(Player player, String winningPetId, boolean showTitleAndEffects) {
         if (player == null) return;
-        completeHatchReward(player.getUniqueId(), winningPetId, showTitleAndEffects);
+        completeHatchReward(player.getUniqueId(), null, null, winningPetId, showTitleAndEffects);
     }
 
     public void completeHatchReward(UUID playerUuid, String winningPetId, boolean showTitleAndEffects) {
+        completeHatchReward(playerUuid, null, null, winningPetId, showTitleAndEffects);
+    }
+
+    public void completeHatchReward(Player player, String transactionId, String eggId, String winningPetId, boolean showTitleAndEffects) {
+        if (player == null) return;
+        completeHatchReward(player.getUniqueId(), transactionId, eggId, winningPetId, showTitleAndEffects);
+    }
+
+    public void completeHatchReward(UUID playerUuid, String transactionId, String eggId, String winningPetId, boolean showTitleAndEffects) {
         PendingHatchSession session = pendingHatchSessions.get(playerUuid);
         if (session == null) {
             String path = "pending_hatch." + playerUuid;
             if (plugin.getConfigManager().getData().contains(path)) {
                 String txId = plugin.getConfigManager().getData().getString(path + ".transaction_id");
-                String eggId = plugin.getConfigManager().getData().getString(path + ".egg_id");
+                String eId = plugin.getConfigManager().getData().getString(path + ".egg_id");
                 String winPet = plugin.getConfigManager().getData().getString(path + ".winning_pet_id");
                 String stStr = plugin.getConfigManager().getData().getString(path + ".state");
                 int schema = plugin.getConfigManager().getData().getInt(path + ".schema_version", 1);
@@ -834,7 +866,7 @@ public class HatchingManager {
                 long time = plugin.getConfigManager().getData().getLong(path + ".timestamp", 0L);
 
                 // Strict validation: Reject malformed or incomplete records from reconstructing
-                if (eggId != null && plugin.getModuleManager().getHatchingConfig().contains("eggs." + eggId)
+                if (eId != null && plugin.getModuleManager().getHatchingConfig().contains("eggs." + eId)
                         && winPet != null && plugin.getConfig().contains("pets." + winPet)
                         && schema > 0 && schema <= PendingHatchSession.CURRENT_SCHEMA
                         && time > 0 && time <= System.currentTimeMillis() + 60_000L
@@ -843,7 +875,7 @@ public class HatchingManager {
                     try {
                         if (stStr != null) st = HatchState.valueOf(stStr);
                     } catch (Exception ignored) {}
-                    session = new PendingHatchSession(playerUuid, txId, eggId, winPet, st, time, schema, paid, rewarded);
+                    session = new PendingHatchSession(playerUuid, txId, eId, winPet, st, time, schema, paid, rewarded);
                     pendingHatchSessions.put(playerUuid, session);
                 } else {
                     plugin.getLogger().warning("[Hatching] Incomplete or unverified pending transaction for " + playerUuid + ". Refusing to grant unverified reward.");
@@ -855,6 +887,26 @@ public class HatchingManager {
         if (session == null) {
             return;
         }
+
+        // Strict transaction validation
+        if (transactionId != null && !transactionId.equals(session.getTransactionId())) {
+            plugin.getLogger().warning("[Hatching] Transaction ID mismatch for " + playerUuid + ": expected " + session.getTransactionId() + " but got " + transactionId + ". Ignoring stale callback.");
+            return;
+        }
+
+        // Strict egg ID validation
+        if (eggId != null && !eggId.equals(session.getEggId())) {
+            plugin.getLogger().warning("[Hatching] Egg ID mismatch for " + playerUuid + ": expected " + session.getEggId() + " but got " + eggId + ". Ignoring stale callback.");
+            return;
+        }
+
+        // Strict winning pet ID validation against authoritative session winner
+        if (winningPetId != null && !winningPetId.equals(session.getWinningPetId())) {
+            plugin.getLogger().warning("[Hatching] Winning pet ID mismatch for " + playerUuid + ": authoritative winner is " + session.getWinningPetId() + " but callback provided " + winningPetId + ". Ignoring callback mismatch.");
+            return;
+        }
+
+        final String authoritativePetId = session.getWinningPetId();
 
         // Must have confirmed payment
         if (!session.isPaymentCommitted() && session.getState() != HatchState.PAID && session.getState() != HatchState.PROCESSING) {
@@ -873,27 +925,27 @@ public class HatchingManager {
 
         LanguageManager lang = plugin.getLanguage();
         Player player = Bukkit.getPlayer(playerUuid);
-        String petDisplayName = plugin.getConfig().getString("pets." + winningPetId + ".name", winningPetId);
-        PetRarity rarity = PetRarity.fromPetId(plugin, winningPetId);
+        String petDisplayName = plugin.getConfig().getString("pets." + authoritativePetId + ".name", authoritativePetId);
+        PetRarity rarity = PetRarity.fromPetId(plugin, authoritativePetId);
         PetTrait rolledTrait = null;
         boolean isDuplicateReward = false;
         boolean isStorageFullReward = false;
 
         // 1. TẠO DỮ LIỆU PHẦN THƯỞNG (Pet mới hoặc quy đổi Shards)
-        if (plugin.getConfigManager().getData().contains(playerUuid + ".pets." + winningPetId)) {
+        if (plugin.getConfigManager().getData().contains(playerUuid + ".pets." + authoritativePetId)) {
             // ĐÃ SỞ HỮU TRƯỚC ĐÓ -> CHUYỂN ĐỔI THÀNH MẢNH SHARDS & EXP
             isDuplicateReward = true;
-            plugin.getShardManager().processDuplicateReward(playerUuid, winningPetId);
+            plugin.getShardManager().processDuplicateReward(playerUuid, authoritativePetId);
         } else if (!plugin.getOwnershipManager().canAcquirePet(playerUuid)) {
             // ĐÃ ĐẦY KHO PET TẠI THỜI ĐIỂM COMMIT -> CHUYỂN ĐỔI AN TOÀN SANG MẢNH SHARDS & EXP
             isStorageFullReward = true;
-            plugin.getShardManager().processDuplicateReward(playerUuid, winningPetId);
+            plugin.getShardManager().processDuplicateReward(playerUuid, authoritativePetId);
         } else {
             // PET MỚI -> TẠO DỮ LIỆU, ROLL TRAIT VÀ LƯU CODEX
-            plugin.getConfigManager().createPetDataIfMissing(playerUuid, winningPetId);
+            plugin.getConfigManager().createPetDataIfMissing(playerUuid, authoritativePetId);
             rolledTrait = PetTrait.rollRandomTrait();
-            plugin.getConfigManager().getData().set(playerUuid + ".pets." + winningPetId + ".trait", rolledTrait.name());
-            plugin.getCodexManager().discover(playerUuid, winningPetId);
+            plugin.getConfigManager().getData().set(playerUuid + ".pets." + authoritativePetId + ".trait", rolledTrait.name());
+            plugin.getCodexManager().discover(playerUuid, authoritativePetId);
         }
 
         // 2. MARK COMMITTED VÀ PERSIST COMPLETED TRANSACTION STATE TRƯỚC KHI XÓA
@@ -1021,6 +1073,115 @@ public class HatchingManager {
                 Title.Times.times(Duration.ofMillis(200), Duration.ofMillis(3000), Duration.ofMillis(600))
             );
             player.showTitle(title);
+        }
+    }
+
+    public Map<UUID, PendingHatchSession> getPendingHatchSessions() {
+        return Collections.unmodifiableMap(pendingHatchSessions);
+    }
+
+    public List<PendingHatchSession> getAllPendingSessions() {
+        Map<UUID, PendingHatchSession> map = new LinkedHashMap<>(pendingHatchSessions);
+        var sec = plugin.getConfigManager().getData().getConfigurationSection("pending_hatch");
+        if (sec != null) {
+            for (String key : sec.getKeys(false)) {
+                try {
+                    UUID u = UUID.fromString(key);
+                    if (!map.containsKey(u)) {
+                        String txId = sec.getString(key + ".transaction_id");
+                        String eggId = sec.getString(key + ".egg_id");
+                        String winPet = sec.getString(key + ".winning_pet_id");
+                        String stStr = sec.getString(key + ".state", "CREATED");
+                        long time = sec.getLong(key + ".timestamp", System.currentTimeMillis());
+                        int schema = sec.getInt(key + ".schema_version", 1);
+                        boolean paid = sec.getBoolean(key + ".payment_committed", false);
+                        boolean rewarded = sec.getBoolean(key + ".reward_granted", false);
+                        HatchState st = HatchState.CREATED;
+                        try {
+                            if (stStr != null) st = HatchState.valueOf(stStr);
+                        } catch (Exception ignored) {}
+                        PendingHatchSession s = new PendingHatchSession(u, txId, eggId, winPet, st, time, schema, paid, rewarded);
+                        map.put(u, s);
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+        return new ArrayList<>(map.values());
+    }
+
+    public PendingHatchSession findPendingSessionByTxId(String txId) {
+        if (txId == null) return null;
+        for (PendingHatchSession s : pendingHatchSessions.values()) {
+            if (txId.equalsIgnoreCase(s.getTransactionId())) {
+                return s;
+            }
+        }
+        // Also check persisted pending transactions if not currently in-memory map
+        var sec = plugin.getConfigManager().getData().getConfigurationSection("pending_hatch");
+        if (sec != null) {
+            for (String key : sec.getKeys(false)) {
+                String storedTx = sec.getString(key + ".transaction_id");
+                if (txId.equalsIgnoreCase(storedTx)) {
+                    try {
+                        UUID u = UUID.fromString(key);
+                        String eggId = sec.getString(key + ".egg_id");
+                        String winPet = sec.getString(key + ".winning_pet_id");
+                        String stStr = sec.getString(key + ".state", "CREATED");
+                        long time = sec.getLong(key + ".timestamp", System.currentTimeMillis());
+                        int schema = sec.getInt(key + ".schema_version", 1);
+                        boolean paid = sec.getBoolean(key + ".payment_committed", false);
+                        boolean rewarded = sec.getBoolean(key + ".reward_granted", false);
+                        HatchState st = HatchState.valueOf(stStr);
+                        PendingHatchSession s = new PendingHatchSession(u, storedTx, eggId, winPet, st, time, schema, paid, rewarded);
+                        pendingHatchSessions.put(u, s);
+                        return s;
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+        return null;
+    }
+
+    public boolean resolvePendingTransaction(String txId, String action, String adminName) {
+        PendingHatchSession session = findPendingSessionByTxId(txId);
+        if (session == null) {
+            return false;
+        }
+        LanguageManager lang = plugin.getLanguage();
+        String act = (action != null) ? action.toLowerCase() : "";
+        switch (act) {
+            case "grant" -> {
+                session.setPaymentCommitted(true);
+                session.setState(HatchState.PAID);
+                completeHatchReward(session.getPlayerUuid(), session.getTransactionId(), session.getEggId(), session.getWinningPetId(), false);
+                plugin.getLogger().info("[Hatching] Admin " + adminName + " forcefully granted hatch reward for tx: " + txId);
+                return true;
+            }
+            case "refund" -> {
+                Player p = Bukkit.getPlayer(session.getPlayerUuid());
+                if (p != null && p.isOnline()) {
+                    FileConfiguration hConfig = plugin.getModuleManager().getHatchingConfig();
+                    ConfigurationSection eggSec = hConfig.getConfigurationSection("eggs." + session.getEggId());
+                    if (eggSec != null && !eggSec.getBoolean("free", false)) {
+                        p.sendMessage(lang != null ? lang.getMessageOrDefault("hatching.refund_issued", "§e[IpsecuzPet] Giao dịch ấp trứng %tx_id% đã được hoàn tất thủ tục hoàn tiền bởi Quản trị viên.", "%tx_id%", txId) : "§e[IpsecuzPet] Giao dịch ấp trứng đã được hoàn lại.");
+                    }
+                }
+                session.setState(HatchState.FAILED);
+                pendingHatchSessions.remove(session.getPlayerUuid());
+                removePersistedPendingSession(session.getPlayerUuid());
+                plugin.getLogger().info("[Hatching] Admin " + adminName + " marked tx " + txId + " as refunded/failed and cleared session.");
+                return true;
+            }
+            case "discard" -> {
+                session.setState(HatchState.FAILED);
+                pendingHatchSessions.remove(session.getPlayerUuid());
+                removePersistedPendingSession(session.getPlayerUuid());
+                plugin.getLogger().info("[Hatching] Admin " + adminName + " discarded ambiguous tx " + txId);
+                return true;
+            }
+            default -> {
+                return false;
+            }
         }
     }
 }

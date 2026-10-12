@@ -475,7 +475,8 @@ public class NativeDialogProvider implements DialogProvider {
         int exp = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".exp", 0);
         int stars = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".stars", 1);
         int happy = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".happiness", 100);
-        String trait = plugin.getConfigManager().getData().getString(player.getUniqueId() + ".pets." + petId + ".trait", "NORMAL");
+        String trait = plugin.getConfigManager().getData().getString(player.getUniqueId() + ".pets." + petId + ".trait", "NONE");
+        String traitLocalized = PetTrait.fromString(trait).getLocalizedName(plugin);
 
         double dmg = PetStatEngine.calculateStatPreview(plugin, petId, lvl, stars, "damage");
         double hp = PetStatEngine.calculateStatPreview(plugin, petId, lvl, stars, "health");
@@ -488,7 +489,7 @@ public class NativeDialogProvider implements DialogProvider {
         List<Component> body = new ArrayList<>();
         body.add(GuiText.component("&a&l" + name + " &8[" + petId + "]"));
         body.add(GuiText.component("&e" + lang.getMessage("gui.lore_level") + ": &fLv." + lvl + " &8(EXP: " + exp + ") &7| &6" + lang.getMessage("gui.lore_stars") + ": &f" + stars + " ⭐"));
-        body.add(GuiText.component("&c" + lang.getMessage("gui.lore_happiness") + ": &f" + happy + "% &7| &b" + lang.getMessage("gui.lore_trait") + ": &f" + trait));
+        body.add(GuiText.component("&c" + lang.getMessage("gui.lore_happiness") + ": &f" + happy + "% &7| &b" + lang.getMessage("gui.lore_trait") + ": &f" + traitLocalized));
         body.add(GuiText.component("&c⚔ " + lang.getMessageOrDefault("gui.lore_damage", "Sát thương") + ": &f" + String.format("%.1f", dmg) + " &7| &a❤ " + lang.getMessageOrDefault("gui.lore_health", "Máu") + ": &f" + String.format("%.1f", hp)));
         body.add(GuiText.component("&9🛡 " + lang.getMessageOrDefault("gui.lore_defense", "Giáp") + ": &f" + String.format("%.1f", def) + " &7| &e⚡ " + lang.getMessageOrDefault("gui.lore_speed", "Tốc độ") + ": &f" + String.format("%.2f", spd)));
 
@@ -514,7 +515,7 @@ public class NativeDialogProvider implements DialogProvider {
         buttons.add(new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_evolution", "&6⭐ Tiến Hóa Sao")), null, 140, (p, resp) -> openEvolutionDialog(p, session, petId)));
         buttons.add(new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_feed", "&e🍖 Cho Ăn")), null, 140, (p, resp) -> {
             ItemStack hand = p.getInventory().getItemInMainHand();
-            plugin.getFeedingManager().feedPet(p, hand);
+            plugin.getFeedingManager().feedPet(p, petId, hand);
             openPetDetails(p, session, petId);
         }));
 
@@ -561,19 +562,34 @@ public class NativeDialogProvider implements DialogProvider {
         if (petId == null) return false;
         LanguageManager lang = plugin.getLanguage();
 
+        int curLevel = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".level", 1);
         int curStars = plugin.getConfigManager().getData().getInt(player.getUniqueId() + ".pets." + petId + ".stars", 1);
         int nextStars = Math.min(5, curStars + 1);
 
-        double curDmg = PetStatEngine.calculateStatPreview(plugin, petId, 1, curStars, "damage");
-        double nextDmg = PetStatEngine.calculateStatPreview(plugin, petId, 1, nextStars, "damage");
+        double curDmg = PetStatEngine.calculateStatPreview(plugin, petId, curLevel, curStars, "damage");
+        double nextDmg = PetStatEngine.calculateStatPreview(plugin, petId, curLevel, nextStars, "damage");
+        double curHp = PetStatEngine.calculateStatPreview(plugin, petId, curLevel, curStars, "health");
+        double nextHp = PetStatEngine.calculateStatPreview(plugin, petId, curLevel, nextStars, "health");
+        double curDef = PetStatEngine.calculateStatPreview(plugin, petId, curLevel, curStars, "defense");
+        double nextDef = PetStatEngine.calculateStatPreview(plugin, petId, curLevel, nextStars, "defense");
+        double curSpd = PetStatEngine.calculateStatPreview(plugin, petId, curLevel, curStars, "speed");
+        double nextSpd = PetStatEngine.calculateStatPreview(plugin, petId, curLevel, nextStars, "speed");
 
         List<Component> body = new ArrayList<>();
         body.add(GuiText.component("&7" + lang.getMessageOrDefault("dialog.evo_stars_desc", "Cấp sao: %current% ⭐ ➔ %next% ⭐", "%current%", String.valueOf(curStars), "%next%", String.valueOf(nextStars))));
-        body.add(GuiText.component("&7" + lang.getMessageOrDefault("dialog.evo_damage_desc", "Sát thương cơ bản: %current% ➔ %next%", "%current%", String.format("%.1f", curDmg), "%next%", String.format("%.1f", nextDmg))));
+        body.add(GuiText.component("&c⚔ " + lang.getMessageOrDefault("gui.lore_damage", "Sát thương") + ": &f" + String.format("%.1f", curDmg) + " &7➔ &a" + String.format("%.1f", nextDmg)));
+        body.add(GuiText.component("&a❤ " + lang.getMessageOrDefault("gui.lore_health", "Máu") + ": &f" + String.format("%.1f", curHp) + " &7➔ &a" + String.format("%.1f", nextHp)));
+        body.add(GuiText.component("&9🛡 " + lang.getMessageOrDefault("gui.lore_defense", "Giáp") + ": &f" + String.format("%.1f", curDef) + " &7➔ &a" + String.format("%.1f", nextDef)));
+        body.add(GuiText.component("&e⚡ " + lang.getMessageOrDefault("gui.lore_speed", "Tốc độ") + ": &f" + String.format("%.2f", curSpd) + " &7➔ &a" + String.format("%.2f", nextSpd)));
         body.add(GuiText.component("&e" + lang.getMessageOrDefault("dialog.evo_potential_note", "Tiến hóa sẽ gia tăng vĩnh viễn tiềm năng chiến đấu của Pet.")));
 
         List<NativeButton> buttons = new ArrayList<>();
         buttons.add(new NativeButton(GuiText.component(lang.getMessage("dialog.evo_confirm")), null, 140, (p, resp) -> {
+            if (session != null && !session.isValid()) {
+                p.sendMessage(lang.getMessage("general.no_permission"));
+                return;
+            }
+            if (session != null) session.markSubmitted();
             if (plugin.getDialogService().processEvolution(p, petId)) {
                 openPetDetails(p, session, petId);
             }
@@ -585,14 +601,15 @@ public class NativeDialogProvider implements DialogProvider {
 
     public boolean showDynamicShopBrowse(Player player, DialogSession session, int page) {
         LanguageManager lang = plugin.getLanguage();
-        var sec = plugin.getConfig().getConfigurationSection("pets");
-        List<String> petIds = new ArrayList<>();
-        if (sec != null) {
-            for (String key : sec.getKeys(false)) {
-                if (sec.getBoolean(key + ".buyable", true)) {
-                    petIds.add(key);
-                }
-            }
+        List<String> petIds = plugin.getDialogService().getShopEligiblePets(player);
+
+        if (petIds.isEmpty()) {
+            List<Component> body = new ArrayList<>();
+            body.add(GuiText.component("&e" + lang.getMessageOrDefault("dialog.shop_welcome", "Chào mừng bạn đến với Cửa Hàng Thú Cưng!")));
+            body.add(GuiText.component("&7" + lang.getMessageOrDefault("dialog.shop_empty", "Hiện tại không có thú cưng nào được bày bán trong cửa hàng.")));
+
+            NativeButton exitBtn = new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_hub", "&6🏠 Pet Hub")), null, 120, (p, resp) -> openPetHub(p, session));
+            return engine.showMultiAction(player, GuiText.title(lang.getMessageOrDefault("dialog.shop_title", "&8&lCỬA HÀNG THÚ CƯNG")), body, null, List.of(), exitBtn, 1);
         }
 
         int pageSize = 6;
@@ -648,6 +665,11 @@ public class NativeDialogProvider implements DialogProvider {
 
         List<NativeButton> buttons = new ArrayList<>();
         buttons.add(new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.shop_confirm_buy", "&a✓ MUA NGAY")), null, 140, (p, resp) -> {
+            if (session != null && !session.isValid()) {
+                p.sendMessage(lang.getMessage("general.no_permission"));
+                return;
+            }
+            if (session != null) session.markSubmitted();
             if (plugin.getDialogService().processShopPurchase(p, petId)) {
                 openShopBrowse(p, session, 1);
             }
@@ -729,6 +751,11 @@ public class NativeDialogProvider implements DialogProvider {
 
         List<NativeButton> buttons = new ArrayList<>();
         buttons.add(new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.hatch_confirm", "&a▶ QUAY NGAY")), null, 140, (p, resp) -> {
+            if (session != null && !session.isValid()) {
+                p.sendMessage(lang.getMessage("general.no_permission"));
+                return;
+            }
+            if (session != null) session.markSubmitted();
             plugin.getDialogService().processHatchConfirm(p, eggId);
         }));
 
@@ -807,7 +834,7 @@ public class NativeDialogProvider implements DialogProvider {
                 Boolean sVal = resp.getBoolean("sounds");
                 if (pVal != null) plugin.getPlayerSettingsManager().setParticlesEnabled(p.getUniqueId(), pVal);
                 if (sVal != null) plugin.getPlayerSettingsManager().setSoundsEnabled(p.getUniqueId(), sVal);
-                p.sendMessage(lang.getMessage("general.config_reloaded"));
+                p.sendMessage(lang.getMessageOrDefault("dialog.settings_saved", "&aĐã lưu thiết lập cá nhân thành công!"));
             }
             openPetHub(p, session);
         }));
@@ -940,14 +967,27 @@ public class NativeDialogProvider implements DialogProvider {
 
             buttons.add(new NativeButton(GuiText.component("&6" + name + " " + status), null, 180, (p, resp) -> {
                 if (amount >= req) {
-                    if (plugin.getOwnershipManager().canAcquirePet(p)) {
-                        plugin.getShardManager().takeShards(p.getUniqueId(), petId, req);
-                        plugin.getOwnershipManager().acquirePet(p, petId, 1, 0, 1, PetTrait.rollRandomTrait(), null);
+                    if (session != null && !session.isValid()) {
+                        p.sendMessage(lang.getMessage("general.no_permission"));
+                        return;
+                    }
+                    if (!plugin.getOwnershipManager().canAcquirePet(p)) {
+                        p.sendMessage(lang.getMessage("pet.limit_reached", "%max_pets%", String.valueOf(plugin.getOwnershipManager().getMaxOwnedPets(p))));
+                        return;
+                    }
+                    if (plugin.getShardManager().takeShards(p.getUniqueId(), petId, req)) {
+                        boolean acquired = plugin.getOwnershipManager().acquirePet(p, petId, 1, 0, 1, PetTrait.rollRandomTrait(), null);
+                        if (!acquired) {
+                            plugin.getShardManager().addShards(p.getUniqueId(), petId, req);
+                            p.sendMessage(lang.getMessageOrDefault("shards.craft_failed_refunded", "&cGhép thú cưng thất bại! Đã hoàn trả lại số mảnh."));
+                            return;
+                        }
+                        if (session != null) session.markSubmitted();
                         p.sendMessage(lang.getMessage("shards.craft_success", "%pet_name%", name));
                         p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
                         openShardsOverview(p, session);
                     } else {
-                        p.sendMessage(lang.getMessage("pet.limit_reached", "%max_pets%", String.valueOf(plugin.getOwnershipManager().getMaxOwnedPets(p))));
+                        p.sendMessage(lang.getMessage("shards.not_enough_shards", "%current%", String.valueOf(amount), "%required%", String.valueOf(req)));
                     }
                 } else {
                     p.sendMessage(lang.getMessage("shards.not_enough_shards", "%current%", String.valueOf(amount), "%required%", String.valueOf(req)));
