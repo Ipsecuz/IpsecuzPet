@@ -66,15 +66,34 @@ public class DialogService {
 
     public Map<String, String> getDiagnosticStatus(Player player) {
         Map<String, String> status = new java.util.LinkedHashMap<>();
+        DialogMode effMode = getEffectiveMode(player);
         status.put("configured_mode", plugin.getConfig().getString("ui.dialog.mode", "AUTO"));
-        status.put("effective_mode", getEffectiveMode(player).name());
+        status.put("effective_mode", effMode.name());
         status.put("server_version", org.bukkit.Bukkit.getName() + " " + org.bukkit.Bukkit.getVersion());
         status.put("bukkit_version", org.bukkit.Bukkit.getBukkitVersion());
+        status.put("server_api_supported", String.valueOf(nativeProvider.isServerSupported()));
+        int clientProto = nativeProvider.getClientProtocol(player);
+        status.put("client_protocol", clientProto != -1 ? String.valueOf(clientProto) : "Unknown (ViaVersion not present)");
+        status.put("client_protocol_supported", String.valueOf(nativeProvider.isClientSupported(player)));
         status.put("native_api_available", String.valueOf(nativeProvider.getEngine().isAvailable()));
         status.put("native_class_available", String.valueOf(nativeProvider.getEngine().isClassAvailable()));
         status.put("native_methods_available", String.valueOf(nativeProvider.getEngine().isMethodsAvailable()));
+        status.put("capabilities_summary", nativeProvider.getEngine().getCapabilitySummary());
         status.put("dialogwindow_bridge_available", String.valueOf(dialogWindowBridge.isAvailable()));
         status.put("selected_backend", getProviderFor(player).getClass().getSimpleName());
+
+        String rationale;
+        if (effMode == DialogMode.CHEST) {
+            rationale = "Forced CHEST mode by player/server configuration";
+        } else if (!nativeProvider.isServerSupported()) {
+            rationale = "Fallback CHEST GUI: Server lacks Paper 1.21.7+ Dialog API reflection bindings";
+        } else if (player != null && !nativeProvider.isClientSupported(player)) {
+            rationale = "Fallback CHEST GUI: Player client protocol (" + clientProto + ") is older than 771 (MC 1.21.6+)";
+        } else {
+            rationale = "Native Minecraft Dialog active: Server API bound and player client compatible (protocol >= 771)";
+        }
+        status.put("selection_rationale", rationale);
+
         status.put("init_status", nativeProvider.getEngine().getInitStatusMessage());
         String lastFail = nativeProvider.getEngine().getLastFailureReason();
         status.put("last_failure", lastFail != null ? lastFail : "None");

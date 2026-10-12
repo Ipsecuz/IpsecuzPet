@@ -111,6 +111,7 @@ public class LanguageManager {
                path.startsWith("card.") ||
                path.startsWith("gui.") ||
                path.startsWith("dialog.") ||
+               path.startsWith("requirement.") ||
                path.startsWith("help.") ||
                path.startsWith("model.") ||
                path.startsWith("stats.") ||

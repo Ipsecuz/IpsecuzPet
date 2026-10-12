@@ -67,32 +67,41 @@ public class HatchingManager {
     public static class PendingHatchSession {
         public static final int CURRENT_SCHEMA = 2;
         private final UUID playerUuid;
+        private final String transactionId;
         private final String eggId;
         private final String winningPetId;
         private volatile HatchState state;
         private final long timestamp;
         private final int schemaVersion;
-        private final boolean paymentCommitted;
+        private volatile boolean paymentCommitted;
+        private volatile boolean rewardGranted;
 
         public PendingHatchSession(UUID playerUuid, String eggId, String winningPetId) {
-            this(playerUuid, eggId, winningPetId, HatchState.CREATED, System.currentTimeMillis(), CURRENT_SCHEMA, false);
+            this(playerUuid, UUID.randomUUID().toString(), eggId, winningPetId, HatchState.CREATED, System.currentTimeMillis(), CURRENT_SCHEMA, false, false);
         }
 
         public PendingHatchSession(UUID playerUuid, String eggId, String winningPetId, HatchState state, long timestamp) {
-            this(playerUuid, eggId, winningPetId, state, timestamp, CURRENT_SCHEMA, state == HatchState.PAID || state == HatchState.PROCESSING || state == HatchState.COMPLETED);
+            this(playerUuid, UUID.randomUUID().toString(), eggId, winningPetId, state, timestamp, CURRENT_SCHEMA, state == HatchState.PAID || state == HatchState.PROCESSING || state == HatchState.COMPLETED, state == HatchState.COMPLETED);
         }
 
         public PendingHatchSession(UUID playerUuid, String eggId, String winningPetId, HatchState state, long timestamp, int schemaVersion, boolean paymentCommitted) {
+            this(playerUuid, UUID.randomUUID().toString(), eggId, winningPetId, state, timestamp, schemaVersion, paymentCommitted, state == HatchState.COMPLETED);
+        }
+
+        public PendingHatchSession(UUID playerUuid, String transactionId, String eggId, String winningPetId, HatchState state, long timestamp, int schemaVersion, boolean paymentCommitted, boolean rewardGranted) {
             this.playerUuid = playerUuid;
+            this.transactionId = transactionId != null ? transactionId : UUID.randomUUID().toString();
             this.eggId = eggId;
             this.winningPetId = winningPetId;
             this.state = state;
             this.timestamp = timestamp;
             this.schemaVersion = schemaVersion;
             this.paymentCommitted = paymentCommitted;
+            this.rewardGranted = rewardGranted;
         }
 
         public UUID getPlayerUuid() { return playerUuid; }
+        public String getTransactionId() { return transactionId; }
         public String getEggId() { return eggId; }
         public String getWinningPetId() { return winningPetId; }
         public HatchState getState() { return state; }
@@ -100,12 +109,16 @@ public class HatchingManager {
         public long getTimestamp() { return timestamp; }
         public int getSchemaVersion() { return schemaVersion; }
         public boolean isPaymentCommitted() { return paymentCommitted; }
+        public void setPaymentCommitted(boolean paymentCommitted) { this.paymentCommitted = paymentCommitted; }
+        public boolean isRewardGranted() { return rewardGranted; }
+        public void setRewardGranted(boolean rewardGranted) { this.rewardGranted = rewardGranted; }
 
         public synchronized boolean markCommitted() {
-            if (this.state == HatchState.COMPLETED) {
+            if (this.state == HatchState.COMPLETED || this.rewardGranted) {
                 return false;
             }
             this.state = HatchState.COMPLETED;
+            this.rewardGranted = true;
             return true;
         }
     }
@@ -169,28 +182,36 @@ public class HatchingManager {
             for (String key : new ArrayList<>(sec.getKeys(false))) {
                 try {
                     UUID u = UUID.fromString(key);
+                    String txId = sec.getString(key + ".transaction_id");
                     String eggId = sec.getString(key + ".egg_id");
                     String winPet = sec.getString(key + ".winning_pet_id");
                     String stStr = sec.getString(key + ".state", "CREATED");
                     long time = sec.getLong(key + ".timestamp", System.currentTimeMillis());
                     int schema = sec.getInt(key + ".schema_version", 1);
                     boolean paid = sec.getBoolean(key + ".payment_committed", false);
+                    boolean rewarded = sec.getBoolean(key + ".reward_granted", false);
+
+                    if (txId == null || txId.isEmpty()) {
+                        txId = UUID.randomUUID().toString();
+                    }
+
+                    if (schema <= 0 || schema > PendingHatchSession.CURRENT_SCHEMA) {
+                        plugin.getLogger().warning("[Hatching] Pending transaction for " + key + " has incompatible schema: " + schema + ". Preserving record without deleting.");
+                        continue;
+                    }
 
                     if (eggId == null || !plugin.getModuleManager().getHatchingConfig().contains("eggs." + eggId)) {
-                        plugin.getLogger().warning("[Hatching] Rejected pending hatch record with invalid eggId: " + eggId);
-                        sec.set(key, null);
+                        plugin.getLogger().warning("[Hatching] Pending transaction for " + key + " has invalid/missing eggId: '" + eggId + "'. Preserving record without deleting.");
                         continue;
                     }
 
                     if (winPet == null || !plugin.getConfig().contains("pets." + winPet)) {
-                        plugin.getLogger().warning("[Hatching] Rejected pending hatch record with invalid petId: " + winPet);
-                        sec.set(key, null);
+                        plugin.getLogger().warning("[Hatching] Pending transaction for " + key + " has invalid/missing petId: '" + winPet + "'. Preserving record without deleting.");
                         continue;
                     }
 
                     if (time <= 0 || time > System.currentTimeMillis() + 60_000L) {
-                        plugin.getLogger().warning("[Hatching] Rejected pending hatch record with invalid timestamp: " + time);
-                        sec.set(key, null);
+                        plugin.getLogger().warning("[Hatching] Pending transaction for " + key + " has invalid timestamp: " + time + ". Preserving record without deleting.");
                         continue;
                     }
 
@@ -198,15 +219,21 @@ public class HatchingManager {
                     try {
                         st = HatchState.valueOf(stStr);
                     } catch (IllegalArgumentException ex) {
-                        plugin.getLogger().warning("[Hatching] Rejected pending hatch record with unknown state: " + stStr);
-                        sec.set(key, null);
+                        plugin.getLogger().warning("[Hatching] Pending transaction for " + key + " has unknown state: '" + stStr + "'. Preserving record without deleting.");
                         continue;
                     }
 
-                    pendingHatchSessions.put(u, new PendingHatchSession(u, eggId, winPet, st, time, schema, paid));
+                    // Ambiguous external-provider payment status:
+                    // If crashed during PAYMENT_PROCESSING, payment may or may not have succeeded.
+                    if (st == HatchState.PAYMENT_PROCESSING) {
+                        st = HatchState.RECOVERABLE;
+                        plugin.getLogger().warning("[Hatching] Ambiguous transaction for " + key + " (state: PAYMENT_PROCESSING, tx: " + txId + "). Server may have stopped during payment. Preserving journal for recovery; will not auto-grant or auto-refund.");
+                    }
+
+                    PendingHatchSession session = new PendingHatchSession(u, txId, eggId, winPet, st, time, schema, paid, rewarded);
+                    pendingHatchSessions.put(u, session);
                 } catch (Exception ex) {
-                    plugin.getLogger().warning("[Hatching] Error loading pending session for key " + key + ": " + ex.getMessage());
-                    sec.set(key, null);
+                    plugin.getLogger().warning("[Hatching] Error loading pending transaction for key " + key + ": " + ex.getMessage());
                 }
             }
         }
@@ -215,12 +242,14 @@ public class HatchingManager {
     public void persistPendingSession(PendingHatchSession session) {
         if (session == null) return;
         String path = "pending_hatch." + session.getPlayerUuid();
+        plugin.getConfigManager().getData().set(path + ".transaction_id", session.getTransactionId());
         plugin.getConfigManager().getData().set(path + ".egg_id", session.getEggId());
         plugin.getConfigManager().getData().set(path + ".winning_pet_id", session.getWinningPetId());
         plugin.getConfigManager().getData().set(path + ".state", session.getState().name());
         plugin.getConfigManager().getData().set(path + ".timestamp", session.getTimestamp());
         plugin.getConfigManager().getData().set(path + ".schema_version", session.getSchemaVersion());
         plugin.getConfigManager().getData().set(path + ".payment_committed", session.isPaymentCommitted());
+        plugin.getConfigManager().getData().set(path + ".reward_granted", session.isRewardGranted());
         plugin.getConfigManager().forceSave();
     }
 
@@ -232,7 +261,7 @@ public class HatchingManager {
 
     public void recordPendingHatch(UUID uuid, String eggId, String winningPetId, HatchState state) {
         boolean paid = (state == HatchState.PAID || state == HatchState.PROCESSING || state == HatchState.COMPLETED);
-        PendingHatchSession session = new PendingHatchSession(uuid, eggId, winningPetId, state, System.currentTimeMillis(), PendingHatchSession.CURRENT_SCHEMA, paid);
+        PendingHatchSession session = new PendingHatchSession(uuid, UUID.randomUUID().toString(), eggId, winningPetId, state, System.currentTimeMillis(), PendingHatchSession.CURRENT_SCHEMA, paid, state == HatchState.COMPLETED);
         pendingHatchSessions.put(uuid, session);
         persistPendingSession(session);
     }
@@ -245,10 +274,33 @@ public class HatchingManager {
         if (player == null) return;
         PendingHatchSession session = pendingHatchSessions.get(player.getUniqueId());
         if (session != null) {
-            if (session.isPaymentCommitted() || session.getState() == HatchState.PAID || session.getState() == HatchState.PROCESSING || session.getState() == HatchState.RECOVERABLE) {
-                plugin.getLogger().info("§e[IpsecuzPet] Đang tự động trao thưởng ấp trứng đã thanh toán cho: " + player.getName());
+            LanguageManager lang = plugin.getLanguage();
+            // Case 1: Reward was already granted before crash, but pending state was not yet cleared
+            if (session.isRewardGranted() || session.getState() == HatchState.COMPLETED) {
+                pendingHatchSessions.remove(player.getUniqueId());
+                removePersistedPendingSession(player.getUniqueId());
+                return;
+            }
+
+            // Case 2: Definitely paid (payment committed) -> grant reward idempotently
+            if (session.isPaymentCommitted() && (session.getState() == HatchState.PAID || session.getState() == HatchState.PROCESSING)) {
+                plugin.getLogger().info("[Hatching] Auto-delivering paid hatch reward for: " + player.getName() + " (tx: " + session.getTransactionId() + ")");
                 completeHatchReward(player.getUniqueId(), session.getWinningPetId(), true);
-            } else {
+                return;
+            }
+
+            // Case 3: Ambiguous payment status (PAYMENT_PROCESSING or RECOVERABLE with uncommitted payment)
+            if (session.getState() == HatchState.PAYMENT_PROCESSING || session.getState() == HatchState.RECOVERABLE) {
+                plugin.getLogger().warning("[Hatching] Player " + player.getName() + " has an ambiguous hatch transaction (" + session.getTransactionId() + "). Payment status uncertain; preserving journal without auto-grant or auto-refund.");
+                if (lang != null) {
+                    String msg = lang.getMessage("hatching.ambiguous_join", "%tx_id%", session.getTransactionId());
+                    player.sendMessage(msg);
+                }
+                return;
+            }
+
+            // Case 4: Definitely unpaid (CREATED and not paymentCommitted) or FAILED
+            if (session.getState() == HatchState.CREATED || session.getState() == HatchState.FAILED) {
                 pendingHatchSessions.remove(player.getUniqueId());
                 removePersistedPendingSession(player.getUniqueId());
             }
@@ -261,11 +313,7 @@ public class HatchingManager {
 
     public void saveAllPendingTransactions() {
         for (PendingHatchSession s : pendingHatchSessions.values()) {
-            String path = "pending_hatch." + s.getPlayerUuid();
-            plugin.getConfigManager().getData().set(path + ".egg_id", s.getEggId());
-            plugin.getConfigManager().getData().set(path + ".winning_pet_id", s.getWinningPetId());
-            plugin.getConfigManager().getData().set(path + ".state", s.getState().name());
-            plugin.getConfigManager().getData().set(path + ".timestamp", s.getTimestamp());
+            persistPendingSession(s);
         }
         plugin.getConfigManager().forceSave();
     }
@@ -498,7 +546,8 @@ public class HatchingManager {
         }
 
         // 3. Ghi nhận giao dịch CREATED bền vững
-        PendingHatchSession session = new PendingHatchSession(player.getUniqueId(), eggId, winningPetId, HatchState.CREATED, System.currentTimeMillis(), PendingHatchSession.CURRENT_SCHEMA, false);
+        String txId = UUID.randomUUID().toString();
+        PendingHatchSession session = new PendingHatchSession(player.getUniqueId(), txId, eggId, winningPetId, HatchState.CREATED, System.currentTimeMillis(), PendingHatchSession.CURRENT_SCHEMA, false, false);
         pendingHatchSessions.put(player.getUniqueId(), session);
         persistPendingSession(session);
 
@@ -515,12 +564,12 @@ public class HatchingManager {
         }
 
         // 5. Nâng cấp trạng thái lên PAID (đã thanh toán bền vững) rồi PROCESSING
-        PendingHatchSession paidSession = new PendingHatchSession(player.getUniqueId(), eggId, winningPetId, HatchState.PAID, System.currentTimeMillis(), PendingHatchSession.CURRENT_SCHEMA, true);
-        pendingHatchSessions.put(player.getUniqueId(), paidSession);
-        persistPendingSession(paidSession);
+        session.setState(HatchState.PAID);
+        session.setPaymentCommitted(true);
+        persistPendingSession(session);
 
-        paidSession.setState(HatchState.PROCESSING);
-        persistPendingSession(paidSession);
+        session.setState(HatchState.PROCESSING);
+        persistPendingSession(session);
 
         // 6. Bắt đầu vòng quay Roulette với phiên theo dõi an toàn
         startGachaRoulette(player, eggId, eggSec, candidatePetIds, winningPetId);
@@ -775,17 +824,52 @@ public class HatchingManager {
         if (session == null) {
             String path = "pending_hatch." + playerUuid;
             if (plugin.getConfigManager().getData().contains(path)) {
+                String txId = plugin.getConfigManager().getData().getString(path + ".transaction_id");
                 String eggId = plugin.getConfigManager().getData().getString(path + ".egg_id");
                 String winPet = plugin.getConfigManager().getData().getString(path + ".winning_pet_id");
-                session = new PendingHatchSession(playerUuid, eggId, winPet != null ? winPet : winningPetId);
-                pendingHatchSessions.put(playerUuid, session);
+                String stStr = plugin.getConfigManager().getData().getString(path + ".state");
+                int schema = plugin.getConfigManager().getData().getInt(path + ".schema_version", 1);
+                boolean paid = plugin.getConfigManager().getData().getBoolean(path + ".payment_committed", false);
+                boolean rewarded = plugin.getConfigManager().getData().getBoolean(path + ".reward_granted", false);
+                long time = plugin.getConfigManager().getData().getLong(path + ".timestamp", 0L);
+
+                // Strict validation: Reject malformed or incomplete records from reconstructing
+                if (eggId != null && plugin.getModuleManager().getHatchingConfig().contains("eggs." + eggId)
+                        && winPet != null && plugin.getConfig().contains("pets." + winPet)
+                        && schema > 0 && schema <= PendingHatchSession.CURRENT_SCHEMA
+                        && time > 0 && time <= System.currentTimeMillis() + 60_000L
+                        && paid) {
+                    HatchState st = HatchState.PAID;
+                    try {
+                        if (stStr != null) st = HatchState.valueOf(stStr);
+                    } catch (Exception ignored) {}
+                    session = new PendingHatchSession(playerUuid, txId, eggId, winPet, st, time, schema, paid, rewarded);
+                    pendingHatchSessions.put(playerUuid, session);
+                } else {
+                    plugin.getLogger().warning("[Hatching] Incomplete or unverified pending transaction for " + playerUuid + ". Refusing to grant unverified reward.");
+                    return;
+                }
             }
         }
 
-        // Strict verification: Reject reward if session is null or already committed/completed!
-        if (session == null || !session.markCommitted()) {
+        if (session == null) {
             return;
         }
+
+        // Must have confirmed payment
+        if (!session.isPaymentCommitted() && session.getState() != HatchState.PAID && session.getState() != HatchState.PROCESSING) {
+            plugin.getLogger().warning("[Hatching] Refusing to grant reward without confirmed payment: " + playerUuid);
+            return;
+        }
+
+        // Idempotency: Reject repeated callback / second reward
+        if (session.isRewardGranted() || session.getState() == HatchState.COMPLETED) {
+            return;
+        }
+
+        // Transition: PAID -> PROCESSING
+        session.setState(HatchState.PROCESSING);
+        persistPendingSession(session);
 
         LanguageManager lang = plugin.getLanguage();
         Player player = Bukkit.getPlayer(playerUuid);
@@ -795,7 +879,7 @@ public class HatchingManager {
         boolean isDuplicateReward = false;
         boolean isStorageFullReward = false;
 
-        // 1. TẠO DỮ LIỆU PHẦN THƯỞNG (Pet mới hoặc quy đổi Shards) TRƯỚC KHI XÓA TRANSACTION
+        // 1. TẠO DỮ LIỆU PHẦN THƯỞNG (Pet mới hoặc quy đổi Shards)
         if (plugin.getConfigManager().getData().contains(playerUuid + ".pets." + winningPetId)) {
             // ĐÃ SỞ HỮU TRƯỚC ĐÓ -> CHUYỂN ĐỔI THÀNH MẢNH SHARDS & EXP
             isDuplicateReward = true;
@@ -812,11 +896,14 @@ public class HatchingManager {
             plugin.getCodexManager().discover(playerUuid, winningPetId);
         }
 
-        // 2. DỌN DẸP TRANSACTION CHỈ SAU KHI DỮ LIỆU PHẦN THƯỞNG ĐÃ ĐƯỢC THIẾT LẬP
-        pendingHatchSessions.remove(playerUuid);
-        plugin.getConfigManager().getData().set("pending_hatch." + playerUuid, null);
+        // 2. MARK COMMITTED VÀ PERSIST COMPLETED TRANSACTION STATE TRƯỚC KHI XÓA
+        session.markCommitted();
+        persistPendingSession(session);
+        plugin.getConfigManager().forceSave();
 
-        // 3. CAM KẾT BỀN VỮNG XUỐNG ĐĨA CẢ PHẦN THƯỞNG VÀ VIỆC XÓA TRANSACTION TRONG 1 LẦN LƯU
+        // 3. XÓA PENDING STATE SAU KHI PHẦN THƯỞNG ĐÃ BỀN VỮNG VÀ GIAO DỊCH ĐÃ COMPLETED
+        pendingHatchSessions.remove(playerUuid);
+        removePersistedPendingSession(playerUuid);
         plugin.getConfigManager().forceSave();
 
         // 4. GỬI THÔNG BÁO VÀ THÔNG ĐIỆP SAU KHI PERSISTENCE ĐÃ ĐẢM BẢO 100%

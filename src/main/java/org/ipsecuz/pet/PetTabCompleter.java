@@ -22,7 +22,7 @@ public class PetTabCompleter implements TabCompleter {
         List<String> results = new ArrayList<>();
 
         // 1. Bí danh trực tiếp: /givepet <player> <pet_id>
-        if (label.equalsIgnoreCase("givepet")) {
+        if (label.equalsIgnoreCase("givepet") || label.toLowerCase().endsWith(":givepet")) {
             if (!sender.hasPermission("ipsecuzpet.admin")) return results;
             if (args.length == 1) {
                 for (Player p : plugin.getServer().getOnlinePlayers()) {
@@ -46,7 +46,7 @@ public class PetTabCompleter implements TabCompleter {
         }
 
         // 2. Bí danh trực tiếp: /pethatch (không có đối số con)
-        if (label.equalsIgnoreCase("pethatch")) {
+        if (label.equalsIgnoreCase("pethatch") || label.toLowerCase().endsWith(":pethatch")) {
             return results;
         }
 

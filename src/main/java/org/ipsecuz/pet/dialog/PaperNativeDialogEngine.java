@@ -52,8 +52,10 @@ public class PaperNativeDialogEngine {
     private Method dialogTypeMultiActionWithExitMethod;
     private Method dialogInputTextMethod;
     private Method dialogInputBoolMethod;
+    private Method dialogInputRangeMethod;
     private Method showDialogMethod;
     private Object defaultClickOptions;
+    private final java.util.concurrent.ConcurrentHashMap<String, Long> logRateLimitMap = new java.util.concurrent.ConcurrentHashMap<>();
 
     public interface NativeDialogResponse {
         String getText(String key);
@@ -119,6 +121,14 @@ public class PaperNativeDialogEngine {
             try {
                 dialogInputBoolMethod = dialogInputClass.getMethod("bool", String.class, Component.class, boolean.class, String.class, String.class);
             } catch (NoSuchMethodException ignored) {}
+
+            try {
+                dialogInputRangeMethod = dialogInputClass.getMethod("range", String.class, Component.class, float.class, float.class, float.class);
+            } catch (NoSuchMethodException ignored) {
+                try {
+                    dialogInputRangeMethod = dialogInputClass.getMethod("numberRange", String.class, Component.class, float.class, float.class, float.class);
+                } catch (NoSuchMethodException ignored2) {}
+            }
 
             // Build default ClickCallback.Options
             try {
@@ -190,6 +200,71 @@ public class PaperNativeDialogEngine {
 
     public String getLastFailureReason() {
         return lastFailureReason;
+    }
+
+    public boolean hasNoticeCapability() {
+        return available && dialogTypeNoticeMethod != null && actionButtonClass != null && dialogBaseBuilderMethod != null && showDialogMethod != null;
+    }
+
+    public boolean hasConfirmationCapability() {
+        return available && dialogTypeConfirmationMethod != null && actionButtonClass != null && dialogBaseBuilderMethod != null && showDialogMethod != null;
+    }
+
+    public boolean hasMultiActionCapability() {
+        return available && (dialogTypeMultiActionWithExitMethod != null || dialogTypeMultiActionMethod != null) && actionButtonClass != null && dialogBaseBuilderMethod != null && showDialogMethod != null;
+    }
+
+    public boolean hasTextCapability() {
+        return available && dialogInputTextMethod != null;
+    }
+
+    public boolean hasBoolCapability() {
+        return available && dialogInputBoolMethod != null;
+    }
+
+    public boolean hasRangeCapability() {
+        return available && dialogInputRangeMethod != null;
+    }
+
+    public boolean hasShowDialogCapability() {
+        return showDialogMethod != null;
+    }
+
+    public boolean hasResponseExtractionCapability() {
+        return dialogResponseViewClass != null;
+    }
+
+    public java.util.Map<String, Boolean> auditCapabilities() {
+        java.util.Map<String, Boolean> caps = new java.util.LinkedHashMap<>();
+        caps.put("Notice", hasNoticeCapability());
+        caps.put("Confirmation", hasConfirmationCapability());
+        caps.put("MultiAction", hasMultiActionCapability());
+        caps.put("TextInput", hasTextCapability());
+        caps.put("BoolInput", hasBoolCapability());
+        caps.put("RangeInput", hasRangeCapability());
+        caps.put("ShowDialog", hasShowDialogCapability());
+        caps.put("ResponseExtraction", hasResponseExtractionCapability());
+        return caps;
+    }
+
+    public String getCapabilitySummary() {
+        StringBuilder sb = new StringBuilder();
+        auditCapabilities().forEach((k, v) -> {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(k).append(": ").append(v ? "YES" : "NO");
+        });
+        return sb.toString();
+    }
+
+    public void logRateLimited(String key, String message, long intervalMillis) {
+        long now = System.currentTimeMillis();
+        Long last = logRateLimitMap.get(key);
+        if (last == null || now - last >= intervalMillis) {
+            logRateLimitMap.put(key, now);
+            if (plugin != null) {
+                plugin.getLogger().warning("[DialogEngine] " + message);
+            }
+        }
     }
 
     public Object createActionButton(Component label, Component tooltip, int width, NativeDialogActionHandler handler) throws Exception {
@@ -334,7 +409,7 @@ public class PaperNativeDialogEngine {
         } catch (Throwable t) {
             lastFailureReason = "showDialog invocation: " + t.getClass().getSimpleName() + ": " + t.getMessage();
             if (plugin != null && plugin.getConfig().getBoolean("debug", false)) {
-                plugin.getLogger().warning("§c[IpsecuzPet] Failed to show native Dialog to " + player.getName() + ": " + t.getMessage());
+                logRateLimited("showDialog_" + player.getUniqueId(), "Failed to show native Dialog to " + player.getName() + ": " + t.getMessage(), 5000);
             }
             return false;
         }
