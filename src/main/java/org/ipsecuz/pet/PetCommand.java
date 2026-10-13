@@ -654,17 +654,27 @@ public class PetCommand implements CommandExecutor {
         sender.sendMessage("§7Callback Options Initialized: " + (Boolean.parseBoolean(diag.get("callback_options_initialized")) ? "§aYES" : "§cNO"));
         sender.sendMessage("§7Action Button: " + (Boolean.parseBoolean(diag.get("action_button_available")) ? "§aAvailable" : "§cUnavailable") + " §7(Creation Tested: " + (Boolean.parseBoolean(diag.get("action_button_tested")) ? "§aYES" : "§7NO") + "§7)");
         sender.sendMessage("§7MultiAction Construction Tested: " + (Boolean.parseBoolean(diag.get("multiaction_tested")) ? "§aYES" : "§7NO"));
+        sender.sendMessage("§7Empty-Action Guard Working: " + (Boolean.parseBoolean(diag.get("empty_action_guard_tested")) ? "§aYES" : "§7NO"));
+        if (!"None".equals(diag.get("last_attempt_type"))) {
+            String succ = Boolean.parseBoolean(diag.get("last_attempt_success")) ? "§aSUCCESS" : "§cFAILED";
+            sender.sendMessage("§7Latest Dialog Attempt: " + succ + " §7(Type: §e" + diag.get("last_attempt_type") + "§7, Player: §f" + diag.get("last_attempt_player") + "§7, §8" + diag.get("last_attempt_time_ago") + "§7)");
+        }
         sender.sendMessage("§7Audited Capabilities: §e" + diag.get("capabilities_summary"));
         sender.sendMessage("§7DialogWindow Bridge: " + (Boolean.parseBoolean(diag.get("dialogwindow_bridge_available")) ? "§aDetected" : "§7Not Installed"));
         sender.sendMessage("§7Selected UI Backend: §b" + diag.get("selected_backend"));
         sender.sendMessage("§7Selection Rationale: §f" + diag.get("selection_rationale"));
         sender.sendMessage("§7Engine Status: §6" + diag.get("init_status"));
-        if (!"None".equals(diag.get("last_failure"))) {
-            sender.sendMessage("§cLast Failure Stage: §e" + diag.get("last_failure_stage"));
-            sender.sendMessage("§cLast Failure Reason: §c" + diag.get("last_failure"));
+        if (Boolean.parseBoolean(diag.get("has_active_failure"))) {
+            sender.sendMessage("§cActive Failure Stage: §e" + diag.get("last_failure_stage"));
+            sender.sendMessage("§cActive Failure Reason: §c" + diag.get("last_failure") + " §8(" + diag.get("last_failure_time_ago") + ")");
             if (!"None".equals(diag.get("last_root_cause"))) {
-                sender.sendMessage("§cLast Root Cause: §f" + diag.get("last_root_cause"));
+                sender.sendMessage("§cActive Root Cause: §f" + diag.get("last_root_cause"));
             }
+        } else {
+            sender.sendMessage("§7Active Failure: §aNONE");
+        }
+        if (!"None".equals(diag.get("historical_last_failure"))) {
+            sender.sendMessage("§8Historical Last Failure: §7" + diag.get("historical_last_failure"));
         }
         sender.sendMessage("§8§m--------------------------------------------------");
         return true;

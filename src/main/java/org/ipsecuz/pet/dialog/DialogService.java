@@ -86,6 +86,15 @@ public class DialogService {
         status.put("action_button_available", String.valueOf(nativeProvider.getEngine().isActionButtonAvailable()));
         status.put("action_button_tested", String.valueOf(nativeProvider.getEngine().isActionButtonCreationTested()));
         status.put("multiaction_tested", String.valueOf(nativeProvider.getEngine().isMultiActionConstructionTested()));
+        status.put("empty_action_guard_tested", String.valueOf(nativeProvider.getEngine().isEmptyActionGuardTested()));
+
+        // Latest operation attempt
+        status.put("last_attempt_type", nativeProvider.getEngine().getLastAttemptType() != null ? nativeProvider.getEngine().getLastAttemptType() : "None");
+        status.put("last_attempt_player", nativeProvider.getEngine().getLastAttemptPlayer() != null ? nativeProvider.getEngine().getLastAttemptPlayer() : "None");
+        status.put("last_attempt_success", nativeProvider.getEngine().getLastAttemptTimestamp() > 0 ? String.valueOf(nativeProvider.getEngine().isLastAttemptSuccess()) : "N/A");
+        long attemptAgo = nativeProvider.getEngine().getLastAttemptTimestamp() > 0 ? (System.currentTimeMillis() - nativeProvider.getEngine().getLastAttemptTimestamp()) / 1000 : -1;
+        status.put("last_attempt_time_ago", attemptAgo >= 0 ? attemptAgo + "s ago" : "None");
+
         status.put("capabilities_summary", nativeProvider.getEngine().getCapabilitySummary());
         status.put("dialogwindow_bridge_available", String.valueOf(dialogWindowBridge.isAvailable()));
         status.put("selected_backend", getProviderFor(player).getClass().getSimpleName());
@@ -103,13 +112,32 @@ public class DialogService {
         status.put("selection_rationale", rationale);
 
         status.put("init_status", nativeProvider.getEngine().getInitStatusMessage());
-        var stage = nativeProvider.getEngine().getLastFailureStage();
-        status.put("last_failure_stage", stage != null ? stage.name() + " (" + stage.getDescription() + ")" : "None");
-        String lastFail = nativeProvider.getEngine().getLastFailureReason();
-        status.put("last_failure", lastFail != null ? lastFail : "None");
-        String rootExType = nativeProvider.getEngine().getLastRootExceptionType();
-        String rootExMsg = nativeProvider.getEngine().getLastRootExceptionMessage();
-        status.put("last_root_cause", (rootExType != null && !"None".equals(rootExType)) ? rootExType + ": " + rootExMsg : "None");
+
+        // Active and historical failure diagnostics
+        status.put("has_active_failure", String.valueOf(nativeProvider.getEngine().hasActiveFailure()));
+        if (nativeProvider.getEngine().hasActiveFailure()) {
+            var stage = nativeProvider.getEngine().getLastFailureStage();
+            status.put("last_failure_stage", stage != null ? stage.name() + " (" + stage.getDescription() + ")" : "None");
+            String lastFail = nativeProvider.getEngine().getLastFailureReason();
+            status.put("last_failure", lastFail != null ? lastFail : "None");
+            String rootExType = nativeProvider.getEngine().getLastRootExceptionType();
+            String rootExMsg = nativeProvider.getEngine().getLastRootExceptionMessage();
+            status.put("last_root_cause", (rootExType != null && !"None".equals(rootExType)) ? rootExType + ": " + rootExMsg : "None");
+            long failAgo = (System.currentTimeMillis() - nativeProvider.getEngine().getLastFailureTimestamp()) / 1000;
+            status.put("last_failure_time_ago", failAgo + "s ago");
+        } else {
+            status.put("last_failure_stage", "None");
+            status.put("last_failure", "None");
+            status.put("last_root_cause", "None");
+            status.put("last_failure_time_ago", "None");
+        }
+
+        if (nativeProvider.getEngine().getHistoricalFailureReason() != null) {
+            long histAgo = (System.currentTimeMillis() - nativeProvider.getEngine().getHistoricalFailureTimestamp()) / 1000;
+            status.put("historical_last_failure", nativeProvider.getEngine().getHistoricalFailureReason() + " (" + histAgo + "s ago)");
+        } else {
+            status.put("historical_last_failure", "None");
+        }
         return status;
     }
 

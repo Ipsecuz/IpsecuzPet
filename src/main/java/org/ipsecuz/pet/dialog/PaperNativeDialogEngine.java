@@ -44,13 +44,31 @@ public class PaperNativeDialogEngine {
     private final boolean classAvailable;
     private final boolean methodsAvailable;
 
+    private volatile boolean actionButtonCreationTested;
+    private volatile boolean multiActionConstructionTested;
+    private volatile boolean emptyActionGuardTested;
+    private volatile boolean callbackOptionsInitialized;
+
+    // Operation tracking
+    private volatile String lastAttemptType;
+    private volatile long lastAttemptTimestamp;
+    private volatile boolean lastAttemptSuccess;
+    private volatile String lastAttemptPlayer;
+
+    // Active failure state
+    private volatile boolean hasActiveFailure;
     private volatile Stage lastFailureStage;
     private volatile String lastFailureReason;
     private volatile String lastRootExceptionType;
     private volatile String lastRootExceptionMessage;
-    private volatile boolean callbackOptionsInitialized;
-    private volatile boolean actionButtonCreationTested;
-    private volatile boolean multiActionConstructionTested;
+    private volatile long lastFailureTimestamp;
+
+    // Historical failure tracking
+    private volatile Stage historicalFailureStage;
+    private volatile String historicalFailureReason;
+    private volatile String historicalRootExceptionType;
+    private volatile String historicalRootExceptionMessage;
+    private volatile long historicalFailureTimestamp;
 
     // Reflection cache
     private Class<?> dialogClass;
@@ -303,6 +321,24 @@ public class PaperNativeDialogEngine {
             if (multiActionType != null) {
                 this.multiActionConstructionTested = true;
             }
+
+            // Test empty-action guard with fallback button
+            Object fallbackBtn = createActionButton(Component.text("Close"), null, 100, (p, r) -> {});
+            if (fallbackBtn != null) {
+                List<Object> fallbackBtns = new ArrayList<>();
+                fallbackBtns.add(fallbackBtn);
+                Object guardType = null;
+                if (dialogTypeMultiActionWithExitMethod != null) {
+                    guardType = dialogTypeMultiActionWithExitMethod.invoke(null, fallbackBtns, null, 1);
+                } else if (dialogTypeMultiActionWithExit2Method != null) {
+                    guardType = dialogTypeMultiActionWithExit2Method.invoke(null, fallbackBtns, null);
+                } else if (dialogTypeMultiActionMethod != null) {
+                    guardType = dialogTypeMultiActionMethod.invoke(null, fallbackBtns);
+                }
+                if (guardType != null) {
+                    this.emptyActionGuardTested = true;
+                }
+            }
         } catch (Throwable t) {
             Throwable root = unwrapThrowable(t);
             recordFailure(lastFailureStage != null ? lastFailureStage : Stage.CONSTRUCT_MULTI_ACTION_TYPE,
@@ -330,6 +366,18 @@ public class PaperNativeDialogEngine {
         return current;
     }
 
+    public void recordSuccess(String type, Player player) {
+        this.lastAttemptType = type;
+        this.lastAttemptPlayer = (player != null) ? player.getName() : "None";
+        this.lastAttemptTimestamp = System.currentTimeMillis();
+        this.lastAttemptSuccess = true;
+        this.hasActiveFailure = false;
+        this.lastFailureStage = null;
+        this.lastFailureReason = null;
+        this.lastRootExceptionType = null;
+        this.lastRootExceptionMessage = null;
+    }
+
     public void recordFailure(Stage stage, String methodName, String methodSignature, Throwable rootCause) {
         this.lastFailureStage = stage;
         Throwable unwrapped = unwrapThrowable(rootCause);
@@ -338,6 +386,15 @@ public class PaperNativeDialogEngine {
         this.lastFailureReason = "[Stage: " + (stage != null ? stage.name() : "UNKNOWN") + " in " + methodName + "] " + causeMsg;
         this.lastRootExceptionType = (unwrapped != null) ? unwrapped.getClass().getName() : "None";
         this.lastRootExceptionMessage = (unwrapped != null) ? String.valueOf(unwrapped.getMessage()) : "None";
+        this.lastFailureTimestamp = System.currentTimeMillis();
+        this.hasActiveFailure = true;
+        this.lastAttemptSuccess = false;
+
+        this.historicalFailureStage = stage;
+        this.historicalFailureReason = this.lastFailureReason;
+        this.historicalRootExceptionType = this.lastRootExceptionType;
+        this.historicalRootExceptionMessage = this.lastRootExceptionMessage;
+        this.historicalFailureTimestamp = this.lastFailureTimestamp;
 
         String key = (stage != null ? stage.name() : "UNKNOWN") + "_" + methodName;
         logRateLimited(key, "Native Dialog Failure at " + lastFailureReason + " (Sig: " + methodSignature + ")", 5000);
@@ -393,6 +450,54 @@ public class PaperNativeDialogEngine {
 
     public boolean isMultiActionConstructionTested() {
         return multiActionConstructionTested;
+    }
+
+    public boolean isEmptyActionGuardTested() {
+        return emptyActionGuardTested;
+    }
+
+    public boolean hasActiveFailure() {
+        return hasActiveFailure;
+    }
+
+    public String getLastAttemptType() {
+        return lastAttemptType;
+    }
+
+    public long getLastAttemptTimestamp() {
+        return lastAttemptTimestamp;
+    }
+
+    public boolean isLastAttemptSuccess() {
+        return lastAttemptSuccess;
+    }
+
+    public String getLastAttemptPlayer() {
+        return lastAttemptPlayer;
+    }
+
+    public long getLastFailureTimestamp() {
+        return lastFailureTimestamp;
+    }
+
+    public Stage getHistoricalFailureStage() {
+        return historicalFailureStage;
+    }
+
+    public String getHistoricalFailureReason() {
+        return historicalFailureReason;
+    }
+
+    public String getHistoricalRootExceptionType() {
+        return historicalRootExceptionType;
+    }
+
+    public String getHistoricalRootExceptionMessage() {
+        return historicalRootExceptionMessage;
+    }
+
+    public long getHistoricalFailureTimestamp() {
+        return historicalFailureTimestamp;
     }
 
     public Object getDefaultClickOptions() {
@@ -791,6 +896,10 @@ public class PaperNativeDialogEngine {
     }
 
     public boolean showNotice(Player player, Component title, List<Component> bodyLines, Component buttonText, Runnable onClose) {
+        this.lastAttemptType = "Notice";
+        this.lastAttemptPlayer = (player != null) ? player.getName() : "None";
+        this.lastAttemptTimestamp = System.currentTimeMillis();
+
         if (!available) {
             recordFailure(Stage.CREATE_CALLBACK_OPTIONS, "PaperNativeDialogEngine", "isAvailable",
                     new IllegalStateException("Engine unavailable"));
@@ -809,7 +918,11 @@ public class PaperNativeDialogEngine {
                 return false;
             }
             Object dialog = buildDialog(title, bodyLines, null, noticeType);
-            return showDialog(player, dialog);
+            boolean shown = showDialog(player, dialog);
+            if (shown) {
+                recordSuccess("Notice", player);
+            }
+            return shown;
         } catch (Throwable t) {
             Throwable root = unwrapThrowable(t);
             if (lastFailureStage == null) {
@@ -820,6 +933,10 @@ public class PaperNativeDialogEngine {
     }
 
     public boolean showConfirmation(Player player, Component title, List<Component> bodyLines, Component confirmText, Component cancelText, Consumer<Boolean> callback) {
+        this.lastAttemptType = "Confirmation";
+        this.lastAttemptPlayer = (player != null) ? player.getName() : "None";
+        this.lastAttemptTimestamp = System.currentTimeMillis();
+
         if (!available) {
             recordFailure(Stage.CREATE_CALLBACK_OPTIONS, "PaperNativeDialogEngine", "isAvailable",
                     new IllegalStateException("Engine unavailable"));
@@ -841,7 +958,11 @@ public class PaperNativeDialogEngine {
                 return false;
             }
             Object dialog = buildDialog(title, bodyLines, null, confirmType);
-            return showDialog(player, dialog);
+            boolean shown = showDialog(player, dialog);
+            if (shown) {
+                recordSuccess("Confirmation", player);
+            }
+            return shown;
         } catch (Throwable t) {
             Throwable root = unwrapThrowable(t);
             if (lastFailureStage == null) {
@@ -852,6 +973,10 @@ public class PaperNativeDialogEngine {
     }
 
     public boolean showMultiAction(Player player, Component title, List<Component> bodyLines, List<Object> inputs, List<NativeButton> buttons, NativeButton exitButton, int columns) {
+        this.lastAttemptType = "MultiAction";
+        this.lastAttemptPlayer = (player != null) ? player.getName() : "None";
+        this.lastAttemptTimestamp = System.currentTimeMillis();
+
         if (!available) {
             recordFailure(Stage.CREATE_CALLBACK_OPTIONS, "PaperNativeDialogEngine", "isAvailable",
                     new IllegalStateException("Engine unavailable: " + initStatusMessage));
@@ -867,12 +992,61 @@ public class PaperNativeDialogEngine {
             List<Object> actionButtons = new ArrayList<>();
             if (buttons != null) {
                 for (NativeButton b : buttons) {
-                    actionButtons.add(createActionButton(b.label(), b.tooltip(), b.width(), b.handler()));
+                    if (b == null) continue;
+                    try {
+                        Object actBtn = createActionButton(b.label(), b.tooltip(), b.width(), b.handler());
+                        if (actBtn != null) {
+                            actionButtons.add(actBtn);
+                        }
+                    } catch (Throwable t) {
+                        Throwable root = unwrapThrowable(t);
+                        recordFailure(Stage.CONSTRUCT_ACTION_BUTTON, "createActionButton", "ActionButton.create", root);
+                    }
                 }
             }
             Object exitBtn = null;
             if (exitButton != null) {
-                exitBtn = createActionButton(exitButton.label(), exitButton.tooltip(), exitButton.width(), exitButton.handler());
+                try {
+                    exitBtn = createActionButton(exitButton.label(), exitButton.tooltip(), exitButton.width(), exitButton.handler());
+                } catch (Throwable t) {
+                    Throwable root = unwrapThrowable(t);
+                    recordFailure(Stage.CONSTRUCT_ACTION_BUTTON, "createActionButton", "ActionButton.create(exit)", root);
+                }
+            }
+
+            // Requirement 4: If main action list is empty but exit button is valid, promote exit button
+            if (actionButtons.isEmpty() && exitBtn != null) {
+                actionButtons.add(exitBtn);
+                exitBtn = null;
+                this.emptyActionGuardTested = true;
+            }
+
+            // Requirement 6: If neither normal action nor exit action exists, produce safe fallback button
+            if (actionButtons.isEmpty()) {
+                Component fallbackLabel = Component.text("Close");
+                if (plugin != null && plugin.getLanguage() != null) {
+                    try {
+                        String lbl = plugin.getLanguage().getMessageOrDefault("dialog.btn_close", "&c✖ Đóng");
+                        fallbackLabel = net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize(lbl);
+                    } catch (Throwable ignored) {}
+                }
+                try {
+                    Object fallbackBtn = createActionButton(fallbackLabel, null, 100, (p, resp) -> {});
+                    if (fallbackBtn != null) {
+                        actionButtons.add(fallbackBtn);
+                        this.emptyActionGuardTested = true;
+                    }
+                } catch (Throwable t) {
+                    Throwable root = unwrapThrowable(t);
+                    recordFailure(Stage.CONSTRUCT_ACTION_BUTTON, "createActionButton", "fallbackButton", root);
+                }
+            }
+
+            // Requirement 7: Never invoke multiAction with an empty action list
+            if (actionButtons.isEmpty()) {
+                IllegalArgumentException ex = new IllegalArgumentException("actions cannot be empty: no normal actions, exit button, or fallback button could be constructed");
+                recordFailure(Stage.CONSTRUCT_MULTI_ACTION_TYPE, "DialogType.multiAction", "actions.isEmpty", ex);
+                return false;
             }
 
             Object multiActionType;
@@ -898,6 +1072,7 @@ public class PaperNativeDialogEngine {
             Object dialog = buildDialog(title, bodyLines, inputs, multiActionType);
             boolean shown = showDialog(player, dialog);
             if (shown) {
+                recordSuccess("MultiAction", player);
                 this.multiActionConstructionTested = true;
             }
             return shown;

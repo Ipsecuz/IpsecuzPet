@@ -452,6 +452,20 @@ public class NativeDialogProvider implements DialogProvider {
     public boolean showDynamicMyPets(Player player, DialogSession session, int page) {
         LanguageManager lang = plugin.getLanguage();
         List<String> owned = plugin.getOwnershipManager().getOwnedPetIds(player.getUniqueId());
+
+        if (owned == null || owned.isEmpty()) {
+            List<Component> body = new ArrayList<>();
+            body.add(GuiText.component("&7" + lang.getMessageOrDefault("dialog.my_pets_desc", "Danh sách các thú cưng bạn đã thuần hóa và sở hữu.")));
+            body.add(GuiText.component("&e" + lang.getMessageOrDefault("dialog.my_pets_empty", "Bạn chưa sở hữu thú cưng nào!")));
+            body.add(GuiText.component("&7" + lang.getMessageOrDefault("dialog.my_pets_empty_hint", "Hãy ghé Cửa hàng hoặc Lò ấp trứng để nhận người bạn đồng hành đầu tiên.")));
+
+            List<NativeButton> buttons = new ArrayList<>();
+            buttons.add(new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_hub", "&6🏠 Pet Hub")), null, 140, (p, resp) -> openPetHub(p, session)));
+
+            NativeButton exitBtn = new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_close", "&c✖ Đóng")), null, 100, (p, resp) -> {});
+            return engine.showMultiAction(player, GuiText.title(lang.getMessageOrDefault("dialog.my_pets_title", "&8&lKHO THÚ CƯNG &7(My Pets)")), body, null, buttons, exitBtn, 1);
+        }
+
         int pageSize = 6;
         int totalPages = Math.max(1, (int) Math.ceil((double) owned.size() / pageSize));
         int curPage = Math.max(1, Math.min(page, totalPages));
@@ -623,13 +637,17 @@ public class NativeDialogProvider implements DialogProvider {
         LanguageManager lang = plugin.getLanguage();
         List<String> petIds = plugin.getDialogService().getShopEligiblePets(player);
 
-        if (petIds.isEmpty()) {
+        if (petIds == null || petIds.isEmpty()) {
             List<Component> body = new ArrayList<>();
             body.add(GuiText.component("&e" + lang.getMessageOrDefault("dialog.shop_welcome", "Chào mừng bạn đến với Cửa Hàng Thú Cưng!")));
-            body.add(GuiText.component("&7" + lang.getMessageOrDefault("dialog.shop_empty", "Hiện tại không có thú cưng nào được bày bán trong cửa hàng.")));
+            body.add(GuiText.component("&c" + lang.getMessageOrDefault("dialog.shop_empty", "Hiện tại cửa hàng không có thú cưng nào khả dụng!")));
+            body.add(GuiText.component("&7" + lang.getMessageOrDefault("dialog.shop_empty_hint", "Vui lòng quay lại sau hoặc liên hệ Quản trị viên để cập nhật danh mục.")));
 
-            NativeButton exitBtn = new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_hub", "&6🏠 Pet Hub")), null, 120, (p, resp) -> openPetHub(p, session));
-            return engine.showMultiAction(player, GuiText.title(lang.getMessageOrDefault("dialog.shop_title", "&8&lCỬA HÀNG THÚ CƯNG")), body, null, List.of(), exitBtn, 1);
+            List<NativeButton> buttons = new ArrayList<>();
+            buttons.add(new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_hub", "&6🏠 Pet Hub")), null, 140, (p, resp) -> openPetHub(p, session)));
+
+            NativeButton exitBtn = new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_close", "&c✖ Đóng")), null, 100, (p, resp) -> {});
+            return engine.showMultiAction(player, GuiText.title(lang.getMessageOrDefault("dialog.shop_title", "&8&lCỬA HÀNG THÚ CƯNG")), body, null, buttons, exitBtn, 1);
         }
 
         int pageSize = 6;
@@ -719,6 +737,16 @@ public class NativeDialogProvider implements DialogProvider {
                     buttons.add(new NativeButton(GuiText.component("&e" + eggName), null, 180, (p, resp) -> openHatchConfirmDialog(p, session, eggId)));
                 }
             }
+        }
+
+        if (buttons.isEmpty()) {
+            body.add(Component.empty());
+            body.add(GuiText.component("&c" + lang.getMessageOrDefault("dialog.hatch_select_empty", "Hiện tại không có loại trứng nào khả dụng để ấp!")));
+            body.add(GuiText.component("&7" + lang.getMessageOrDefault("dialog.hatch_select_empty_hint", "Vui lòng liên hệ Quản trị viên để kiểm tra cấu hình lò ấp trứng.")));
+
+            buttons.add(new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_hub", "&6🏠 Pet Hub")), null, 140, (p, resp) -> openPetHub(p, session)));
+            NativeButton exitBtn = new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_close", "&c✖ Đóng")), null, 100, (p, resp) -> {});
+            return engine.showMultiAction(player, GuiText.title(lang.getMessageOrDefault("dialog.hatch_select_title", "&8&lLÒ ẤP TRỨNG")), body, null, buttons, exitBtn, 1);
         }
 
         NativeButton exitBtn = new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_hub", "&6🏠 Pet Hub")), null, 120, (p, resp) -> openPetHub(p, session));
@@ -909,6 +937,19 @@ public class NativeDialogProvider implements DialogProvider {
             allPetKeys.addAll(petsSec.getKeys(false));
         }
 
+        if (allPetKeys.isEmpty()) {
+            List<Component> body = new ArrayList<>();
+            body.add(GuiText.component("&d" + lang.getMessageOrDefault("dialog.codex_desc", "Bách Khoa Toàn Thư Codex Thú Cưng")));
+            body.add(GuiText.component("&c" + lang.getMessageOrDefault("dialog.codex_empty", "Thư viện Codex chưa có thú cưng nào được ghi nhận!")));
+            body.add(GuiText.component("&7" + lang.getMessageOrDefault("dialog.codex_empty_hint", "Vui lòng cấu hình danh sách thú cưng trong hệ thống.")));
+
+            List<NativeButton> buttons = new ArrayList<>();
+            buttons.add(new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_hub", "&6🏠 Pet Hub")), null, 140, (p, resp) -> openPetHub(p, session)));
+
+            NativeButton exitBtn = new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_close", "&c✖ Đóng")), null, 100, (p, resp) -> {});
+            return engine.showMultiAction(player, GuiText.title(lang.getMessageOrDefault("dialog.codex_title", "&8&lBÁCH KHOA CODEX")), body, null, buttons, exitBtn, 1);
+        }
+
         int pageSize = 6;
         int totalPages = Math.max(1, (int) Math.ceil((double) allPetKeys.size() / pageSize));
         int curPage = Math.max(1, Math.min(page, totalPages));
@@ -964,16 +1005,32 @@ public class NativeDialogProvider implements DialogProvider {
         LanguageManager lang = plugin.getLanguage();
         Map<String, Integer> shards = plugin.getShardManager().getAllShards(player.getUniqueId());
 
+        boolean hasAnyValidShards = false;
+        if (shards != null && !shards.isEmpty()) {
+            for (int val : shards.values()) {
+                if (val > 0) {
+                    hasAnyValidShards = true;
+                    break;
+                }
+            }
+        }
+
         List<Component> body = new ArrayList<>();
         body.add(GuiText.component("&d" + lang.getMessageOrDefault("dialog.shards_desc", "Quản lý mảnh ghép và tinh hoa Thú Cưng")));
         body.add(Component.empty());
 
-        if (shards.isEmpty()) {
+        if (!hasAnyValidShards) {
             body.add(GuiText.component("&7" + lang.getMessageOrDefault("dialog.shards_empty", "Hiện bạn chưa có mảnh thú cưng nào.")));
             body.add(GuiText.component("&7" + lang.getMessageOrDefault("dialog.shards_empty_hint", "Mở trứng trùng lặp hoặc hoàn thành nhiệm vụ để thu thập!")));
-        } else {
-            body.add(GuiText.component("&7" + lang.getMessageOrDefault("dialog.shards_list_header", "Danh sách các mảnh hiện có (Nhấp để ghép pet):")));
+
+            List<NativeButton> buttons = new ArrayList<>();
+            buttons.add(new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_hub", "&6🏠 Pet Hub")), null, 140, (p, resp) -> openPetHub(p, session)));
+
+            NativeButton exitBtn = new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.btn_close", "&c✖ Đóng")), null, 100, (p, resp) -> {});
+            return engine.showMultiAction(player, GuiText.title(lang.getMessageOrDefault("dialog.shards_title", "&8&lMẢNH THÚ CƯNG")), body, null, buttons, exitBtn, 1);
         }
+
+        body.add(GuiText.component("&7" + lang.getMessageOrDefault("dialog.shards_list_header", "Danh sách các mảnh hiện có (Nhấp để ghép pet):")));
 
         List<NativeButton> buttons = new ArrayList<>();
         for (Map.Entry<String, Integer> entry : shards.entrySet()) {
