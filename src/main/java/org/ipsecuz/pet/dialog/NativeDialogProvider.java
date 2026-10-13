@@ -76,7 +76,27 @@ public class NativeDialogProvider implements DialogProvider {
         return isServerSupported() && isClientSupported(player);
     }
 
+    private final java.util.concurrent.ConcurrentHashMap<String, Long> fallbackLogRateLimitMap = new java.util.concurrent.ConcurrentHashMap<>();
+
     private void fallback(Player player, Consumer<Player> fallbackAction) {
+        if (isSupported(player)) {
+            String reason = engine.getLastFailureReason();
+            String stage = engine.getLastFailureStage() != null ? engine.getLastFailureStage().name() : "UNKNOWN";
+            String rootEx = engine.getLastRootExceptionType();
+            String pName = player != null ? player.getName() : "unknown";
+            String key = pName + "_" + stage;
+            long now = System.currentTimeMillis();
+            Long lastLog = fallbackLogRateLimitMap.get(key);
+            if (lastLog == null || (now - lastLog) > 5000) {
+                fallbackLogRateLimitMap.put(key, now);
+                if (plugin != null) {
+                    plugin.getLogger().warning("[NativeDialogProvider] Failed to open native dialog for " + pName
+                            + ", falling back to Chest GUI. Stage: " + stage
+                            + ", Reason: " + (reason != null ? reason : "Unknown")
+                            + (rootEx != null && !"None".equals(rootEx) ? ", Root: " + rootEx + ": " + engine.getLastRootExceptionMessage() : ""));
+                }
+            }
+        }
         SchedulerUtils.runEntityTask(plugin, player, () -> fallbackAction.accept(player));
     }
 

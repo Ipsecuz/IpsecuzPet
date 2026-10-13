@@ -82,6 +82,10 @@ public class DialogService {
         status.put("native_api_available", String.valueOf(nativeProvider.getEngine().isAvailable()));
         status.put("native_class_available", String.valueOf(nativeProvider.getEngine().isClassAvailable()));
         status.put("native_methods_available", String.valueOf(nativeProvider.getEngine().isMethodsAvailable()));
+        status.put("callback_options_initialized", String.valueOf(nativeProvider.getEngine().isCallbackOptionsInitialized()));
+        status.put("action_button_available", String.valueOf(nativeProvider.getEngine().isActionButtonAvailable()));
+        status.put("action_button_tested", String.valueOf(nativeProvider.getEngine().isActionButtonCreationTested()));
+        status.put("multiaction_tested", String.valueOf(nativeProvider.getEngine().isMultiActionConstructionTested()));
         status.put("capabilities_summary", nativeProvider.getEngine().getCapabilitySummary());
         status.put("dialogwindow_bridge_available", String.valueOf(dialogWindowBridge.isAvailable()));
         status.put("selected_backend", getProviderFor(player).getClass().getSimpleName());
@@ -99,8 +103,13 @@ public class DialogService {
         status.put("selection_rationale", rationale);
 
         status.put("init_status", nativeProvider.getEngine().getInitStatusMessage());
+        var stage = nativeProvider.getEngine().getLastFailureStage();
+        status.put("last_failure_stage", stage != null ? stage.name() + " (" + stage.getDescription() + ")" : "None");
         String lastFail = nativeProvider.getEngine().getLastFailureReason();
         status.put("last_failure", lastFail != null ? lastFail : "None");
+        String rootExType = nativeProvider.getEngine().getLastRootExceptionType();
+        String rootExMsg = nativeProvider.getEngine().getLastRootExceptionMessage();
+        status.put("last_root_cause", (rootExType != null && !"None".equals(rootExType)) ? rootExType + ": " + rootExMsg : "None");
         return status;
     }
 

@@ -651,13 +651,20 @@ public class PetCommand implements CommandExecutor {
         sender.sendMessage("§7Client Protocol: §f" + diag.get("client_protocol") + " §7(Compatible: " + (Boolean.parseBoolean(diag.get("client_protocol_supported")) ? "§aYES" : "§cNO") + "§7)");
         sender.sendMessage("§7Native Reflection Bound: " + (Boolean.parseBoolean(diag.get("native_api_available")) ? "§aYES" : "§cNO"));
         sender.sendMessage("§7Reflection Classes: " + (Boolean.parseBoolean(diag.get("native_class_available")) ? "§aPresent" : "§cMissing") + " §7| Methods: " + (Boolean.parseBoolean(diag.get("native_methods_available")) ? "§aPresent" : "§cMissing"));
+        sender.sendMessage("§7Callback Options Initialized: " + (Boolean.parseBoolean(diag.get("callback_options_initialized")) ? "§aYES" : "§cNO"));
+        sender.sendMessage("§7Action Button: " + (Boolean.parseBoolean(diag.get("action_button_available")) ? "§aAvailable" : "§cUnavailable") + " §7(Creation Tested: " + (Boolean.parseBoolean(diag.get("action_button_tested")) ? "§aYES" : "§7NO") + "§7)");
+        sender.sendMessage("§7MultiAction Construction Tested: " + (Boolean.parseBoolean(diag.get("multiaction_tested")) ? "§aYES" : "§7NO"));
         sender.sendMessage("§7Audited Capabilities: §e" + diag.get("capabilities_summary"));
         sender.sendMessage("§7DialogWindow Bridge: " + (Boolean.parseBoolean(diag.get("dialogwindow_bridge_available")) ? "§aDetected" : "§7Not Installed"));
         sender.sendMessage("§7Selected UI Backend: §b" + diag.get("selected_backend"));
         sender.sendMessage("§7Selection Rationale: §f" + diag.get("selection_rationale"));
         sender.sendMessage("§7Engine Status: §6" + diag.get("init_status"));
         if (!"None".equals(diag.get("last_failure"))) {
-            sender.sendMessage("§cLast Failure: §c" + diag.get("last_failure"));
+            sender.sendMessage("§cLast Failure Stage: §e" + diag.get("last_failure_stage"));
+            sender.sendMessage("§cLast Failure Reason: §c" + diag.get("last_failure"));
+            if (!"None".equals(diag.get("last_root_cause"))) {
+                sender.sendMessage("§cLast Root Cause: §f" + diag.get("last_root_cause"));
+            }
         }
         sender.sendMessage("§8§m--------------------------------------------------");
         return true;

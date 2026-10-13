@@ -10,6 +10,10 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -19,12 +23,34 @@ import java.util.function.Consumer;
  */
 public class PaperNativeDialogEngine {
 
+    public enum Stage {
+        CREATE_CALLBACK_OPTIONS("1. Create click callback options"),
+        CREATE_BUTTON_ACTION("2. Create button action"),
+        CONSTRUCT_ACTION_BUTTON("3. Construct ActionButton"),
+        CONSTRUCT_MULTI_ACTION_TYPE("4. Construct MultiActionType"),
+        BUILD_DIALOG_BASE("5. Build DialogBase"),
+        BUILD_REGISTRY_ENTRY("6. Build DialogRegistryEntry"),
+        CREATE_NATIVE_DIALOG("7. Create native Dialog"),
+        INVOKE_SHOW_DIALOG("8. Invoke Audience.showDialog");
+
+        private final String description;
+        Stage(String description) { this.description = description; }
+        public String getDescription() { return description; }
+    }
+
     private final IpsecuzPet plugin;
     private final boolean available;
     private final String initStatusMessage;
     private final boolean classAvailable;
     private final boolean methodsAvailable;
+
+    private volatile Stage lastFailureStage;
     private volatile String lastFailureReason;
+    private volatile String lastRootExceptionType;
+    private volatile String lastRootExceptionMessage;
+    private volatile boolean callbackOptionsInitialized;
+    private volatile boolean actionButtonCreationTested;
+    private volatile boolean multiActionConstructionTested;
 
     // Reflection cache
     private Class<?> dialogClass;
@@ -50,12 +76,13 @@ public class PaperNativeDialogEngine {
     private Method dialogTypeConfirmationMethod;
     private Method dialogTypeMultiActionMethod;
     private Method dialogTypeMultiActionWithExitMethod;
+    private Method dialogTypeMultiActionWithExit2Method;
     private Method dialogInputTextMethod;
     private Method dialogInputBoolMethod;
     private Method dialogInputRangeMethod;
     private Method showDialogMethod;
     private Object defaultClickOptions;
-    private final java.util.concurrent.ConcurrentHashMap<String, Long> logRateLimitMap = new java.util.concurrent.ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> logRateLimitMap = new ConcurrentHashMap<>();
 
     public interface NativeDialogResponse {
         String getText(String key);
@@ -94,7 +121,11 @@ public class PaperNativeDialogEngine {
             clsAvail = true;
 
             dialogCreateMethod = dialogClass.getMethod("create", Consumer.class);
-            dialogBaseBuilderMethod = dialogBaseClass.getMethod("builder", Component.class);
+            try {
+                dialogBaseBuilderMethod = dialogBaseClass.getMethod("builder", Component.class);
+            } catch (NoSuchMethodException e) {
+                dialogBaseBuilderMethod = dialogBaseClass.getMethod("builder");
+            }
             dialogBodyPlainMessageMethod = dialogBodyClass.getMethod("plainMessage", Component.class);
 
             try {
@@ -103,11 +134,20 @@ public class PaperNativeDialogEngine {
 
             dialogActionCustomClickMethod = dialogActionClass.getMethod("customClick", dialogActionCallbackClass, clickCallbackOptionsClass);
 
-            dialogTypeNoticeMethod = dialogTypeClass.getMethod("notice", actionButtonClass);
-            dialogTypeConfirmationMethod = dialogTypeClass.getMethod("confirmation", actionButtonClass, actionButtonClass);
+            try {
+                dialogTypeNoticeMethod = dialogTypeClass.getMethod("notice", actionButtonClass);
+            } catch (NoSuchMethodException ignored) {}
+
+            try {
+                dialogTypeConfirmationMethod = dialogTypeClass.getMethod("confirmation", actionButtonClass, actionButtonClass);
+            } catch (NoSuchMethodException ignored) {}
 
             try {
                 dialogTypeMultiActionWithExitMethod = dialogTypeClass.getMethod("multiAction", List.class, actionButtonClass, int.class);
+            } catch (NoSuchMethodException ignored) {}
+
+            try {
+                dialogTypeMultiActionWithExit2Method = dialogTypeClass.getMethod("multiAction", List.class, actionButtonClass);
             } catch (NoSuchMethodException ignored) {}
 
             try {
@@ -134,16 +174,8 @@ public class PaperNativeDialogEngine {
                 }
             }
 
-            // Build default ClickCallback.Options
-            try {
-                Method builderMethod = clickCallbackOptionsClass.getMethod("builder");
-                Object builder = builderMethod.invoke(null);
-                defaultClickOptions = builder.getClass().getMethod("build").invoke(builder);
-            } catch (Throwable ignored) {
-                try {
-                    defaultClickOptions = clickCallbackOptionsClass.getMethod("defaultOptions").invoke(null);
-                } catch (Throwable ignored2) {}
-            }
+            // Build default ClickCallback.Options using public interface type
+            defaultClickOptions = initClickCallbackOptions();
 
             // Audience.showDialog
             for (Method m : Audience.class.getMethods()) {
@@ -152,13 +184,21 @@ public class PaperNativeDialogEngine {
                     break;
                 }
             }
+            if (showDialogMethod == null) {
+                for (Method m : Player.class.getMethods()) {
+                    if (m.getName().equals("showDialog") && m.getParameterCount() == 1) {
+                        showDialogMethod = m;
+                        break;
+                    }
+                }
+            }
 
-            initialized = (dialogCreateMethod != null && showDialogMethod != null && dialogBaseBuilderMethod != null && dialogActionCustomClickMethod != null);
+            initialized = (dialogCreateMethod != null && showDialogMethod != null && dialogBaseBuilderMethod != null && dialogActionCustomClickMethod != null && defaultClickOptions != null);
             methAvail = initialized;
             if (initialized) {
                 statusMsg = "Paper Native Dialog API (1.21.7+) successfully bound.";
             } else {
-                statusMsg = "Paper Dialog classes found but missing required reflective methods (showDialog=" + (showDialogMethod != null) + ").";
+                statusMsg = "Paper Dialog classes found but missing required reflective methods or options (options=" + (defaultClickOptions != null) + ", showDialog=" + (showDialogMethod != null) + ").";
             }
         } catch (ClassNotFoundException e) {
             clsAvail = false;
@@ -169,7 +209,8 @@ public class PaperNativeDialogEngine {
             clsAvail = false;
             methAvail = false;
             initialized = false;
-            statusMsg = "Paper Dialog reflection failed: " + t.getClass().getSimpleName() + ": " + t.getMessage();
+            Throwable root = unwrapThrowable(t);
+            statusMsg = "Paper Dialog reflection failed: " + root.getClass().getSimpleName() + ": " + root.getMessage();
         }
 
         this.classAvailable = clsAvail;
@@ -183,6 +224,126 @@ public class PaperNativeDialogEngine {
             } else if (plugin.getConfig().getBoolean("debug", false)) {
                 plugin.getLogger().info("[DialogEngine] Native Dialog unavailable: " + initStatusMessage);
             }
+        }
+
+        if (available) {
+            runSelfTestIfAvailable();
+        }
+    }
+
+    public Object initClickCallbackOptions() {
+        if (clickCallbackOptionsClass == null) {
+            try {
+                clickCallbackOptionsClass = Class.forName("net.kyori.adventure.text.event.ClickCallback$Options");
+            } catch (ClassNotFoundException e) {
+                recordFailure(Stage.CREATE_CALLBACK_OPTIONS, "ClickCallback.Options", "Options.class",
+                        new ClassNotFoundException("net.kyori.adventure.text.event.ClickCallback$Options not found"));
+                this.callbackOptionsInitialized = false;
+                return null;
+            }
+        }
+        try {
+            // 1. Resolve ClickCallback.Options.builder()
+            Method builderMethod = clickCallbackOptionsClass.getMethod("builder");
+            // 2. Use the public return/interface type of that builder
+            Class<?> builderType = builderMethod.getReturnType();
+            Object builder = builderMethod.invoke(null);
+            if (builder == null) {
+                recordFailure(Stage.CREATE_CALLBACK_OPTIONS, "ClickCallback.Options.builder", "builder()",
+                        new NullPointerException("ClickCallback.Options.builder() returned null"));
+                this.callbackOptionsInitialized = false;
+                return null;
+            }
+
+            // 3. Configure callback uses/lifetime if necessary (default: 1 use)
+            try {
+                Method usesMethod = builderType.getMethod("uses", int.class);
+                usesMethod.invoke(builder, 1);
+            } catch (Throwable ignored) {}
+
+            // 4. Invoke the public build() method from the public builder interface
+            Method buildMethod = builderType.getMethod("build");
+            Object options = buildMethod.invoke(builder);
+
+            // 5. Verify the returned options object is non-null and compatible with customClick
+            if (options != null && clickCallbackOptionsClass.isInstance(options)) {
+                this.callbackOptionsInitialized = true;
+                return options;
+            } else {
+                recordFailure(Stage.CREATE_CALLBACK_OPTIONS, "ClickCallback.Options.Builder.build", "build()",
+                        new IllegalStateException("Built options is null or not an instance of ClickCallback.Options"));
+                this.callbackOptionsInitialized = false;
+                return null;
+            }
+        } catch (Throwable t) {
+            Throwable root = unwrapThrowable(t);
+            recordFailure(Stage.CREATE_CALLBACK_OPTIONS, "ClickCallback.Options.builder/build", "build()", root);
+            this.callbackOptionsInitialized = false;
+            return null;
+        }
+    }
+
+    private void runSelfTestIfAvailable() {
+        if (!available) return;
+        try {
+            Object dummyBtn = createActionButton(Component.text("Test"), null, 100, (p, r) -> {});
+            if (dummyBtn != null) {
+                this.actionButtonCreationTested = true;
+            }
+            List<Object> btns = new ArrayList<>();
+            btns.add(dummyBtn);
+            Object multiActionType = null;
+            if (dialogTypeMultiActionWithExitMethod != null) {
+                multiActionType = dialogTypeMultiActionWithExitMethod.invoke(null, btns, null, 1);
+            } else if (dialogTypeMultiActionWithExit2Method != null) {
+                multiActionType = dialogTypeMultiActionWithExit2Method.invoke(null, btns, null);
+            } else if (dialogTypeMultiActionMethod != null) {
+                multiActionType = dialogTypeMultiActionMethod.invoke(null, btns);
+            }
+            if (multiActionType != null) {
+                this.multiActionConstructionTested = true;
+            }
+        } catch (Throwable t) {
+            Throwable root = unwrapThrowable(t);
+            recordFailure(lastFailureStage != null ? lastFailureStage : Stage.CONSTRUCT_MULTI_ACTION_TYPE,
+                    "SelfTest", "runSelfTest", root);
+            if (plugin != null) {
+                plugin.getLogger().warning("[DialogEngine] Self-test failed: " + lastFailureReason);
+            }
+        }
+    }
+
+    public static Throwable unwrapThrowable(Throwable t) {
+        if (t == null) return null;
+        Throwable current = t;
+        while (true) {
+            if (current instanceof java.lang.reflect.InvocationTargetException ite && ite.getTargetException() != null) {
+                current = ite.getTargetException();
+            } else if (current instanceof java.lang.reflect.UndeclaredThrowableException ute && ute.getUndeclaredThrowable() != null) {
+                current = ute.getUndeclaredThrowable();
+            } else if (current.getCause() != null && current.getCause() != current) {
+                current = current.getCause();
+            } else {
+                break;
+            }
+        }
+        return current;
+    }
+
+    public void recordFailure(Stage stage, String methodName, String methodSignature, Throwable rootCause) {
+        this.lastFailureStage = stage;
+        Throwable unwrapped = unwrapThrowable(rootCause);
+        String causeMsg = (unwrapped != null) ?
+                unwrapped.getClass().getSimpleName() + (unwrapped.getMessage() != null ? ": " + unwrapped.getMessage() : "") : "null";
+        this.lastFailureReason = "[Stage: " + (stage != null ? stage.name() : "UNKNOWN") + " in " + methodName + "] " + causeMsg;
+        this.lastRootExceptionType = (unwrapped != null) ? unwrapped.getClass().getName() : "None";
+        this.lastRootExceptionMessage = (unwrapped != null) ? String.valueOf(unwrapped.getMessage()) : "None";
+
+        String key = (stage != null ? stage.name() : "UNKNOWN") + "_" + methodName;
+        logRateLimited(key, "Native Dialog Failure at " + lastFailureReason + " (Sig: " + methodSignature + ")", 5000);
+        if (plugin != null && plugin.getConfig().getBoolean("debug", false) && unwrapped != null) {
+            plugin.getLogger().warning("[DialogEngine Debug Stack Trace]:");
+            unwrapped.printStackTrace();
         }
     }
 
@@ -202,20 +363,52 @@ public class PaperNativeDialogEngine {
         return initStatusMessage;
     }
 
+    public Stage getLastFailureStage() {
+        return lastFailureStage;
+    }
+
     public String getLastFailureReason() {
         return lastFailureReason;
     }
 
+    public String getLastRootExceptionType() {
+        return lastRootExceptionType;
+    }
+
+    public String getLastRootExceptionMessage() {
+        return lastRootExceptionMessage;
+    }
+
+    public boolean isCallbackOptionsInitialized() {
+        return callbackOptionsInitialized;
+    }
+
+    public boolean isActionButtonAvailable() {
+        return actionButtonCreateMethod != null || actionButtonClass != null;
+    }
+
+    public boolean isActionButtonCreationTested() {
+        return actionButtonCreationTested;
+    }
+
+    public boolean isMultiActionConstructionTested() {
+        return multiActionConstructionTested;
+    }
+
+    public Object getDefaultClickOptions() {
+        return defaultClickOptions;
+    }
+
     public boolean hasNoticeCapability() {
-        return available && dialogTypeNoticeMethod != null && actionButtonClass != null && dialogBaseBuilderMethod != null && showDialogMethod != null;
+        return available && callbackOptionsInitialized && dialogTypeNoticeMethod != null && actionButtonClass != null && dialogBaseBuilderMethod != null && showDialogMethod != null;
     }
 
     public boolean hasConfirmationCapability() {
-        return available && dialogTypeConfirmationMethod != null && actionButtonClass != null && dialogBaseBuilderMethod != null && showDialogMethod != null;
+        return available && callbackOptionsInitialized && dialogTypeConfirmationMethod != null && actionButtonClass != null && dialogBaseBuilderMethod != null && showDialogMethod != null;
     }
 
     public boolean hasMultiActionCapability() {
-        return available && (dialogTypeMultiActionWithExitMethod != null || dialogTypeMultiActionMethod != null) && actionButtonClass != null && dialogBaseBuilderMethod != null && showDialogMethod != null;
+        return available && callbackOptionsInitialized && (dialogTypeMultiActionWithExitMethod != null || dialogTypeMultiActionWithExit2Method != null || dialogTypeMultiActionMethod != null) && actionButtonClass != null && dialogBaseBuilderMethod != null && showDialogMethod != null;
     }
 
     public boolean hasTextCapability() {
@@ -238,8 +431,8 @@ public class PaperNativeDialogEngine {
         return dialogResponseViewClass != null;
     }
 
-    public java.util.Map<String, Boolean> auditCapabilities() {
-        java.util.Map<String, Boolean> caps = new java.util.LinkedHashMap<>();
+    public Map<String, Boolean> auditCapabilities() {
+        Map<String, Boolean> caps = new java.util.LinkedHashMap<>();
         caps.put("Notice", hasNoticeCapability());
         caps.put("Confirmation", hasConfirmationCapability());
         caps.put("MultiAction", hasMultiActionCapability());
@@ -248,6 +441,8 @@ public class PaperNativeDialogEngine {
         caps.put("RangeInput", hasRangeCapability());
         caps.put("ShowDialog", hasShowDialogCapability());
         caps.put("ResponseExtraction", hasResponseExtractionCapability());
+        caps.put("CallbackOptions", callbackOptionsInitialized);
+        caps.put("ActionButton", isActionButtonAvailable());
         return caps;
     }
 
@@ -271,52 +466,95 @@ public class PaperNativeDialogEngine {
         }
     }
 
+    public static Player extractPlayerFromAudience(Object audience) {
+        if (audience instanceof Player p) {
+            return p;
+        }
+        if (audience instanceof net.kyori.adventure.audience.ForwardingAudience.Single single) {
+            Audience target = single.audience();
+            if (target instanceof Player p) return p;
+        }
+        if (audience != null) {
+            try {
+                Method m = audience.getClass().getMethod("getUniqueId");
+                Object uuid = m.invoke(audience);
+                if (uuid instanceof UUID u) {
+                    return org.bukkit.Bukkit.getPlayer(u);
+                }
+            } catch (Throwable ignored) {}
+            try {
+                Method m = audience.getClass().getMethod("getName");
+                Object name = m.invoke(audience);
+                if (name instanceof String s) {
+                    return org.bukkit.Bukkit.getPlayer(s);
+                }
+            } catch (Throwable ignored) {}
+        }
+        return null;
+    }
+
+    private NativeDialogResponse createResponseProxy(Object responseView) {
+        return new NativeDialogResponse() {
+            @Override
+            public String getText(String key) {
+                if (responseView == null || key == null || dialogResponseViewClass == null) return null;
+                try {
+                    Method m = dialogResponseViewClass.getMethod("getText", String.class);
+                    return (String) m.invoke(responseView, key);
+                } catch (Throwable ignored) {
+                    return null;
+                }
+            }
+
+            @Override
+            public Boolean getBoolean(String key) {
+                if (responseView == null || key == null || dialogResponseViewClass == null) return null;
+                try {
+                    Method m = dialogResponseViewClass.getMethod("getBoolean", String.class);
+                    return (Boolean) m.invoke(responseView, key);
+                } catch (Throwable ignored) {
+                    return null;
+                }
+            }
+
+            @Override
+            public Float getFloat(String key) {
+                if (responseView == null || key == null || dialogResponseViewClass == null) return null;
+                try {
+                    Method m = dialogResponseViewClass.getMethod("getFloat", String.class);
+                    return (Float) m.invoke(responseView, key);
+                } catch (Throwable ignored) {
+                    return null;
+                }
+            }
+        };
+    }
+
     public Object createActionButton(Component label, Component tooltip, int width, NativeDialogActionHandler handler) throws Exception {
         Object actionProxy = null;
-        if (handler != null && dialogActionCallbackClass != null) {
+        if (handler != null) {
+            if (dialogActionCallbackClass == null || dialogActionCustomClickMethod == null || defaultClickOptions == null) {
+                IllegalStateException ex = new IllegalStateException("Callback API or ClickCallback.Options unavailable (defaultClickOptions=" + defaultClickOptions + ")");
+                recordFailure(Stage.CREATE_BUTTON_ACTION, "DialogAction.customClick", "customClick(callback, options)", ex);
+                throw ex;
+            }
+
+            AtomicBoolean executed = new AtomicBoolean(false);
+
             Object callback = Proxy.newProxyInstance(
                     dialogActionCallbackClass.getClassLoader(),
                     new Class<?>[]{ dialogActionCallbackClass },
                     (proxy, method, args) -> {
-                        if (method.getName().equals("accept") && args.length == 2) {
+                        if (method.getName().equals("accept") && args != null && args.length == 2) {
+                            if (!executed.compareAndSet(false, true)) {
+                                // Already executed once, ignore duplicate callback execution
+                                return null;
+                            }
                             Object responseView = args[0];
                             Object audience = args[1];
-                            Player player = (audience instanceof Player p) ? p : null;
+                            Player player = extractPlayerFromAudience(audience);
                             if (player != null) {
-                                NativeDialogResponse response = new NativeDialogResponse() {
-                                    @Override
-                                    public String getText(String key) {
-                                        if (responseView == null || key == null) return null;
-                                        try {
-                                            Method m = dialogResponseViewClass.getMethod("getText", String.class);
-                                            return (String) m.invoke(responseView, key);
-                                        } catch (Throwable ignored) {
-                                            return null;
-                                        }
-                                    }
-
-                                    @Override
-                                    public Boolean getBoolean(String key) {
-                                        if (responseView == null || key == null) return null;
-                                        try {
-                                            Method m = dialogResponseViewClass.getMethod("getBoolean", String.class);
-                                            return (Boolean) m.invoke(responseView, key);
-                                        } catch (Throwable ignored) {
-                                            return null;
-                                        }
-                                    }
-
-                                    @Override
-                                    public Float getFloat(String key) {
-                                        if (responseView == null || key == null) return null;
-                                        try {
-                                            Method m = dialogResponseViewClass.getMethod("getFloat", String.class);
-                                            return (Float) m.invoke(responseView, key);
-                                        } catch (Throwable ignored) {
-                                            return null;
-                                        }
-                                    }
-                                };
+                                NativeDialogResponse response = createResponseProxy(responseView);
                                 SchedulerUtils.runEntityTask(plugin, player, () -> handler.handle(player, response));
                             }
                             return null;
@@ -327,40 +565,81 @@ public class PaperNativeDialogEngine {
                         return null;
                     }
             );
-            actionProxy = dialogActionCustomClickMethod.invoke(null, callback, defaultClickOptions);
+
+            try {
+                actionProxy = dialogActionCustomClickMethod.invoke(null, callback, defaultClickOptions);
+                if (actionProxy == null) {
+                    throw new NullPointerException("DialogAction.customClick returned null");
+                }
+            } catch (Throwable t) {
+                Throwable root = unwrapThrowable(t);
+                recordFailure(Stage.CREATE_BUTTON_ACTION, "DialogAction.customClick", "customClick(callback, options)", root);
+                throw new RuntimeException("Failed to create button action proxy: " + root.getMessage(), root);
+            }
         }
 
-        if (actionButtonCreateMethod != null) {
-            return actionButtonCreateMethod.invoke(null, label, tooltip, width, actionProxy);
-        } else {
-            Method bMethod = actionButtonClass.getMethod("builder", Component.class);
-            Object builder = bMethod.invoke(null, label);
-            if (tooltip != null) {
-                builder.getClass().getMethod("tooltip", Component.class).invoke(builder, tooltip);
+        try {
+            if (actionButtonCreateMethod != null) {
+                Object btn = actionButtonCreateMethod.invoke(null, label, tooltip, width, actionProxy);
+                if (btn == null) throw new NullPointerException("ActionButton.create returned null");
+                return btn;
+            } else {
+                Method bMethod = actionButtonClass.getMethod("builder", Component.class);
+                Class<?> builderType = bMethod.getReturnType();
+                Object builder = bMethod.invoke(null, label);
+                if (tooltip != null) {
+                    try {
+                        Method m = builderType.getMethod("tooltip", Component.class);
+                        m.invoke(builder, tooltip);
+                    } catch (Throwable ignored) {}
+                }
+                try {
+                    Method m = builderType.getMethod("width", int.class);
+                    m.invoke(builder, width);
+                } catch (Throwable ignored) {}
+                if (actionProxy != null) {
+                    try {
+                        Method m = builderType.getMethod("action", dialogActionClass);
+                        m.invoke(builder, actionProxy);
+                    } catch (Throwable ignored) {}
+                }
+                Method buildM = builderType.getMethod("build");
+                Object btn = buildM.invoke(builder);
+                if (btn == null) throw new NullPointerException("ActionButton.Builder.build returned null");
+                return btn;
             }
-            builder.getClass().getMethod("width", int.class).invoke(builder, width);
-            if (actionProxy != null) {
-                builder.getClass().getMethod("action", dialogActionClass).invoke(builder, actionProxy);
-            }
-            return builder.getClass().getMethod("build").invoke(builder);
+        } catch (Throwable t) {
+            Throwable root = unwrapThrowable(t);
+            recordFailure(Stage.CONSTRUCT_ACTION_BUTTON, "ActionButton.create", "create(label, tooltip, width, action)", root);
+            throw new RuntimeException("Failed to construct ActionButton: " + root.getMessage(), root);
         }
     }
 
     public Object createTextInput(String key, Component label, int width, int maxLength, String initialValue) throws Exception {
         if (dialogInputTextMethod == null) return null;
         Object builder = dialogInputTextMethod.invoke(null, key, label);
+        if (builder == null) return null;
+        Class<?> builderType = dialogInputTextMethod.getReturnType();
         try {
-            builder.getClass().getMethod("width", int.class).invoke(builder, width);
+            Method m = builderType.getMethod("width", int.class);
+            m.invoke(builder, width);
         } catch (Throwable ignored) {}
         try {
-            builder.getClass().getMethod("maxLength", int.class).invoke(builder, maxLength);
+            Method m = builderType.getMethod("maxLength", int.class);
+            m.invoke(builder, maxLength);
         } catch (Throwable ignored) {}
         if (initialValue != null) {
             try {
-                builder.getClass().getMethod("initial", String.class).invoke(builder, initialValue);
+                Method m = builderType.getMethod("initial", String.class);
+                m.invoke(builder, initialValue);
             } catch (Throwable ignored) {}
         }
-        return builder.getClass().getMethod("build").invoke(builder);
+        try {
+            Method buildM = builderType.getMethod("build");
+            return buildM.invoke(builder);
+        } catch (Throwable ignored) {
+            return builder;
+        }
     }
 
     public Object createBoolInput(String key, Component label, boolean initial, String onTrue, String onFalse) throws Exception {
@@ -383,38 +662,39 @@ public class PaperNativeDialogEngine {
             builder = dialogInputRangeMethod.invoke(null, key, label, start, end, step);
         }
         if (builder == null) return null;
+        Class<?> builderType = dialogInputRangeMethod.getReturnType();
 
         try {
-            Method m = builder.getClass().getMethod("step", float.class);
+            Method m = builderType.getMethod("step", float.class);
             m.invoke(builder, step);
         } catch (Throwable ignored) {}
 
         try {
-            Method m = builder.getClass().getMethod("initial", float.class);
+            Method m = builderType.getMethod("initial", float.class);
             m.invoke(builder, initial);
         } catch (Throwable ignored) {}
 
         if (width > 0) {
             try {
-                Method m = builder.getClass().getMethod("width", int.class);
+                Method m = builderType.getMethod("width", int.class);
                 m.invoke(builder, width);
             } catch (Throwable ignored) {}
         }
 
         if (labelFormat != null) {
             try {
-                Method m = builder.getClass().getMethod("labelFormat", String.class);
+                Method m = builderType.getMethod("labelFormat", String.class);
                 m.invoke(builder, labelFormat);
             } catch (Throwable e) {
                 try {
-                    Method m = builder.getClass().getMethod("format", String.class);
+                    Method m = builderType.getMethod("format", String.class);
                     m.invoke(builder, labelFormat);
                 } catch (Throwable ignored) {}
             }
         }
 
         try {
-            Method buildM = builder.getClass().getMethod("build");
+            Method buildM = builderType.getMethod("build");
             return buildM.invoke(builder);
         } catch (NoSuchMethodException e) {
             return builder;
@@ -422,22 +702,43 @@ public class PaperNativeDialogEngine {
     }
 
     public Object buildDialog(Component title, List<Component> bodyLines, List<Object> inputs, Object dialogType) throws Exception {
-        List<Object> bodies = new ArrayList<>();
-        if (bodyLines != null) {
-            for (Component line : bodyLines) {
-                bodies.add(dialogBodyPlainMessageMethod.invoke(null, line));
+        Object dialogBase;
+        try {
+            List<Object> bodies = new ArrayList<>();
+            if (bodyLines != null) {
+                for (Component line : bodyLines) {
+                    bodies.add(dialogBodyPlainMessageMethod.invoke(null, line));
+                }
             }
+
+            Object baseBuilder = dialogBaseBuilderMethod.invoke(null, title);
+            try {
+                Method m = dialogBaseBuilderClass.getMethod("canCloseWithEscape", boolean.class);
+                m.invoke(baseBuilder, true);
+            } catch (Throwable ignored) {}
+
+            try {
+                Method m = dialogBaseBuilderClass.getMethod("body", List.class);
+                m.invoke(baseBuilder, bodies);
+            } catch (Throwable ignored) {}
+
+            if (inputs != null && !inputs.isEmpty()) {
+                try {
+                    Method m = dialogBaseBuilderClass.getMethod("inputs", List.class);
+                    m.invoke(baseBuilder, inputs);
+                } catch (Throwable ignored) {}
+            }
+
+            Method buildM = dialogBaseBuilderClass.getMethod("build");
+            dialogBase = buildM.invoke(baseBuilder);
+            if (dialogBase == null) {
+                throw new NullPointerException("DialogBase.build() returned null");
+            }
+        } catch (Throwable t) {
+            Throwable root = unwrapThrowable(t);
+            recordFailure(Stage.BUILD_DIALOG_BASE, "DialogBase.Builder.build", "build()", root);
+            throw new RuntimeException("Failed in BUILD_DIALOG_BASE: " + root.getMessage(), root);
         }
-
-        Object baseBuilder = dialogBaseBuilderMethod.invoke(null, title);
-        dialogBaseBuilderClass.getMethod("canCloseWithEscape", boolean.class).invoke(baseBuilder, true);
-        dialogBaseBuilderClass.getMethod("body", List.class).invoke(baseBuilder, bodies);
-
-        if (inputs != null && !inputs.isEmpty()) {
-            dialogBaseBuilderClass.getMethod("inputs", List.class).invoke(baseBuilder, inputs);
-        }
-
-        Object dialogBase = dialogBaseBuilderClass.getMethod("build").invoke(baseBuilder);
 
         Consumer<?> consumer = (factory) -> {
             try {
@@ -447,26 +748,43 @@ public class PaperNativeDialogEngine {
                 baseMethod.invoke(entryBuilder, dialogBase);
                 Method typeMethod = dialogRegistryEntryBuilderClass.getMethod("type", dialogTypeClass);
                 typeMethod.invoke(entryBuilder, dialogType);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+            } catch (Throwable t) {
+                Throwable root = unwrapThrowable(t);
+                recordFailure(Stage.BUILD_REGISTRY_ENTRY, "DialogRegistryEntry.Builder", "base(DialogBase)/type(DialogType)", root);
+                throw new RuntimeException("Failed in BUILD_REGISTRY_ENTRY: " + root.getMessage(), root);
             }
         };
 
-        return dialogCreateMethod.invoke(null, consumer);
+        try {
+            Object dialogInstance = dialogCreateMethod.invoke(null, consumer);
+            if (dialogInstance == null) {
+                NullPointerException npe = new NullPointerException("Dialog.create returned null");
+                recordFailure(Stage.CREATE_NATIVE_DIALOG, "Dialog.create", "create(Consumer)", npe);
+                throw npe;
+            }
+            return dialogInstance;
+        } catch (Throwable t) {
+            Throwable root = unwrapThrowable(t);
+            recordFailure(Stage.CREATE_NATIVE_DIALOG, "Dialog.create", "create(Consumer)", root);
+            throw new RuntimeException("Failed in CREATE_NATIVE_DIALOG: " + root.getMessage(), root);
+        }
     }
 
     public boolean showDialog(Player player, Object dialogInstance) {
         if (!available || player == null || dialogInstance == null) {
-            lastFailureReason = "Engine not available or player/dialog null";
+            IllegalArgumentException ex = new IllegalArgumentException("Engine unavailable (" + available + ") or player/dialog null");
+            recordFailure(Stage.INVOKE_SHOW_DIALOG, "Audience.showDialog", "showDialog(Dialog)", ex);
             return false;
         }
         try {
             showDialogMethod.invoke(player, dialogInstance);
             return true;
         } catch (Throwable t) {
-            lastFailureReason = "showDialog invocation: " + t.getClass().getSimpleName() + ": " + t.getMessage();
+            Throwable root = unwrapThrowable(t);
+            recordFailure(Stage.INVOKE_SHOW_DIALOG, "Audience.showDialog", "showDialog(Dialog)", root);
             if (plugin != null && plugin.getConfig().getBoolean("debug", false)) {
-                logRateLimited("showDialog_" + player.getUniqueId(), "Failed to show native Dialog to " + player.getName() + ": " + t.getMessage(), 5000);
+                logRateLimited("showDialog_" + player.getUniqueId(),
+                        "Failed to show native Dialog to " + player.getName() + " [Stage 8]: " + root.getClass().getSimpleName() + ": " + root.getMessage(), 5000);
             }
             return false;
         }
@@ -474,25 +792,37 @@ public class PaperNativeDialogEngine {
 
     public boolean showNotice(Player player, Component title, List<Component> bodyLines, Component buttonText, Runnable onClose) {
         if (!available) {
-            lastFailureReason = "Engine not available";
+            recordFailure(Stage.CREATE_CALLBACK_OPTIONS, "PaperNativeDialogEngine", "isAvailable",
+                    new IllegalStateException("Engine unavailable"));
             return false;
         }
         try {
             Object btn = createActionButton(buttonText, null, 140, (p, resp) -> {
                 if (onClose != null) onClose.run();
             });
-            Object noticeType = dialogTypeNoticeMethod.invoke(null, btn);
+            Object noticeType;
+            try {
+                noticeType = dialogTypeNoticeMethod.invoke(null, btn);
+            } catch (Throwable t) {
+                Throwable root = unwrapThrowable(t);
+                recordFailure(Stage.CONSTRUCT_MULTI_ACTION_TYPE, "DialogType.notice", "notice(ActionButton)", root);
+                return false;
+            }
             Object dialog = buildDialog(title, bodyLines, null, noticeType);
             return showDialog(player, dialog);
         } catch (Throwable t) {
-            lastFailureReason = "showNotice: " + t.getClass().getSimpleName() + ": " + t.getMessage();
+            Throwable root = unwrapThrowable(t);
+            if (lastFailureStage == null) {
+                recordFailure(Stage.CONSTRUCT_MULTI_ACTION_TYPE, "showNotice", "orchestration", root);
+            }
             return false;
         }
     }
 
     public boolean showConfirmation(Player player, Component title, List<Component> bodyLines, Component confirmText, Component cancelText, Consumer<Boolean> callback) {
         if (!available) {
-            lastFailureReason = "Engine not available";
+            recordFailure(Stage.CREATE_CALLBACK_OPTIONS, "PaperNativeDialogEngine", "isAvailable",
+                    new IllegalStateException("Engine unavailable"));
             return false;
         }
         try {
@@ -502,20 +832,37 @@ public class PaperNativeDialogEngine {
             Object noBtn = createActionButton(cancelText, null, 120, (p, resp) -> {
                 if (callback != null) callback.accept(false);
             });
-            Object confirmType = dialogTypeConfirmationMethod.invoke(null, yesBtn, noBtn);
+            Object confirmType;
+            try {
+                confirmType = dialogTypeConfirmationMethod.invoke(null, yesBtn, noBtn);
+            } catch (Throwable t) {
+                Throwable root = unwrapThrowable(t);
+                recordFailure(Stage.CONSTRUCT_MULTI_ACTION_TYPE, "DialogType.confirmation", "confirmation(ActionButton, ActionButton)", root);
+                return false;
+            }
             Object dialog = buildDialog(title, bodyLines, null, confirmType);
             return showDialog(player, dialog);
         } catch (Throwable t) {
-            lastFailureReason = "showConfirmation: " + t.getClass().getSimpleName() + ": " + t.getMessage();
+            Throwable root = unwrapThrowable(t);
+            if (lastFailureStage == null) {
+                recordFailure(Stage.CONSTRUCT_MULTI_ACTION_TYPE, "showConfirmation", "orchestration", root);
+            }
             return false;
         }
     }
 
     public boolean showMultiAction(Player player, Component title, List<Component> bodyLines, List<Object> inputs, List<NativeButton> buttons, NativeButton exitButton, int columns) {
         if (!available) {
-            lastFailureReason = "Engine not available";
+            recordFailure(Stage.CREATE_CALLBACK_OPTIONS, "PaperNativeDialogEngine", "isAvailable",
+                    new IllegalStateException("Engine unavailable: " + initStatusMessage));
             return false;
         }
+        if (defaultClickOptions == null) {
+            recordFailure(Stage.CREATE_CALLBACK_OPTIONS, "ClickCallback.Options", "defaultClickOptions",
+                    new IllegalStateException("ClickCallback.Options not initialized"));
+            return false;
+        }
+
         try {
             List<Object> actionButtons = new ArrayList<>();
             if (buttons != null) {
@@ -529,22 +876,37 @@ public class PaperNativeDialogEngine {
             }
 
             Object multiActionType;
-            if (dialogTypeMultiActionWithExitMethod != null) {
-                multiActionType = dialogTypeMultiActionWithExitMethod.invoke(null, actionButtons, exitBtn, Math.max(1, columns));
-            } else if (dialogTypeMultiActionMethod != null) {
-                if (exitBtn != null) actionButtons.add(exitBtn);
-                multiActionType = dialogTypeMultiActionMethod.invoke(null, actionButtons);
-            } else {
-                lastFailureReason = "No multiAction method available on DialogType";
+            try {
+                if (dialogTypeMultiActionWithExitMethod != null) {
+                    multiActionType = dialogTypeMultiActionWithExitMethod.invoke(null, actionButtons, exitBtn, Math.max(1, columns));
+                } else if (dialogTypeMultiActionWithExit2Method != null) {
+                    multiActionType = dialogTypeMultiActionWithExit2Method.invoke(null, actionButtons, exitBtn);
+                } else if (dialogTypeMultiActionMethod != null) {
+                    if (exitBtn != null) actionButtons.add(exitBtn);
+                    multiActionType = dialogTypeMultiActionMethod.invoke(null, actionButtons);
+                } else {
+                    NoSuchMethodException ex = new NoSuchMethodException("No multiAction method found on DialogType");
+                    recordFailure(Stage.CONSTRUCT_MULTI_ACTION_TYPE, "DialogType.multiAction", "multiAction", ex);
+                    return false;
+                }
+            } catch (Throwable t) {
+                Throwable root = unwrapThrowable(t);
+                recordFailure(Stage.CONSTRUCT_MULTI_ACTION_TYPE, "DialogType.multiAction", "multiAction", root);
                 return false;
             }
 
             Object dialog = buildDialog(title, bodyLines, inputs, multiActionType);
-            return showDialog(player, dialog);
+            boolean shown = showDialog(player, dialog);
+            if (shown) {
+                this.multiActionConstructionTested = true;
+            }
+            return shown;
         } catch (Throwable t) {
-            lastFailureReason = "showMultiAction: " + t.getClass().getSimpleName() + ": " + t.getMessage();
+            Throwable root = unwrapThrowable(t);
+            if (lastFailureStage == null) {
+                recordFailure(Stage.CONSTRUCT_MULTI_ACTION_TYPE, "showMultiAction", "orchestration", root);
+            }
             return false;
         }
     }
 }
-

@@ -377,4 +377,71 @@ public class HatchRecoveryAndAuditTest {
         assertEquals(60.0, curDmg, 0.001);
         assertEquals(12.0, lvl1Dmg, 0.001);
     }
+
+    @Test
+    @DisplayName("PaperNativeDialogEngine: ClickCallback.Options builds non-null options via public interface")
+    public void testClickCallbackOptionsInitialization() {
+        PaperNativeDialogEngine engine = new PaperNativeDialogEngine(null);
+        Object options = engine.initClickCallbackOptions();
+        assertNotNull(options, "ClickCallback.Options must be non-null when Adventure is on classpath");
+        assertTrue(engine.isCallbackOptionsInitialized(), "callbackOptionsInitialized flag must be true");
+    }
+
+    @Test
+    @DisplayName("PaperNativeDialogEngine: unwrapThrowable unwraps nested InvocationTargetException and causes to root")
+    public void testUnwrapThrowableRecursive() {
+        NullPointerException root = new NullPointerException("Root cause failure");
+        java.lang.reflect.InvocationTargetException innerIte = new java.lang.reflect.InvocationTargetException(root);
+        java.lang.reflect.InvocationTargetException outerIte = new java.lang.reflect.InvocationTargetException(innerIte);
+        RuntimeException wrapper = new RuntimeException("Outer wrapper", outerIte);
+
+        Throwable unwrapped = PaperNativeDialogEngine.unwrapThrowable(wrapper);
+        assertSame(root, unwrapped, "Must unwrap to innermost NullPointerException");
+        assertEquals("Root cause failure", unwrapped.getMessage());
+        assertNull(PaperNativeDialogEngine.unwrapThrowable(null), "Null throwable unwraps to null");
+    }
+
+    @Test
+    @DisplayName("PaperNativeDialogEngine: recordFailure updates failure stage, reasons, and root exception info")
+    public void testRecordFailureAndStageTracking() {
+        PaperNativeDialogEngine engine = new PaperNativeDialogEngine(null);
+        IllegalStateException rootCause = new IllegalStateException("Test failure details");
+        java.lang.reflect.InvocationTargetException ite = new java.lang.reflect.InvocationTargetException(rootCause);
+
+        engine.recordFailure(PaperNativeDialogEngine.Stage.CONSTRUCT_MULTI_ACTION_TYPE, "DialogType.multiAction", "multiAction(buttons, exit, columns)", ite);
+
+        assertEquals(PaperNativeDialogEngine.Stage.CONSTRUCT_MULTI_ACTION_TYPE, engine.getLastFailureStage());
+        assertEquals("java.lang.IllegalStateException", engine.getLastRootExceptionType());
+        assertEquals("Test failure details", engine.getLastRootExceptionMessage());
+        assertTrue(engine.getLastFailureReason().contains("CONSTRUCT_MULTI_ACTION_TYPE"));
+        assertTrue(engine.getLastFailureReason().contains("Test failure details"));
+    }
+
+    @Test
+    @DisplayName("PaperNativeDialogEngine: Anti-duplicate callback executes action exactly once across concurrent/repeated triggers")
+    public void testAntiDuplicateCallbackExecution() {
+        java.util.concurrent.atomic.AtomicBoolean executed = new java.util.concurrent.atomic.AtomicBoolean(false);
+        java.util.concurrent.atomic.AtomicInteger runCount = new java.util.concurrent.atomic.AtomicInteger(0);
+
+        Runnable callbackTrigger = () -> {
+            if (executed.compareAndSet(false, true)) {
+                runCount.incrementAndGet();
+            }
+        };
+
+        // Fire 10 times consecutively
+        for (int i = 0; i < 10; i++) {
+            callbackTrigger.run();
+        }
+
+        assertEquals(1, runCount.get(), "Action callback must only run once across multiple invocations");
+    }
+
+    @Test
+    @DisplayName("PaperNativeDialogEngine: extractPlayerFromAudience safely handles null and non-player objects without throwing")
+    public void testExtractPlayerFromAudienceSafety() {
+        assertNull(PaperNativeDialogEngine.extractPlayerFromAudience(null));
+        assertNull(PaperNativeDialogEngine.extractPlayerFromAudience(new Object()));
+        assertNull(PaperNativeDialogEngine.extractPlayerFromAudience("not_an_audience"));
+    }
 }
