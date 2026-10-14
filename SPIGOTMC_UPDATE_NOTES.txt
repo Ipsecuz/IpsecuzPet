@@ -1,0 +1,54 @@
+[B]IPSECUZPET — CHANGELOG[/B]
+
+Welcome to the comprehensive release of IpsecuzPet! From its core RPG leveling and mob capture origins, IpsecuzPet has evolved into a complete MMORPG pet companion suite featuring 3D custom models, native Paper Dialog screens, fail-safe egg roulette hatching, secure player-to-player trading, and multi-threaded Folia support.
+
+[SIZE=4][B]✨ New Features[/B][/SIZE]
+[LIST]
+[*][B]43 Pre-Configured RPG Pets:[/B] A rich companion roster across 7 distinct rarity tiers (Common to God Tier), each with custom base stats, growth curves, and particle effects.
+[*][B]Egg Hatching & Animated Roulette:[/B] Visual egg incubation system featuring animated roulette spins, weighted loot tables, and crash-resilient transaction recovery ([ICODE]/pet hatch[/ICODE]).
+[*][B]Pet Evolution & Star Ascension:[/B] 5-star progression system allowing pets to ascend tiers, significantly multiplying their stat growth and combat potential ([ICODE]/pet star[/ICODE]).
+[*][B]Pet Skills & Ultimate Abilities:[/B] Comprehensive skill tree featuring active spells, owner buff auras, and devastating combat ultimates ([ICODE]/pet skill[/ICODE]).
+[*][B]Pet Feeding & Happiness System:[/B] Dynamic happiness and hunger engine where feeding pets their preferred treats provides combat stat modifiers and loyalty perks ([ICODE]/pet feed[/ICODE]).
+[*][B]Pet Codex Collection Archive:[/B] Interactive discovery compendium tracking unlocked pet silhouettes, collection statistics, and account-wide bonus attributes ([ICODE]/pet codex[/ICODE]).
+[*][B]Cryptographic Pet Cards:[/B] Secure physical pet withdrawal powered by HMAC-SHA256 signatures, unique card UUIDs, and fail-closed anti-cloning persistence ([ICODE]/pet withdraw[/ICODE]).
+[*][B]Two-Sided Trading GUI:[/B] Real-time secure player trading window with countdown locks, inventory capacity checks, and offline refund protection ([ICODE]/pet trade <player>[/ICODE]).
+[*][B]1v1 Arena Pet Duels:[/B] Automated duel system allowing players to challenge other companions in synchronized 1v1 pet battles ([ICODE]/pet duel <player>[/ICODE]).
+[*][B]Riding & Mounting System:[/B] Right-click owned companions to mount and ride them smoothly with real-time steering and custom seat positioning.
+[/LIST]
+
+[SIZE=4][B]⚙️ Improvements[/B][/SIZE]
+[LIST]
+[*][B]MMORPG Combat AI & Stances:[/B] Intelligent target tracking featuring Assist (attacks owner's target), Guardian (defends owner on damage), and Peaceful following modes.
+[*][B]Universal Requirement & Cost Engine:[/B] Data-driven prerequisite system supporting complex conditions (ALL, ONE_OF, levels, items, currencies) with two-phase atomic execution.
+[*][B]Hardcore Revival & Soul Power:[/B] Configurable permadeath mechanics where fallen pets require mining ores (Diamonds, Gold) or collecting Soul Power to resurrect.
+[*][B]Deep RPG Stat Formulas:[/B] Dynamic combat attributes tracking Max Health hearts, Attack Damage, Armor Defense, Movement Speed, and Potion Duration Intelligence.
+[*][B]Baby & Adult Scale Toggle:[/B] Instant scale command ([ICODE]/pet baby[/ICODE]) enabling players to toggle between miniature companions and full-size battle forms.
+[*][B]Rank-Based EXP & Capture Multipliers:[/B] Permission-based progression bonuses granting higher EXP gain rates and enhanced capture ball success chances for VIP ranks.
+[/LIST]
+
+[SIZE=4][B]🎨 GUI & Localization[/B][/SIZE]
+[LIST]
+[*][B]Native Paper Dialog API Integration:[/B] Modern client-side modal dialogs on Paper 1.21.7+ and 1.21.11+ with action buttons, custom forms, and dynamic navigation.
+[*][B]Intelligent Chest GUI Fallback:[/B] Automatic runtime reflection bridge that falls back to a clean, responsive inventory GUI on legacy or non-Paper platforms.
+[*][B]18-Chapter In-Game Guidebook:[/B] Comprehensive interactive guide covering all pet commands, mechanics, and progression paths ([ICODE]/pet guide[/ICODE]).
+[*][B]Authoritative Shop Price Formatting:[/B] Clear multi-currency price displays showing exact item names, counts, and real-time provider availability across all menus.
+[*][B]100% Dual-Language Parity (VN & EN):[/B] Complete Vietnamese and English translations with full support for RGB HEX colors ([ICODE]&#RRGGBB[/ICODE]) and legacy formatting codes.
+[/LIST]
+
+[SIZE=4][B]🔌 Integrations[/B][/SIZE]
+[LIST]
+[*][B]BetterModel & ModelEngine R4:[/B] Dual 3D custom model support with automatic engine detection, animation state management (walk, idle, attack), and bone rotation safety.
+[*][B]Multi-Economy Support (Vault & PlayerPoints):[/B] Flexible payment processing supporting server money via Vault and premium points via PlayerPoints.
+[*][B]Custom Item Frameworks:[/B] Full hook support for ItemsAdder, Oraxen, and Nexo custom items in shop pricing, egg costs, and revive requirements.
+[*][B]bStats Metrics Shading:[/B] Shaded and relocated bStats telemetry (Plugin ID: 34551) for safe performance and version tracking without classpath conflicts.
+[/LIST]
+
+[SIZE=4][B]🐛 Bug Fixes & Stability[/B][/SIZE]
+[LIST]
+[*][B]Folia Region Threading Safety:[/B] Fully audited concurrency using unified region and global schedulers ([ICODE]SchedulerUtils[/ICODE]) for zero main-thread tick stalling.
+[*][B]Durable Transaction Journals:[/B] Persistent transaction journal tracking payment and reward lifecycles with atomic recovery on join for pending refunds or grants.
+[*][B]Strict Quantity & Price Validation:[/B] Complete prevention of negative, fractional, NaN, or overflowing amounts across all item and currency transactions.
+[*][B]Anti-Substitution Refund Safety:[/B] Custom-item rollbacks strictly verify original item providers and drop leftovers naturally on full inventories without stone/diamond substitutions.
+[*][B]Atomic Fail-Closed Card Redemption:[/B] Prevents item duplication by verifying durable disk writes prior to profile granting and unmarking consumed cards on failure.
+[/LIST]
+
