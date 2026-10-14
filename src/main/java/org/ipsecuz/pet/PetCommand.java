@@ -711,7 +711,75 @@ public class PetCommand implements CommandExecutor {
             sender.sendMessage(lang.getMessageOrDefault("admin.hatch_usage", "§cUsage: /pet admin hatch <list|recover <tx_id> <grant|refund|discard>>"));
             return true;
         }
-        sender.sendMessage(lang.getMessageOrDefault("admin.hatch_usage", "§cUsage: /pet admin hatch <list|recover <tx_id> <grant|refund|discard>>"));
+        if (args.length > 1 && args[1].equalsIgnoreCase("shop")) {
+            if (args.length > 2 && args[2].equalsIgnoreCase("list")) {
+                return handleAdminShopList(sender, lang);
+            }
+            if (args.length > 4 && args[2].equalsIgnoreCase("recover")) {
+                return handleAdminShopRecover(sender, args[3], args[4], lang);
+            }
+            sender.sendMessage(lang.getMessageOrDefault("admin.shop_usage", "§cUsage: /pet admin shop <list|recover <tx_id> <grant|refund|discard>>"));
+            return true;
+        }
+        sender.sendMessage("§cUsage: /pet admin <hatch|shop> <list|recover <tx_id> <grant|refund|discard>>");
+        return true;
+    }
+
+    private boolean handleAdminShopList(CommandSender sender, LanguageManager lang) {
+        if (plugin.getConfigManager() == null) {
+            sender.sendMessage("§cConfigManager unavailable");
+            return true;
+        }
+        List<ConfigManager.ShopTransactionEntry> txs = plugin.getConfigManager().getAllPendingShopTransactions();
+        if (txs.isEmpty()) {
+            sender.sendMessage(lang.getMessageOrDefault("admin.shop_list_empty", "§7Không có giao dịch cửa hàng nào đang chờ xử lý."));
+            return true;
+        }
+        sender.sendMessage(lang.getMessageOrDefault("admin.shop_list_header", "§6§l[IPSECUZ PET] §eDanh sách giao dịch Shop đang chờ (%count%):", "%count%", String.valueOf(txs.size())));
+        for (ConfigManager.ShopTransactionEntry entry : txs) {
+            String pName = "Unknown";
+            if (entry.getPlayerUuid() != null) {
+                Player target = Bukkit.getPlayer(entry.getPlayerUuid());
+                if (target != null) {
+                    pName = target.getName();
+                } else {
+                    var op = Bukkit.getOfflinePlayer(entry.getPlayerUuid());
+                    if (op.getName() != null) pName = op.getName();
+                }
+            }
+            String pUuidStr = entry.getPlayerUuid() != null ? entry.getPlayerUuid().toString() : "null";
+            String shortUuid = pUuidStr.length() >= 8 ? pUuidStr.substring(0, 8) + "..." : pUuidStr;
+            String msg = "§7- TX: §f" + entry.getTxId()
+                    + " §7| Player: §e" + pName + " (" + shortUuid + ")"
+                    + " §7| Pet: §b" + entry.getPetId()
+                    + " §7| Currency: §a" + entry.getCurrency()
+                    + " §7| Amount: §f" + entry.getAmount()
+                    + " §7| State: §6" + entry.getStatus()
+                    + (entry.getNote() != null ? " §7| Note: §c" + entry.getNote() : "");
+            sender.sendMessage(msg);
+        }
+        return true;
+    }
+
+    private boolean handleAdminShopRecover(CommandSender sender, String txId, String action, LanguageManager lang) {
+        if (txId == null || action == null || (!action.equalsIgnoreCase("grant") && !action.equalsIgnoreCase("refund") && !action.equalsIgnoreCase("discard"))) {
+            sender.sendMessage(lang.getMessageOrDefault("admin.shop_usage", "§cUsage: /pet admin shop <list|recover <tx_id> <grant|refund|discard>>"));
+            return true;
+        }
+        if (plugin.getConfigManager() == null) {
+            sender.sendMessage("§cConfigManager unavailable");
+            return true;
+        }
+        boolean ok = plugin.getConfigManager().resolvePendingShopTransaction(txId, action, sender.getName());
+        if (ok) {
+            sender.sendMessage(lang.getMessageOrDefault("admin.shop_recover_success",
+                    "§aĐã xử lý giao dịch shop %tx_id% với hành động %action% thành công!",
+                    "%tx_id%", txId, "%action%", action.toLowerCase()));
+        } else {
+            sender.sendMessage(lang.getMessageOrDefault("admin.shop_not_found",
+                    "§cKhông tìm thấy giao dịch hoặc thực hiện thất bại (nếu hoàn tiền vật phẩm, người chơi cần online): %tx_id%",
+                    "%tx_id%", txId));
+        }
         return true;
     }
 

@@ -100,9 +100,18 @@ public class ShopTransactionReceipt {
      * @return true if rollback succeeded, false if external provider failed or was unavailable
      */
     public boolean rollback(Player player, IpsecuzPet plugin) {
-        if (player == null || plugin == null) return false;
         if (!isSuccess()) return false;
         if (priceType == ShopPriceFormatter.PriceType.FREE) return true;
+
+        if (priceType == ShopPriceFormatter.PriceType.STRUCTURED_REQUIREMENTS) {
+            if (requirementTransaction != null && !requirementTransaction.isEmpty()) {
+                requirementTransaction.rollbackAll(player);
+                return true;
+            }
+            return false;
+        }
+
+        if (player == null || plugin == null) return false;
 
         if (priceType == ShopPriceFormatter.PriceType.MONEY) {
             return plugin.getCurrencyManager().depositMoney(player, amount);
@@ -117,12 +126,6 @@ public class ShopTransactionReceipt {
             ItemHookManager ihm = plugin.getItemHookManager();
             if (ihm == null) return false;
             return ihm.refundItem(player, itemIdentifier, (int) amount, null, null);
-        }
-
-        if (priceType == ShopPriceFormatter.PriceType.STRUCTURED_REQUIREMENTS) {
-            // Cannot safely guess multi-step rollback if external providers are uncertain.
-            // Return false to preserve recoverable journal record.
-            return false;
         }
 
         return false;

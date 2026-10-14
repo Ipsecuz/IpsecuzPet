@@ -75,6 +75,10 @@ public class RequirementTransaction {
         return true;
     }
 
+    public void rollbackAll(Player player) {
+        rollback(player, this.steps);
+    }
+
     private void rollback(Player player, List<TransactionStep> executedSteps) {
         IpsecuzPet plugin = IpsecuzPet.getInstance();
         if (plugin != null) {

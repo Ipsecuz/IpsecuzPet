@@ -207,7 +207,7 @@ public class ItemHookManager {
     }
 
     public boolean hasItem(Player player, String identifier, int amount, Integer customModelData, java.util.Map<String, String> pdcStrings) {
-        if (player == null || identifier == null || amount <= 0) return true;
+        if (player == null || identifier == null || amount <= 0) return false;
         int count = 0;
         for (ItemStack item : player.getInventory().getContents()) {
             if (matchesItem(item, identifier, customModelData, pdcStrings)) {
@@ -226,6 +226,7 @@ public class ItemHookManager {
     }
 
     public boolean takeItem(Player player, String identifier, int amount, Integer customModelData, java.util.Map<String, String> pdcStrings) {
+        if (player == null || identifier == null || amount <= 0) return false;
         if (!hasItem(player, identifier, amount, customModelData, pdcStrings)) return false;
         int remaining = amount;
         ItemStack[] contents = player.getInventory().getContents();

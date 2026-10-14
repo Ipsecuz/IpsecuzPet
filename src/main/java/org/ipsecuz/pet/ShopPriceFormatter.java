@@ -180,17 +180,18 @@ public class ShopPriceFormatter {
             } catch (Exception ex) {
                 return makeInvalid(petId, "Failed to parse requirements: " + ex.getMessage());
             }
-            if (group != null && !group.getRequirements().isEmpty()) {
-                RequirementContext ctx = new RequirementContext(player, petId, 1, 1, plugin);
-                RequirementCheckResult evalResult = group.evaluate(ctx);
-                List<String> rendered = RequirementGuiRenderer.renderToStrings(evalResult);
-
-                String formatted = lang != null ? lang.getMessageOrDefault("dialog.currency_requirements", "Yêu cầu nhiệm vụ") : "Yêu cầu nhiệm vụ";
-                String browseLabel = lang != null ? lang.getMessageOrDefault("dialog.shop_status_requirements", "&6[Điều kiện]") : "&6[Điều kiện]";
-
-                return new PriceResult(PriceType.STRUCTURED_REQUIREMENTS, 0, null, null,
-                        true, null, formatted, browseLabel, rendered, group, evalResult);
+            if (group == null || group.getRequirements().isEmpty()) {
+                return makeInvalid(petId, "Structured requirements section ('requirements', 'all', or 'one_of') is defined but contains no valid executable requirements.");
             }
+            RequirementContext ctx = new RequirementContext(player, petId, 1, 1, plugin);
+            RequirementCheckResult evalResult = group.evaluate(ctx);
+            List<String> rendered = RequirementGuiRenderer.renderToStrings(evalResult);
+
+            String formatted = lang != null ? lang.getMessageOrDefault("dialog.currency_requirements", "Yêu cầu nhiệm vụ") : "Yêu cầu nhiệm vụ";
+            String browseLabel = lang != null ? lang.getMessageOrDefault("dialog.shop_status_requirements", "&6[Điều kiện]") : "&6[Điều kiện]";
+
+            return new PriceResult(PriceType.STRUCTURED_REQUIREMENTS, 0, null, null,
+                    true, null, formatted, browseLabel, rendered, group, evalResult);
         }
 
         // 2. Explicit FREE check
@@ -209,6 +210,9 @@ public class ShopPriceFormatter {
             return makeInvalid(petId, reason);
         }
         double price = petSec.getDouble("price", -1.0);
+        if (Double.isNaN(price) || Double.isInfinite(price)) {
+            return makeInvalid(petId, "Price must be a finite number: " + price);
+        }
         if (price < 0) {
             String reason = lang != null ? lang.getMessageOrDefault("shop.invalid_price", "&cGiá bán không được là số âm: %price%", "%price%", String.valueOf(price)) : "Negative price: " + price;
             return makeInvalid(petId, reason);
@@ -230,6 +234,9 @@ public class ShopPriceFormatter {
 
         // 5. MONEY (Vault)
         if ("MONEY".equals(normalizedCurrency)) {
+            if (price < 0 || Double.isNaN(price) || Double.isInfinite(price)) {
+                return makeInvalid(petId, "Money price must be a finite non-negative number: " + price);
+            }
             CurrencyManager cm = getCurrencyManager();
             boolean hasEcon = cm != null && cm.hasEconomy();
             Economy econ = cm != null ? cm.getEconomy() : null;
@@ -243,6 +250,9 @@ public class ShopPriceFormatter {
 
         // 6. POINTS (PlayerPoints)
         if ("POINTS".equals(normalizedCurrency)) {
+            if (price != Math.floor(price) || price <= 0 || price > Integer.MAX_VALUE) {
+                return makeInvalid(petId, "Points price must be a positive whole integer, got: " + price);
+            }
             CurrencyManager cm = getCurrencyManager();
             boolean hasPoints = cm != null && cm.getPointsAPI() != null;
             int pointsCost = (int) price;
@@ -257,6 +267,9 @@ public class ShopPriceFormatter {
 
         // 7. ITEM (Vanilla / ItemsAdder / Oraxen / Nexo)
         if ("ITEM".equals(normalizedCurrency)) {
+            if (price != Math.floor(price) || price <= 0 || price > Integer.MAX_VALUE) {
+                return makeInvalid(petId, "Item price must be a positive whole integer, got: " + price);
+            }
             String materialId = petSec.getString("material");
             if (materialId == null || materialId.trim().isEmpty()) {
                 String reason = lang != null ? lang.getMessageOrDefault("shop.missing_material", "&cThiếu vật phẩm yêu cầu trong cấu hình!") : "Missing material configuration";

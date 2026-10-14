@@ -131,4 +131,40 @@ public class PetCardSecurityTest {
         String tamperedSkills = PetCardSecurity.computeHmacSha256(key, "2:uuid-card-1:fire_dragon:10:200:1:NONE:Sparky:slash,god_mode");
         assertNotEquals(sigBase, tamperedSkills);
     }
+
+    @Test
+    public void testMarkCardConsumedAntiReplayAndRollback() {
+        PetCardSecurity.reset();
+
+        String cardUuid = java.util.UUID.randomUUID().toString();
+        assertFalse(PetCardSecurity.isCardConsumed(null, cardUuid));
+
+        // First consumption succeeds
+        boolean first = PetCardSecurity.markCardConsumed(null, cardUuid);
+        assertTrue(first, "First consumption should succeed");
+        assertTrue(PetCardSecurity.isCardConsumed(null, cardUuid));
+
+        // Second consumption fails (anti-replay)
+        boolean second = PetCardSecurity.markCardConsumed(null, cardUuid);
+        assertFalse(second, "Second consumption of the same card UUID must be rejected");
+
+        // Rollback unmarks card
+        boolean unmark = PetCardSecurity.unmarkCardConsumed(null, cardUuid);
+        assertTrue(unmark, "Unmark card should succeed");
+        assertFalse(PetCardSecurity.isCardConsumed(null, cardUuid), "Card should no longer be marked consumed after rollback");
+
+        // Now it can be consumed again safely
+        boolean reattempt = PetCardSecurity.markCardConsumed(null, cardUuid);
+        assertTrue(reattempt, "Card should be consumable after rollback");
+    }
+
+    @Test
+    public void testMarkCardConsumedNullOrEmptySafety() {
+        assertFalse(PetCardSecurity.markCardConsumed(null, null));
+        assertFalse(PetCardSecurity.markCardConsumed(null, ""));
+        assertFalse(PetCardSecurity.unmarkCardConsumed(null, null));
+        assertFalse(PetCardSecurity.unmarkCardConsumed(null, ""));
+        assertFalse(PetCardSecurity.isCardConsumed(null, null));
+        assertFalse(PetCardSecurity.isCardConsumed(null, ""));
+    }
 }

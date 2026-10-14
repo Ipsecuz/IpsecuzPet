@@ -88,28 +88,65 @@ public final class PetCardSecurity {
         return consumedCards.contains(cardUuid);
     }
 
-    public static void markCardConsumed(IpsecuzPet plugin, String cardUuid) {
-        if (cardUuid == null || cardUuid.isEmpty()) return;
+    public static boolean markCardConsumed(IpsecuzPet plugin, String cardUuid) {
+        if (cardUuid == null || cardUuid.isEmpty()) return false;
         ensureCardsLoaded(plugin);
-        if (consumedCards.add(cardUuid)) {
+        synchronized (fileLock) {
+            if (consumedCards.contains(cardUuid)) {
+                return false;
+            }
             if (plugin != null) {
                 java.io.File storageFile = new java.io.File(plugin.getDataFolder(), "consumed_cards.txt");
-                synchronized (fileLock) {
-                    try {
+                try {
+                    if (storageFile.getParentFile() != null) {
                         storageFile.getParentFile().mkdirs();
-                        java.nio.file.Files.writeString(
+                    }
+                    java.nio.file.Files.writeString(
+                            storageFile.toPath(),
+                            cardUuid + System.lineSeparator(),
+                            StandardCharsets.UTF_8,
+                            java.nio.file.StandardOpenOption.CREATE,
+                            java.nio.file.StandardOpenOption.APPEND,
+                            java.nio.file.StandardOpenOption.SYNC
+                    );
+                } catch (java.io.IOException ex) {
+                    if (plugin.getLogger() != null) {
+                        plugin.getLogger().severe("Lỗi ghi nhận thẻ tiêu hao xuống đĩa (FAIL-CLOSED): " + ex.getMessage());
+                    }
+                    return false;
+                }
+            }
+            consumedCards.add(cardUuid);
+            return true;
+        }
+    }
+
+    public static boolean unmarkCardConsumed(IpsecuzPet plugin, String cardUuid) {
+        if (cardUuid == null || cardUuid.isEmpty()) return false;
+        ensureCardsLoaded(plugin);
+        synchronized (fileLock) {
+            consumedCards.remove(cardUuid);
+            if (plugin != null) {
+                java.io.File storageFile = new java.io.File(plugin.getDataFolder(), "consumed_cards.txt");
+                if (storageFile.exists()) {
+                    try {
+                        List<String> remaining = new ArrayList<>(consumedCards);
+                        java.nio.file.Files.write(
                                 storageFile.toPath(),
-                                cardUuid + System.lineSeparator(),
+                                remaining,
                                 StandardCharsets.UTF_8,
                                 java.nio.file.StandardOpenOption.CREATE,
-                                java.nio.file.StandardOpenOption.APPEND,
+                                java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
                                 java.nio.file.StandardOpenOption.SYNC
                         );
                     } catch (java.io.IOException ex) {
-                        plugin.getLogger().severe("Lỗi ghi nhận thẻ tiêu hao xuống đĩa: " + ex.getMessage());
+                        if (plugin.getLogger() != null) {
+                            plugin.getLogger().warning("Lỗi cập nhật rollback thẻ tiêu hao trên đĩa: " + ex.getMessage());
+                        }
                     }
                 }
             }
+            return true;
         }
     }
 

@@ -94,6 +94,11 @@ admin:
   hatch_list_empty: "&7Không có giao dịch ấp trứng nào đang chờ xử lý."
   hatch_recover_success: "&aĐã xử lý giao dịch %tx_id% với hành động %action% thành công!"
   hatch_not_found: "&cKhông tìm thấy giao dịch hoặc trạng thái không hợp lệ: %tx_id%"
+  shop_usage: "&cCú pháp: /pet admin shop <list|recover <tx_id> <grant|refund|discard>>"
+  shop_list_header: "&6&l[IPSECUZ PET] &eDanh sách giao dịch Shop đang chờ (%count%):"
+  shop_list_empty: "&7Không có giao dịch cửa hàng nào đang chờ xử lý."
+  shop_recover_success: "&aĐã xử lý giao dịch shop %tx_id% với hành động %action% thành công!"
+  shop_not_found: "&cKhông tìm thấy giao dịch hoặc thực hiện thất bại (nếu hoàn tiền vật phẩm, người chơi cần online): %tx_id%"
 
 duel:
   usage: "&cCú pháp: /pet duel <người_chơi>"
@@ -871,6 +876,8 @@ shop:
   purchase_duplicate: "&cGiao dịch đang được xử lý, vui lòng không nhấn liên tục!"
   purchase_processing: "&eĐang xử lý giao dịch mua thú cưng..."
   purchase_already_owned: "&cBạn đã sở hữu thú cưng này rồi!"
+  recovered_refund: "&a[IpsecuzPet] Giao dịch mua thú cưng trước đó đã được hoàn trả thành công!"
+  recovered_grant: "&a[IpsecuzPet] Thú cưng %pet% từ giao dịch trước đó đã được trao thành công!"
 
 materials:
   WHEAT_SEEDS: "Hạt giống lúa mì"

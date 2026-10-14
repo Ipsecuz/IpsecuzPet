@@ -1,13 +1,17 @@
 package org.ipsecuz.pet;
 
 import org.bukkit.Bukkit;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
@@ -351,5 +355,320 @@ public class ConfigManager {
             dataConfig.set(path + ".status", "PENDING");
             forceSave();
         }
+    }
+
+    public static class ShopTransactionEntry {
+        private final String txId;
+        private final UUID playerUuid;
+        private final String petId;
+        private final String currency;
+        private final double amount;
+        private final String material;
+        private final long timestamp;
+        private final String status;
+        private final String note;
+
+        public ShopTransactionEntry(String txId, UUID playerUuid, String petId, String currency,
+                                    double amount, String material, long timestamp, String status, String note) {
+            this.txId = txId;
+            this.playerUuid = playerUuid;
+            this.petId = petId;
+            this.currency = currency;
+            this.amount = amount;
+            this.material = material;
+            this.timestamp = timestamp;
+            this.status = status;
+            this.note = note;
+        }
+
+        public String getTxId() { return txId; }
+        public UUID getPlayerUuid() { return playerUuid; }
+        public String getPetId() { return petId; }
+        public String getCurrency() { return currency; }
+        public double getAmount() { return amount; }
+        public String getMaterial() { return material; }
+        public long getTimestamp() { return timestamp; }
+        public String getStatus() { return status; }
+        public String getNote() { return note; }
+    }
+
+    public String createShopTransaction(UUID uuid, String petId, ShopPriceFormatter.PriceResult priceInfo) {
+        if (uuid == null || petId == null) return null;
+        String txId = UUID.randomUUID().toString();
+        synchronized (saveLock) {
+            String path = "shop_transactions." + txId;
+            dataConfig.set(path + ".player", uuid.toString());
+            dataConfig.set(path + ".petId", petId);
+            dataConfig.set(path + ".currency", priceInfo != null && priceInfo.getType() != null ? priceInfo.getType().name() : "UNKNOWN");
+            dataConfig.set(path + ".amount", priceInfo != null ? priceInfo.getAmount() : 0);
+            dataConfig.set(path + ".material", priceInfo != null ? priceInfo.getRawIdentifier() : null);
+            dataConfig.set(path + ".timestamp", System.currentTimeMillis());
+            dataConfig.set(path + ".status", "CREATED");
+            forceSave();
+        }
+        return txId;
+    }
+
+    public void updateShopTransactionStatus(String txId, String status, String note) {
+        if (txId == null || txId.isEmpty()) return;
+        synchronized (saveLock) {
+            if (txId.startsWith("legacy_")) {
+                String legacyKey = txId.substring("legacy_".length());
+                dataConfig.set("pending_shop_refunds." + legacyKey + ".status", status);
+            } else {
+                String path = "shop_transactions." + txId;
+                dataConfig.set(path + ".status", status);
+                dataConfig.set(path + ".last_updated", System.currentTimeMillis());
+                if (note != null) {
+                    dataConfig.set(path + ".note", note);
+                }
+            }
+            forceSave();
+        }
+    }
+
+    public List<ShopTransactionEntry> getAllPendingShopTransactions() {
+        List<ShopTransactionEntry> list = new ArrayList<>();
+        synchronized (saveLock) {
+            ConfigurationSection sec = dataConfig.getConfigurationSection("shop_transactions");
+            if (sec != null) {
+                for (String txId : sec.getKeys(false)) {
+                    String status = sec.getString(txId + ".status", "UNKNOWN");
+                    if (!"COMPLETED".equalsIgnoreCase(status) && !"REFUNDED".equalsIgnoreCase(status) && !"FAILED".equalsIgnoreCase(status)) {
+                        String pStr = sec.getString(txId + ".player");
+                        UUID pUuid = null;
+                        try {
+                            if (pStr != null) pUuid = UUID.fromString(pStr);
+                        } catch (Exception ignored) {}
+                        list.add(new ShopTransactionEntry(
+                                txId,
+                                pUuid,
+                                sec.getString(txId + ".petId"),
+                                sec.getString(txId + ".currency"),
+                                sec.getDouble(txId + ".amount", 0.0),
+                                sec.getString(txId + ".material"),
+                                sec.getLong(txId + ".timestamp", 0L),
+                                status,
+                                sec.getString(txId + ".note")
+                        ));
+                    }
+                }
+            }
+
+            ConfigurationSection legacySec = dataConfig.getConfigurationSection("pending_shop_refunds");
+            if (legacySec != null) {
+                for (String txId : legacySec.getKeys(false)) {
+                    String status = legacySec.getString(txId + ".status", "PENDING");
+                    if ("PENDING".equalsIgnoreCase(status)) {
+                        String pStr = legacySec.getString(txId + ".player");
+                        UUID pUuid = null;
+                        try {
+                            if (pStr != null) pUuid = UUID.fromString(pStr);
+                        } catch (Exception ignored) {}
+                        list.add(new ShopTransactionEntry(
+                                "legacy_" + txId,
+                                pUuid,
+                                legacySec.getString(txId + ".petId"),
+                                legacySec.getString(txId + ".currency"),
+                                legacySec.getDouble(txId + ".amount", 0.0),
+                                legacySec.getString(txId + ".material"),
+                                legacySec.getLong(txId + ".timestamp", 0L),
+                                "RECOVERABLE",
+                                "Legacy pending refund"
+                        ));
+                    }
+                }
+            }
+        }
+        return list;
+    }
+
+    public boolean refundShopTransaction(ShopTransactionEntry entry, Player player) {
+        if (entry == null || player == null || !player.isOnline()) return false;
+        String currency = entry.getCurrency();
+        double amount = entry.getAmount();
+        String material = entry.getMaterial();
+
+        if ("MONEY".equalsIgnoreCase(currency)) {
+            CurrencyManager cm = plugin.getCurrencyManager();
+            return cm != null && cm.depositMoney(player, amount);
+        }
+        if ("POINTS".equalsIgnoreCase(currency)) {
+            CurrencyManager cm = plugin.getCurrencyManager();
+            return cm != null && cm.givePoints(player, (int) amount);
+        }
+        if ("ITEM".equalsIgnoreCase(currency)) {
+            ItemHookManager ihm = plugin.getItemHookManager();
+            if (ihm == null || material == null || amount <= 0) return false;
+            return ihm.refundItem(player, material, (int) amount, null, null);
+        }
+        if ("FREE".equalsIgnoreCase(currency)) {
+            return true;
+        }
+        return false;
+    }
+
+    public boolean resolvePendingShopTransaction(String txId, String action, String adminName) {
+        if (txId == null || action == null) return false;
+        ShopTransactionEntry target = null;
+        for (ShopTransactionEntry entry : getAllPendingShopTransactions()) {
+            if (entry.getTxId().equalsIgnoreCase(txId)) {
+                target = entry;
+                break;
+            }
+        }
+        if (target == null) return false;
+
+        if ("grant".equalsIgnoreCase(action)) {
+            if (target.getPlayerUuid() != null) {
+                Player p = Bukkit.getPlayer(target.getPlayerUuid());
+                if (p != null && p.isOnline()) {
+                    if (plugin.getOwnershipManager() != null) {
+                        plugin.getOwnershipManager().acquirePet(p, target.getPetId(), 1, 0, 1, PetTrait.rollRandomTrait(), null);
+                    }
+                    if (plugin.getCodexManager() != null) {
+                        plugin.getCodexManager().discover(target.getPlayerUuid(), target.getPetId());
+                    }
+                } else {
+                    savePetProfile(target.getPlayerUuid(), target.getPetId(), 1, 0, 1, PetTrait.rollRandomTrait().name(), null, new ArrayList<>(), true);
+                    if (plugin.getCodexManager() != null) {
+                        plugin.getCodexManager().discover(target.getPlayerUuid(), target.getPetId());
+                    }
+                }
+            }
+            updateShopTransactionStatus(target.getTxId(), "COMPLETED", "Manually granted by " + adminName);
+            return true;
+        }
+
+        if ("refund".equalsIgnoreCase(action)) {
+            if (target.getPlayerUuid() != null) {
+                Player p = Bukkit.getPlayer(target.getPlayerUuid());
+                if (p != null && p.isOnline()) {
+                    boolean ok = refundShopTransaction(target, p);
+                    if (ok) {
+                        updateShopTransactionStatus(target.getTxId(), "REFUNDED", "Refunded by " + adminName);
+                        return true;
+                    }
+                    return false;
+                } else {
+                    if ("MONEY".equalsIgnoreCase(target.getCurrency())) {
+                        if (plugin.getCurrencyManager() != null && plugin.getCurrencyManager().hasEconomy()) {
+                            var op = Bukkit.getOfflinePlayer(target.getPlayerUuid());
+                            plugin.getCurrencyManager().getEconomy().depositPlayer(op, target.getAmount());
+                            updateShopTransactionStatus(target.getTxId(), "REFUNDED", "Offline Vault refund by " + adminName);
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        if ("discard".equalsIgnoreCase(action)) {
+            updateShopTransactionStatus(target.getTxId(), "FAILED", "Discarded by " + adminName);
+            return true;
+        }
+
+        return false;
+    }
+
+    public int resolvePendingShopRefunds(Player player) {
+        if (player == null || !player.isOnline()) return 0;
+        int recovered = 0;
+        UUID uuid = player.getUniqueId();
+        List<ShopTransactionEntry> toProcess = new ArrayList<>();
+
+        synchronized (saveLock) {
+            ConfigurationSection sec = dataConfig.getConfigurationSection("shop_transactions");
+            if (sec != null) {
+                for (String txId : sec.getKeys(false)) {
+                    String pStr = sec.getString(txId + ".player");
+                    if (pStr != null && pStr.equals(uuid.toString())) {
+                        String status = sec.getString(txId + ".status", "UNKNOWN");
+                        if ("RECOVERABLE".equalsIgnoreCase(status) || "REFUND_PROCESSING".equalsIgnoreCase(status)
+                                || "PAID".equalsIgnoreCase(status) || "REWARD_PROCESSING".equalsIgnoreCase(status)) {
+                            toProcess.add(new ShopTransactionEntry(
+                                    txId,
+                                    uuid,
+                                    sec.getString(txId + ".petId"),
+                                    sec.getString(txId + ".currency"),
+                                    sec.getDouble(txId + ".amount", 0.0),
+                                    sec.getString(txId + ".material"),
+                                    sec.getLong(txId + ".timestamp", 0L),
+                                    status,
+                                    sec.getString(txId + ".note")
+                            ));
+                        }
+                    }
+                }
+            }
+
+            ConfigurationSection legacySec = dataConfig.getConfigurationSection("pending_shop_refunds");
+            if (legacySec != null) {
+                for (String legacyId : legacySec.getKeys(false)) {
+                    String pStr = legacySec.getString(legacyId + ".player");
+                    if (pStr != null && pStr.equals(uuid.toString())) {
+                        String status = legacySec.getString(legacyId + ".status", "PENDING");
+                        if ("PENDING".equalsIgnoreCase(status)) {
+                            toProcess.add(new ShopTransactionEntry(
+                                    "legacy_" + legacyId,
+                                    uuid,
+                                    legacySec.getString(legacyId + ".petId"),
+                                    legacySec.getString(legacyId + ".currency"),
+                                    legacySec.getDouble(legacyId + ".amount", 0.0),
+                                    legacySec.getString(legacyId + ".material"),
+                                    legacySec.getLong(legacyId + ".timestamp", 0L),
+                                    "RECOVERABLE",
+                                    "Legacy pending refund"
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        for (ShopTransactionEntry entry : toProcess) {
+            String status = entry.getStatus();
+            if ("PAID".equalsIgnoreCase(status) || "REWARD_PROCESSING".equalsIgnoreCase(status)) {
+                if (plugin.getOwnershipManager() != null && plugin.getOwnershipManager().hasPet(uuid, entry.getPetId())) {
+                    updateShopTransactionStatus(entry.getTxId(), "COMPLETED", "Confirmed owned on join");
+                    recovered++;
+                } else if (plugin.getOwnershipManager() != null && plugin.getOwnershipManager().canAcquirePet(player)) {
+                    boolean ok = plugin.getOwnershipManager().acquirePet(player, entry.getPetId(), 1, 0, 1, PetTrait.rollRandomTrait(), null);
+                    if (ok) {
+                        if (plugin.getCodexManager() != null) {
+                            plugin.getCodexManager().discover(uuid, entry.getPetId());
+                        }
+                        updateShopTransactionStatus(entry.getTxId(), "COMPLETED", "Granted on join");
+                        String petName = plugin.getLanguage() != null ? plugin.getLanguage().getPetName(entry.getPetId()) : entry.getPetId();
+                        player.sendMessage(plugin.getLanguage() != null
+                                ? plugin.getLanguage().getMessageOrDefault("shop.recovered_grant", "§a[IpsecuzPet] Giao dịch mua thú cưng %pet% trước đó đã được hoàn tất thành công!", "%pet%", petName)
+                                : "§a[IpsecuzPet] Thú cưng " + petName + " đã được trao vào tài khoản!");
+                        recovered++;
+                    }
+                } else {
+                    boolean refunded = refundShopTransaction(entry, player);
+                    if (refunded) {
+                        updateShopTransactionStatus(entry.getTxId(), "REFUNDED", "Refunded on join (capacity full)");
+                        player.sendMessage(plugin.getLanguage() != null
+                                ? plugin.getLanguage().getMessageOrDefault("shop.recovered_refund", "§a[IpsecuzPet] Giao dịch trước đó đã được hoàn trả thành công!")
+                                : "§a[IpsecuzPet] Giao dịch trước đó đã được hoàn trả thành công!");
+                        recovered++;
+                    }
+                }
+            } else if ("RECOVERABLE".equalsIgnoreCase(status) || "REFUND_PROCESSING".equalsIgnoreCase(status)) {
+                boolean refunded = refundShopTransaction(entry, player);
+                if (refunded) {
+                    updateShopTransactionStatus(entry.getTxId(), "REFUNDED", "Recovered on join");
+                    player.sendMessage(plugin.getLanguage() != null
+                            ? plugin.getLanguage().getMessageOrDefault("shop.recovered_refund", "§a[IpsecuzPet] Giao dịch trước đó đã được hoàn trả thành công!")
+                            : "§a[IpsecuzPet] Giao dịch trước đó đã được hoàn trả thành công!");
+                    recovered++;
+                }
+            }
+        }
+
+        return recovered;
     }
 }

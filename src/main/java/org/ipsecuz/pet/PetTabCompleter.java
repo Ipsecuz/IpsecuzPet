@@ -111,10 +111,13 @@ public class PetTabCompleter implements TabCompleter {
         if (args.length == 2) {
             String sub = args[0].toLowerCase();
 
-            // /pet admin hatch
+            // /pet admin <hatch|shop>
             if (sub.equals("admin") && sender.hasPermission("ipsecuzpet.admin")) {
                 if ("hatch".startsWith(args[1].toLowerCase())) {
                     results.add("hatch");
+                }
+                if ("shop".startsWith(args[1].toLowerCase())) {
+                    results.add("shop");
                 }
                 return results;
             }
@@ -208,8 +211,8 @@ public class PetTabCompleter implements TabCompleter {
         if (args.length == 3) {
             String sub = args[0].toLowerCase();
 
-            // /pet admin hatch <list|recover>
-            if (sub.equals("admin") && args[1].equalsIgnoreCase("hatch") && sender.hasPermission("ipsecuzpet.admin")) {
+            // /pet admin <hatch|shop> <list|recover>
+            if (sub.equals("admin") && (args[1].equalsIgnoreCase("hatch") || args[1].equalsIgnoreCase("shop")) && sender.hasPermission("ipsecuzpet.admin")) {
                 if ("list".startsWith(args[2].toLowerCase())) results.add("list");
                 if ("recover".startsWith(args[2].toLowerCase())) results.add("recover");
                 return results;
@@ -293,6 +296,18 @@ public class PetTabCompleter implements TabCompleter {
                 return results;
             }
 
+            // /pet admin shop recover <txId>
+            if (sub.equals("admin") && args[1].equalsIgnoreCase("shop") && args[2].equalsIgnoreCase("recover") && sender.hasPermission("ipsecuzpet.admin")) {
+                if (plugin.getConfigManager() != null) {
+                    for (ConfigManager.ShopTransactionEntry entry : plugin.getConfigManager().getAllPendingShopTransactions()) {
+                        if (entry.getTxId().toLowerCase().startsWith(args[3].toLowerCase())) {
+                            results.add(entry.getTxId());
+                        }
+                    }
+                }
+                return results;
+            }
+
             // /pet hatch recover <txId> <grant|refund|discard>
             if (sub.equals("hatch") && args[1].equalsIgnoreCase("recover") && sender.hasPermission("ipsecuzpet.admin")) {
                 for (String act : List.of("grant", "refund", "discard")) {
@@ -314,10 +329,10 @@ public class PetTabCompleter implements TabCompleter {
             }
         }
 
-        // 7. Đối số 5: /pet admin hatch recover <txId> <grant|refund|discard>
+        // 7. Đối số 5: /pet admin <hatch|shop> recover <txId> <grant|refund|discard>
         if (args.length == 5) {
             String sub = args[0].toLowerCase();
-            if (sub.equals("admin") && args[1].equalsIgnoreCase("hatch") && args[2].equalsIgnoreCase("recover") && sender.hasPermission("ipsecuzpet.admin")) {
+            if (sub.equals("admin") && (args[1].equalsIgnoreCase("hatch") || args[1].equalsIgnoreCase("shop")) && args[2].equalsIgnoreCase("recover") && sender.hasPermission("ipsecuzpet.admin")) {
                 for (String act : List.of("grant", "refund", "discard")) {
                     if (act.startsWith(args[4].toLowerCase())) {
                         results.add(act);

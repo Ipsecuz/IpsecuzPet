@@ -564,5 +564,156 @@ public class ShopPriceAndTransactionTest {
         assertEquals(16, moneyCount, "Must have exactly 16 MONEY pets");
         assertEquals(12, pointsCount, "Must have exactly 12 POINTS pets");
     }
+
+    @Test
+    @DisplayName("Case 29: Fractional ITEM price is strictly rejected")
+    public void test29_FractionalItemPriceRejected() {
+        YamlConfiguration config = new YamlConfiguration();
+        ConfigurationSection sec = config.createSection("pets.fractional_item");
+        sec.set("currency", "ITEM");
+        sec.set("material", "DIAMOND");
+
+        sec.set("price", 0.5);
+        PriceResult res1 = formatter.format(null, sec, "fractional_item");
+        assertEquals(PriceType.INVALID, res1.getType());
+        assertTrue(res1.getUnavailableReason().contains("positive whole integer"));
+
+        sec.set("price", 1.25);
+        PriceResult res2 = formatter.format(null, sec, "fractional_item");
+        assertEquals(PriceType.INVALID, res2.getType());
+
+        sec.set("price", -1.0);
+        PriceResult res3 = formatter.format(null, sec, "fractional_item");
+        assertEquals(PriceType.INVALID, res3.getType());
+    }
+
+    @Test
+    @DisplayName("Case 30: Fractional POINTS price is strictly rejected")
+    public void test30_FractionalPointsPriceRejected() {
+        YamlConfiguration config = new YamlConfiguration();
+        ConfigurationSection sec = config.createSection("pets.fractional_points");
+        sec.set("currency", "POINTS");
+
+        sec.set("price", 0.5);
+        PriceResult res1 = formatter.format(null, sec, "fractional_points");
+        assertEquals(PriceType.INVALID, res1.getType());
+        assertTrue(res1.getUnavailableReason().contains("positive whole integer"));
+
+        sec.set("price", 99.9);
+        PriceResult res2 = formatter.format(null, sec, "fractional_points");
+        assertEquals(PriceType.INVALID, res2.getType());
+
+        sec.set("price", -5.0);
+        PriceResult res3 = formatter.format(null, sec, "fractional_points");
+        assertEquals(PriceType.INVALID, res3.getType());
+    }
+
+    @Test
+    @DisplayName("Case 31: NaN and Infinite prices are rejected across all currencies")
+    public void test31_NaNAndInfinityPriceRejected() {
+        YamlConfiguration config = new YamlConfiguration();
+
+        for (String curr : List.of("MONEY", "POINTS", "ITEM")) {
+            ConfigurationSection sec = config.createSection("pets.nan_" + curr);
+            sec.set("currency", curr);
+            sec.set("material", "GOLD_INGOT");
+
+            sec.set("price", Double.NaN);
+            PriceResult resNaN = formatter.format(null, sec, "nan_" + curr);
+            assertEquals(PriceType.INVALID, resNaN.getType(), "NaN price must be rejected for " + curr);
+
+            sec.set("price", Double.POSITIVE_INFINITY);
+            PriceResult resPosInf = formatter.format(null, sec, "posinf_" + curr);
+            assertEquals(PriceType.INVALID, resPosInf.getType(), "Positive infinity price must be rejected for " + curr);
+
+            sec.set("price", Double.NEGATIVE_INFINITY);
+            PriceResult resNegInf = formatter.format(null, sec, "neginf_" + curr);
+            assertEquals(PriceType.INVALID, resNegInf.getType(), "Negative infinity price must be rejected for " + curr);
+        }
+    }
+
+    @Test
+    @DisplayName("Case 32: Empty or invalid structured requirements must NOT fall through to legacy payment")
+    public void test32_EmptyStructuredRequirementsMustNotFallThrough() {
+        YamlConfiguration config = new YamlConfiguration();
+        ConfigurationSection sec = config.createSection("pets.empty_reqs");
+        sec.set("price", 100);
+        sec.set("currency", "MONEY");
+        sec.createSection("requirements"); // Empty requirements section
+
+        PriceResult res = formatter.format(null, sec, "empty_reqs");
+        assertEquals(PriceType.INVALID, res.getType(), "Empty requirements must be INVALID and never fall through to MONEY");
+        assertTrue(res.getUnavailableReason().contains("contains no valid executable requirements"));
+    }
+
+    @Test
+    @DisplayName("Case 33: Structured requirement rollback executes all planned steps in reverse")
+    public void test33_StructuredRequirementRollback() {
+        org.ipsecuz.pet.requirement.RequirementTransaction tx = new org.ipsecuz.pet.requirement.RequirementTransaction();
+        List<String> rollbacks = new ArrayList<>();
+
+        tx.addStep(new org.ipsecuz.pet.requirement.RequirementTransaction.TransactionStep() {
+            @Override public boolean execute(Player player) { return true; }
+            @Override public void rollback(Player player) { rollbacks.add("step1_money"); }
+            @Override public String getDescription() { return "Deduct 500 Money"; }
+        });
+
+        tx.addStep(new org.ipsecuz.pet.requirement.RequirementTransaction.TransactionStep() {
+            @Override public boolean execute(Player player) { return true; }
+            @Override public void rollback(Player player) { rollbacks.add("step2_item"); }
+            @Override public String getDescription() { return "Deduct 5 Diamonds"; }
+        });
+
+        assertEquals(2, tx.size());
+        ShopTransactionReceipt receipt = ShopTransactionReceipt.successRequirements(tx);
+        assertTrue(receipt.isSuccess());
+
+        boolean ok = receipt.rollback(null, null);
+        assertTrue(ok, "Rollback with valid RequirementTransaction should succeed");
+        assertEquals(List.of("step2_item", "step1_money"), rollbacks, "Rollback must execute in reverse order");
+    }
+
+    @Test
+    @DisplayName("Case 34: ItemHookManager rejects amount <= 0 to prevent free item purchases")
+    public void test34_ItemHookManagerZeroOrNegativeAmountRejected() {
+        ItemHookManager ihm = new ItemHookManager(true, true, true);
+        assertFalse(ihm.hasItem(null, "DIAMOND", 0));
+        assertFalse(ihm.hasItem(null, "DIAMOND", -1));
+        assertFalse(ihm.takeItem(null, "DIAMOND", 0));
+        assertFalse(ihm.takeItem(null, "DIAMOND", -5));
+        assertFalse(ihm.refundItem(null, "DIAMOND", 0, null, null));
+        assertFalse(ihm.refundItem(null, "DIAMOND", -10, null, null));
+    }
+
+    @Test
+    @DisplayName("Case 35: ShopTransactionEntry attributes, status transitions, and journal paths")
+    public void test35_ShopTransactionEntryAndJournalPaths() {
+        UUID playerUuid = UUID.randomUUID();
+        String txId = UUID.randomUUID().toString();
+        long now = System.currentTimeMillis();
+
+        ConfigManager.ShopTransactionEntry entry = new ConfigManager.ShopTransactionEntry(
+                txId, playerUuid, "fire_dragon", "MONEY", 10000.0, null, now, "CREATED", "Initial payment"
+        );
+
+        assertEquals(txId, entry.getTxId());
+        assertEquals(playerUuid, entry.getPlayerUuid());
+        assertEquals("fire_dragon", entry.getPetId());
+        assertEquals("MONEY", entry.getCurrency());
+        assertEquals(10000.0, entry.getAmount(), 0.001);
+        assertNull(entry.getMaterial());
+        assertEquals(now, entry.getTimestamp());
+        assertEquals("CREATED", entry.getStatus());
+        assertEquals("Initial payment", entry.getNote());
+
+        // Validate journal paths
+        String txPath = "shop_transactions." + txId;
+        assertTrue(txPath.startsWith("shop_transactions."));
+        assertEquals(txId, txPath.substring("shop_transactions.".length()));
+
+        // Validate that legacy pending refunds path is distinct
+        String legacyPath = "pending_shop_refunds." + txId;
+        assertTrue(legacyPath.startsWith("pending_shop_refunds."));
+    }
 }
 

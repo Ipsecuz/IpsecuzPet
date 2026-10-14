@@ -94,6 +94,11 @@ admin:
   hatch_list_empty: "&7No pending hatch transactions found."
   hatch_recover_success: "&aSuccessfully processed transaction %tx_id% with action %action%!"
   hatch_not_found: "&cTransaction not found or invalid state: %tx_id%"
+  shop_usage: "&cUsage: /pet admin shop <list|recover <tx_id> <grant|refund|discard>>"
+  shop_list_header: "&6&l[IPSECUZ PET] &ePending shop transaction list (%count%):"
+  shop_list_empty: "&7No pending shop transactions found."
+  shop_recover_success: "&aSuccessfully processed shop transaction %tx_id% with action %action%!"
+  shop_not_found: "&cTransaction not found or resolution failed (if refunding items, player must be online): %tx_id%"
 
 duel:
   usage: "&cUsage: /pet duel <player>"
@@ -868,6 +873,8 @@ shop:
   purchase_duplicate: "&cA transaction is already in progress, please do not click repeatedly!"
   purchase_processing: "&eProcessing pet purchase transaction..."
   purchase_already_owned: "&cYou already own this pet!"
+  recovered_refund: "&a[IpsecuzPet] Your previous pet shop transaction has been successfully refunded!"
+  recovered_grant: "&a[IpsecuzPet] Your previous purchase for pet %pet% has been successfully completed!"
 
 materials:
   WHEAT_SEEDS: "Wheat Seeds"

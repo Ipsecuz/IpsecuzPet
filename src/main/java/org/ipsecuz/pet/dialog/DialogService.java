@@ -388,32 +388,60 @@ public class DialogService {
         }
 
         try {
+            ShopPriceFormatter.PriceResult priceInfo = null;
             if (plugin.getShopPriceFormatter() != null) {
-                ShopPriceFormatter.PriceResult priceInfo = plugin.getShopPriceFormatter().format(player, petId);
+                priceInfo = plugin.getShopPriceFormatter().format(player, petId);
                 if (!priceInfo.isAvailable() || priceInfo.getType() == ShopPriceFormatter.PriceType.INVALID) {
                     player.sendMessage(lang.getMessageOrDefault("shop.provider_unavailable", "&cKhông thể mua: %reason%", "%reason%", priceInfo.getUnavailableReason()));
                     return false;
                 }
             }
 
+            // Durable journal: CREATED -> PAYMENT_PROCESSING
+            String txId = plugin.getConfigManager() != null ? plugin.getConfigManager().createShopTransaction(player.getUniqueId(), petId, priceInfo) : null;
+            if (txId != null && plugin.getConfigManager() != null) {
+                plugin.getConfigManager().updateShopTransactionStatus(txId, "PAYMENT_PROCESSING", null);
+            }
+
             ShopTransactionReceipt receipt = plugin.getCurrencyManager().executeShopTransaction(player, petId);
             if (!receipt.isSuccess()) {
+                if (txId != null && plugin.getConfigManager() != null) {
+                    plugin.getConfigManager().updateShopTransactionStatus(txId, "FAILED", receipt.getErrorMessage());
+                }
                 return false;
+            }
+
+            if (txId != null && plugin.getConfigManager() != null) {
+                plugin.getConfigManager().updateShopTransactionStatus(txId, "REWARD_PROCESSING", null);
             }
 
             boolean acquired = plugin.getOwnershipManager().acquirePet(player, petId, 1, 0, 1, org.ipsecuz.pet.PetTrait.rollRandomTrait(), null);
             if (!acquired) {
                 // Explicit safe rollback on acquisition failure
                 plugin.getLogger().warning("[DialogService] Failed to acquire pet " + petId + " for " + player.getName() + " after payment deduction. Executing exact rollback.");
-                boolean rolledBack = receipt.rollback(player, plugin);
-                if (!rolledBack) {
-                    plugin.getLogger().severe("[DialogService] Failed to complete immediate rollback for " + player.getName() + ". Storing pending refund.");
-                    plugin.getConfigManager().recordPendingRefund(player.getUniqueId(), petId, receipt);
+                if (txId != null && plugin.getConfigManager() != null) {
+                    plugin.getConfigManager().updateShopTransactionStatus(txId, "REFUND_PROCESSING", "Acquisition failed");
                 }
-                player.sendMessage(lang.getMessageOrDefault("shop.purchase_failed_refunded", "&cKhông thể tiếp nhận Thú cưng vào kho! Đã hoàn trả lại chi phí giao dịch."));
+                boolean rolledBack = receipt.rollback(player, plugin);
+                if (rolledBack) {
+                    if (txId != null && plugin.getConfigManager() != null) {
+                        plugin.getConfigManager().updateShopTransactionStatus(txId, "REFUNDED", "Rolled back successfully");
+                    }
+                    player.sendMessage(lang.getMessageOrDefault("shop.purchase_failed_refunded", "&cKhông thể tiếp nhận Thú cưng vào kho! Đã hoàn trả lại chi phí giao dịch."));
+                } else {
+                    plugin.getLogger().severe("[DialogService] Failed to complete immediate rollback for " + player.getName() + ". Storing recoverable journal record.");
+                    if (txId != null && plugin.getConfigManager() != null) {
+                        plugin.getConfigManager().updateShopTransactionStatus(txId, "RECOVERABLE", "Provider offline or rollback failed");
+                        plugin.getConfigManager().recordPendingRefund(player.getUniqueId(), petId, receipt);
+                    }
+                    player.sendMessage(lang.getMessageOrDefault("shop.refund_pending", "&cKhông thể tiếp nhận Thú cưng! Hoàn trả tạm thời chưa thể thực hiện do hệ thống tiền tệ/vật phẩm ngoại vi đang bảo trì. Quản trị viên sẽ xử lý lại cho bạn."));
+                }
                 return false;
             }
 
+            if (txId != null && plugin.getConfigManager() != null) {
+                plugin.getConfigManager().updateShopTransactionStatus(txId, "COMPLETED", null);
+            }
             plugin.getCodexManager().discover(player.getUniqueId(), petId);
             player.sendMessage(lang.getMessage("pet.buy_success", "%pet_name%", lang.getPetName(petId)));
             player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
