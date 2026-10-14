@@ -13,25 +13,74 @@ public class ItemHookManager {
     private boolean itemsAdderAvailable = false;
     private boolean oraxenAvailable = false;
     private boolean nexoAvailable = false;
+    private LanguageManager languageManager;
 
     public ItemHookManager(IpsecuzPet plugin) {
         this.plugin = plugin;
         checkHooks();
     }
 
+    public ItemHookManager() {
+        this.plugin = null;
+    }
+
+    public ItemHookManager(boolean itemsAdder, boolean oraxen, boolean nexo) {
+        this.plugin = null;
+        this.itemsAdderAvailable = itemsAdder;
+        this.oraxenAvailable = oraxen;
+        this.nexoAvailable = nexo;
+    }
+
+    public void setLanguageManager(LanguageManager languageManager) {
+        this.languageManager = languageManager;
+    }
+
+    public LanguageManager getLanguageManager() {
+        return languageManager != null ? languageManager : (plugin != null ? plugin.getLanguage() : null);
+    }
+
     public void checkHooks() {
-        Plugin ia = Bukkit.getPluginManager().getPlugin("ItemsAdder");
-        itemsAdderAvailable = (ia != null && ia.isEnabled());
+        try {
+            if (Bukkit.getServer() == null || Bukkit.getPluginManager() == null) return;
+            Plugin ia = Bukkit.getPluginManager().getPlugin("ItemsAdder");
+            itemsAdderAvailable = (ia != null && ia.isEnabled());
 
-        Plugin oraxen = Bukkit.getPluginManager().getPlugin("Oraxen");
-        oraxenAvailable = (oraxen != null && oraxen.isEnabled());
+            Plugin oraxen = Bukkit.getPluginManager().getPlugin("Oraxen");
+            oraxenAvailable = (oraxen != null && oraxen.isEnabled());
 
-        Plugin nexo = Bukkit.getPluginManager().getPlugin("Nexo");
-        nexoAvailable = (nexo != null && nexo.isEnabled());
+            Plugin nexo = Bukkit.getPluginManager().getPlugin("Nexo");
+            nexoAvailable = (nexo != null && nexo.isEnabled());
 
-        if (itemsAdderAvailable) plugin.getLogger().info("§a[ItemHookManager] Đã kết nối thành công với ItemsAdder!");
-        if (oraxenAvailable) plugin.getLogger().info("§a[ItemHookManager] Đã kết nối thành công với Oraxen!");
-        if (nexoAvailable) plugin.getLogger().info("§a[ItemHookManager] Đã kết nối thành công với Nexo!");
+            if (plugin != null && plugin.getLogger() != null) {
+                if (itemsAdderAvailable) plugin.getLogger().info("§a[ItemHookManager] Đã kết nối thành công với ItemsAdder!");
+                if (oraxenAvailable) plugin.getLogger().info("§a[ItemHookManager] Đã kết nối thành công với Oraxen!");
+                if (nexoAvailable) plugin.getLogger().info("§a[ItemHookManager] Đã kết nối thành công với Nexo!");
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    public boolean isItemsAdderAvailable() { return itemsAdderAvailable; }
+    public boolean isOraxenAvailable() { return oraxenAvailable; }
+    public boolean isNexoAvailable() { return nexoAvailable; }
+
+    public void setItemsAdderAvailable(boolean available) { this.itemsAdderAvailable = available; }
+    public void setOraxenAvailable(boolean available) { this.oraxenAvailable = available; }
+    public void setNexoAvailable(boolean available) { this.nexoAvailable = available; }
+
+    public boolean isProviderAvailableForItem(String identifier) {
+        if (identifier == null || identifier.trim().isEmpty()) return false;
+        String lower = identifier.toLowerCase().trim();
+        if (lower.startsWith("itemsadder:") || lower.startsWith("ia:")) {
+            return itemsAdderAvailable;
+        }
+        if (lower.startsWith("oraxen:")) {
+            return oraxenAvailable;
+        }
+        if (lower.startsWith("nexo:")) {
+            return nexoAvailable;
+        }
+        Material mat = Material.getMaterial(identifier.toUpperCase().trim());
+        return mat != null;
     }
 
     /**
@@ -93,13 +142,18 @@ public class ItemHookManager {
             } catch (Exception ignored) {}
         }
 
+        // Custom item prefix without active provider must NOT convert to vanilla material!
+        if (lower.startsWith("itemsadder:") || lower.startsWith("ia:") || lower.startsWith("oraxen:") || lower.startsWith("nexo:")) {
+            return fallback != null ? new ItemStack(fallback) : null;
+        }
+
         // 4. Vanilla Material fallback
         try {
             Material mat = Material.getMaterial(identifier.toUpperCase().trim());
             if (mat != null) return new ItemStack(mat);
         } catch (Exception ignored) {}
 
-        return new ItemStack(fallback != null ? fallback : Material.STONE);
+        return fallback != null ? new ItemStack(fallback) : null;
     }
 
     public boolean matchesItem(ItemStack item, String identifier, Integer customModelData, java.util.Map<String, String> pdcStrings) {
@@ -261,11 +315,117 @@ public class ItemHookManager {
     }
 
     public String getItemDisplayName(String identifier) {
-        if (identifier == null) return "Vật phẩm";
-        ItemStack item = getItem(identifier, Material.STONE);
-        if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
-            return item.getItemMeta().getDisplayName();
+        return getItemDisplayName(identifier, getLanguageManager());
+    }
+
+    public String getItemDisplayName(String identifier, LanguageManager lang) {
+        if (identifier == null || identifier.trim().isEmpty()) {
+            return lang != null
+                    ? lang.getMessageOrDefault("dialog.currency_item", "Vật phẩm")
+                    : "Vật phẩm";
         }
-        return identifier;
+        String lower = identifier.toLowerCase().trim();
+        if (lower.startsWith("itemsadder:") || lower.startsWith("ia:")) {
+            if (itemsAdderAvailable) {
+                ItemStack item = getItem(identifier, null);
+                if (item != null && item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
+                    return item.getItemMeta().getDisplayName();
+                }
+            }
+            String id = identifier.substring(identifier.indexOf(":") + 1);
+            return formatReadableIdentifier(id);
+        }
+        if (lower.startsWith("oraxen:")) {
+            if (oraxenAvailable) {
+                ItemStack item = getItem(identifier, null);
+                if (item != null && item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
+                    return item.getItemMeta().getDisplayName();
+                }
+            }
+            String id = identifier.substring(identifier.indexOf(":") + 1);
+            return formatReadableIdentifier(id);
+        }
+        if (lower.startsWith("nexo:")) {
+            if (nexoAvailable) {
+                ItemStack item = getItem(identifier, null);
+                if (item != null && item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
+                    return item.getItemMeta().getDisplayName();
+                }
+            }
+            String id = identifier.substring(identifier.indexOf(":") + 1);
+            return formatReadableIdentifier(id);
+        }
+
+        // Vanilla Material
+        Material mat = Material.getMaterial(identifier.toUpperCase().trim());
+        if (mat != null) {
+            if (lang != null) {
+                String key = "materials." + mat.name();
+                String raw = lang.getRawMessage(key);
+                if (raw != null && !raw.startsWith("§cMissing")) {
+                    return raw;
+                }
+            }
+            return formatReadableIdentifier(mat.name());
+        }
+
+        return formatReadableIdentifier(identifier);
+    }
+
+    public static String formatReadableIdentifier(String id) {
+        if (id == null || id.isEmpty()) return "";
+        String[] parts = id.replace('_', ' ').replace('-', ' ').trim().split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < parts.length; i++) {
+            String p = parts[i];
+            if (p.isEmpty()) continue;
+            if (i > 0) sb.append(' ');
+            sb.append(Character.toUpperCase(p.charAt(0)));
+            if (p.length() > 1) {
+                sb.append(p.substring(1).toLowerCase());
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Refunds item safely without converting missing custom items into Diamond/Stone.
+     * Drops leftovers on the ground if player inventory is full.
+     */
+    public boolean refundItem(Player player, String identifier, int amount, Integer customModelData, java.util.Map<String, String> pdcStrings) {
+        if (player == null || identifier == null || amount <= 0) return false;
+        if (!isProviderAvailableForItem(identifier)) {
+            // NEVER substitute custom item with Stone or Diamond!
+            return false;
+        }
+        ItemStack item = getItem(identifier, null);
+        if (item == null || item.getType() == Material.AIR) {
+            return false;
+        }
+        if (customModelData != null && item.hasItemMeta()) {
+            org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+            meta.setCustomModelData(customModelData);
+            item.setItemMeta(meta);
+        }
+        if (pdcStrings != null && !pdcStrings.isEmpty() && item.hasItemMeta()) {
+            org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+            for (java.util.Map.Entry<String, String> entry : pdcStrings.entrySet()) {
+                org.bukkit.NamespacedKey key = org.bukkit.NamespacedKey.fromString(entry.getKey(), plugin);
+                if (key == null) {
+                    String[] parts = entry.getKey().split(":");
+                    key = parts.length > 1 ? new org.bukkit.NamespacedKey(parts[0], parts[1]) : new org.bukkit.NamespacedKey(plugin, parts[0]);
+                }
+                meta.getPersistentDataContainer().set(key, org.bukkit.persistence.PersistentDataType.STRING, entry.getValue());
+            }
+            item.setItemMeta(meta);
+        }
+        item.setAmount(amount);
+        java.util.Map<Integer, ItemStack> leftover = player.getInventory().addItem(item);
+        if (!leftover.isEmpty() && player.getLocation() != null && player.getWorld() != null) {
+            for (ItemStack rem : leftover.values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), rem);
+            }
+        }
+        return true;
     }
 }

@@ -26,6 +26,13 @@ public class LanguageManager {
         loadMessages();
     }
 
+    public LanguageManager(FileConfiguration primaryConfig, FileConfiguration fallbackConfig, String selectedLanguage) {
+        this.plugin = null;
+        this.primaryConfig = primaryConfig;
+        this.fallbackConfig = fallbackConfig != null ? fallbackConfig : primaryConfig;
+        this.selectedLanguage = selectedLanguage != null ? selectedLanguage : "VN";
+    }
+
     public void loadMessages() {
         // 1. Lưu các file ngôn ngữ mặc định nếu chưa tồn tại
         saveDefaultLanguageFile("VN.yml");
@@ -111,6 +118,8 @@ public class LanguageManager {
                path.startsWith("card.") ||
                path.startsWith("gui.") ||
                path.startsWith("dialog.") ||
+               path.startsWith("shop.") ||
+               path.startsWith("materials.") ||
                path.startsWith("requirement.") ||
                path.startsWith("help.") ||
                path.startsWith("model.") ||
@@ -147,12 +156,15 @@ public class LanguageManager {
         if (val != null && !val.startsWith("§cMissing")) {
             return val;
         }
-        return plugin.getConfig().getString("pets." + petId + ".name", petId);
+        if (plugin != null && plugin.getConfig() != null) {
+            return plugin.getConfig().getString("pets." + petId + ".name", petId);
+        }
+        return petId;
     }
 
     public String getPetDisplayName(java.util.UUID ownerId, String petId) {
         if (petId == null) return "Pet";
-        if (ownerId != null && plugin.getConfigManager() != null) {
+        if (ownerId != null && plugin != null && plugin.getConfigManager() != null) {
             String customName = plugin.getConfigManager().getCustomName(ownerId, petId);
             if (customName != null && !customName.trim().isEmpty()) {
                 return customName;
@@ -182,11 +194,13 @@ public class LanguageManager {
     }
 
     private void validatePlaceholders(String path, String rendered) {
-        if (plugin.getConfig().getBoolean("debug", false) && rendered != null) {
+        if (plugin != null && plugin.getConfig() != null && plugin.getConfig().getBoolean("debug", false) && rendered != null) {
             Pattern unresolvedPattern = Pattern.compile("%([a-zA-Z0-9_]+)%");
             Matcher m = unresolvedPattern.matcher(rendered);
             while (m.find()) {
-                plugin.getLogger().warning("[LanguageManager] Potential unresolved placeholder '%" + m.group(1) + "%' in key '" + path + "': " + rendered);
+                if (plugin.getLogger() != null) {
+                    plugin.getLogger().warning("[LanguageManager] Potential unresolved placeholder '%" + m.group(1) + "%' in key '" + path + "': " + rendered);
+                }
             }
         }
     }

@@ -799,7 +799,7 @@ public class GuiListener implements Listener {
             String key = allKeys.get(i);
             String matStr = plugin.getConfig().getString("pets." + key + ".icon", "STONE");
             String petName = lang.getPetName(key);
-            String price = plugin.getCurrencyManager().getPriceDisplay(key);
+            ShopPriceFormatter.PriceResult priceResult = plugin.getShopPriceFormatter().format(p, key);
             PetRarity rarity = PetRarity.fromPetId(plugin, key);
 
             double hp = PetStatEngine.getBaseStatAtLevel(plugin, key, 1, "health");
@@ -820,16 +820,20 @@ public class GuiListener implements Listener {
             if (cm.getData().contains(p.getUniqueId() + ".pets." + key)) {
                 lore.status(true, lang.getMessage("gui.shop_already_owned"));
             } else {
-                org.bukkit.configuration.ConfigurationSection petSec = plugin.getConfig().getConfigurationSection("pets." + key);
-                if (petSec != null && (petSec.contains("requirements") || petSec.contains("all") || petSec.contains("one_of"))) {
-                    org.ipsecuz.pet.requirement.RequirementGroup group = plugin.getRequirementManager().parse(petSec);
-                    org.ipsecuz.pet.requirement.RequirementContext ctx = new org.ipsecuz.pet.requirement.RequirementContext(p, key, 1, 1, plugin);
-                    org.ipsecuz.pet.requirement.RequirementCheckResult res = plugin.getRequirementManager().evaluate(group, ctx);
-                    lore.components(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(res));
+                if (priceResult.getType() == ShopPriceFormatter.PriceType.STRUCTURED_REQUIREMENTS) {
+                    if (priceResult.getRequirementCheckResult() != null) {
+                        lore.components(org.ipsecuz.pet.requirement.RequirementGuiRenderer.renderToComponents(priceResult.getRequirementCheckResult()));
+                    } else {
+                        lore.price(lang.getMessageOrDefault("gui.price_requirements", "Xem chi tiết yêu cầu"));
+                    }
+                    lore.action(lang.getMessage("gui.action_buy_now"));
+                } else if (!priceResult.isAvailable() || priceResult.getType() == ShopPriceFormatter.PriceType.INVALID) {
+                    lore.price(priceResult.getUnavailableReason());
+                    lore.action(lang.getMessageOrDefault("gui.price_unavailable", "Chưa khả dụng"));
                 } else {
-                    lore.price(lang.getMessage("gui.lore_price", "%cost%", price));
+                    lore.price(lang.getMessage("gui.lore_price", "%cost%", priceResult.getFormattedPrice()));
+                    lore.action(lang.getMessage("gui.action_buy_now"));
                 }
-                lore.action(lang.getMessage("gui.action_buy_now"));
             }
 
             ItemStack item = GuiItemBuilder.from(matStr, Material.STONE)
@@ -1254,29 +1258,9 @@ public class GuiListener implements Listener {
                     String payload = confirmHolder.getActionPayload();
                     if (payload != null && payload.startsWith("confirm_buy:")) {
                         String shopId = payload.substring("confirm_buy:".length());
-                        if (plugin.getConfigManager().getData().contains(p.getUniqueId() + ".pets." + shopId)) {
-                            p.sendMessage(plugin.getLanguage().getMessage("pet.already_owned"));
-                            p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
-                            p.closeInventory();
-                            return;
-                        }
-                        if (!plugin.getOwnershipManager().canAcquirePet(p)) {
-                            p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
-                            p.closeInventory();
-                            return;
-                        }
-                        if (plugin.getCurrencyManager().processTransaction(p, shopId)) {
-                            plugin.getConfigManager().createPetDataIfMissing(p.getUniqueId(), shopId);
-                            PetTrait trait = PetTrait.rollRandomTrait();
-                            plugin.getConfigManager().getData().set(p.getUniqueId() + ".pets." + shopId + ".trait", trait.name());
-                            plugin.getConfigManager().saveData();
-                            plugin.getCodexManager().discover(p.getUniqueId(), shopId);
-
-                            p.sendMessage(plugin.getLanguage().getMessage("pet.buy_success", "%pet_name%", plugin.getLanguage().getPetName(shopId)));
-                            p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
+                        p.closeInventory();
+                        if (plugin.getDialogService().processShopPurchase(p, shopId)) {
                             openShopMenu(p, 1);
-                        } else {
-                            p.closeInventory();
                         }
                     } else if (payload != null && payload.startsWith("confirm_withdraw:")) {
                         String petId = payload.substring("confirm_withdraw:".length());

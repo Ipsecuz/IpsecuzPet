@@ -665,15 +665,31 @@ public class NativeDialogProvider implements DialogProvider {
         for (int i = start; i < end; i++) {
             String petId = petIds.get(i);
             String name = lang.getPetName(petId);
-            double price = plugin.getConfig().getDouble("pets." + petId + ".price", 1000.0);
             boolean owned = plugin.getOwnershipManager().hasPet(player.getUniqueId(), petId);
-            String status = owned ? lang.getMessageOrDefault("dialog.shop_status_owned", "&a[Đã sở hữu]") : "&e[" + (long) price + "$]";
+            ShopPriceFormatter.PriceResult priceResult = plugin.getShopPriceFormatter().format(player, petId);
+
+            String status;
+            if (owned) {
+                status = lang.getMessageOrDefault("dialog.shop_status_owned", "&a[Đã sở hữu]");
+            } else {
+                status = priceResult.getBrowseButtonLabel();
+            }
+
             buttons.add(new NativeButton(GuiText.component("&6" + name + " " + status), null, 180, (p, resp) -> {
-                if (!owned) {
-                    openShopConfirmDialog(p, session, petId);
-                } else {
+                if (plugin.getOwnershipManager().hasPet(p.getUniqueId(), petId)) {
                     p.sendMessage(lang.getMessage("pet.already_owned"));
+                    return;
                 }
+                if (!plugin.getDialogService().isPetShopVisible(p, petId)) {
+                    p.sendMessage(lang.getMessageOrDefault("shop.pet_not_buyable", "&cThú cưng này hiện không có sẵn để mua!"));
+                    return;
+                }
+                ShopPriceFormatter.PriceResult clickPrice = plugin.getShopPriceFormatter().format(p, petId);
+                if (!clickPrice.isAvailable()) {
+                    p.sendMessage(lang.getMessageOrDefault("shop.provider_unavailable", "&cKhông thể mua: %reason%", "%reason%", clickPrice.getUnavailableReason()));
+                    return;
+                }
+                openShopConfirmDialog(p, session, petId);
             }));
         }
 
@@ -692,26 +708,60 @@ public class NativeDialogProvider implements DialogProvider {
         if (petId == null) return false;
         LanguageManager lang = plugin.getLanguage();
 
+        // Authoritatively check configuration and availability
+        ShopPriceFormatter.PriceResult priceResult = plugin.getShopPriceFormatter().format(player, petId);
         String name = lang.getPetName(petId);
-        double price = plugin.getConfig().getDouble("pets." + petId + ".price", 1000.0);
-        String currency = plugin.getConfig().getString("pets." + petId + ".currency", "VAULT");
+        PetRarity rarity = PetRarity.fromPetId(plugin, petId);
 
         List<Component> body = new ArrayList<>();
         body.add(GuiText.component("&e" + lang.getMessageOrDefault("dialog.shop_confirm_desc", "Bạn có chắc chắn muốn mua thú cưng này?")));
         body.add(GuiText.component(lang.getMessageOrDefault("dialog.shop_pet_label", "&7Thú cưng: &6&l%name%", "%name%", name)));
-        body.add(GuiText.component(lang.getMessageOrDefault("dialog.shop_price_label", "&7Giá bán: &a%price% &e(%currency%)", "%price%", String.valueOf((long) price), "%currency%", currency)));
+        body.add(GuiText.component("&7" + lang.getMessage("gui.lore_rarity") + ": " + rarity.getLocalizedName(plugin)));
+
+        if (priceResult.getType() == ShopPriceFormatter.PriceType.STRUCTURED_REQUIREMENTS) {
+            body.add(GuiText.component(lang.getMessageOrDefault("dialog.shop_requirements_header", "&eYêu cầu điều kiện mở khóa:")));
+            for (String line : priceResult.getDetailLines()) {
+                body.add(GuiText.component(line));
+            }
+        } else if (priceResult.getType() == ShopPriceFormatter.PriceType.FREE) {
+            body.add(GuiText.component(lang.getMessageOrDefault("dialog.shop_price_free", "&aMiễn phí")));
+        } else if (priceResult.getType() == ShopPriceFormatter.PriceType.MONEY) {
+            body.add(GuiText.component(lang.getMessageOrDefault("dialog.shop_price_money", "&7Giá: &a%price%", "%price%", priceResult.getFormattedPrice())
+                    + " &8(" + lang.getMessageOrDefault("dialog.currency_money", "Tiền xu") + ")"));
+        } else if (priceResult.getType() == ShopPriceFormatter.PriceType.POINTS) {
+            body.add(GuiText.component(lang.getMessageOrDefault("dialog.shop_price_points", "&7Giá: &b%price% Points", "%price%", String.valueOf((int) priceResult.getAmount()))));
+        } else if (priceResult.getType() == ShopPriceFormatter.PriceType.ITEM) {
+            body.add(GuiText.component(lang.getMessageOrDefault("dialog.shop_price_item", "&7Giá: &e%amount% × %item%",
+                    "%amount%", String.valueOf((int) priceResult.getAmount()), "%item%", priceResult.getItemDisplayName())));
+        } else {
+            body.add(GuiText.component("&c" + priceResult.getUnavailableReason()));
+        }
 
         List<NativeButton> buttons = new ArrayList<>();
-        buttons.add(new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.shop_confirm_buy", "&a✓ MUA NGAY")), null, 140, (p, resp) -> {
-            if (session != null && !session.isValid()) {
-                p.sendMessage(lang.getMessage("general.no_permission"));
-                return;
-            }
-            if (session != null) session.markSubmitted();
-            if (plugin.getDialogService().processShopPurchase(p, petId)) {
-                openShopBrowse(p, session, 1);
-            }
-        }));
+        if (priceResult.isAvailable() && priceResult.getType() != ShopPriceFormatter.PriceType.INVALID) {
+            buttons.add(new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.shop_confirm_buy", "&a✓ MUA NGAY")), null, 140, (p, resp) -> {
+                if (session != null && !session.isValid()) {
+                    p.sendMessage(lang.getMessage("general.no_permission"));
+                    return;
+                }
+                if (session != null) session.markSubmitted();
+
+                // Re-verify authoritative state right at click submit
+                if (!plugin.getDialogService().isPetShopVisible(p, petId)) {
+                    p.sendMessage(lang.getMessageOrDefault("shop.pet_not_buyable", "&cThú cưng này hiện không có sẵn để mua!"));
+                    return;
+                }
+                ShopPriceFormatter.PriceResult submitPrice = plugin.getShopPriceFormatter().format(p, petId);
+                if (!submitPrice.isAvailable()) {
+                    p.sendMessage(lang.getMessageOrDefault("shop.provider_unavailable", "&cKhông thể mua: %reason%", "%reason%", submitPrice.getUnavailableReason()));
+                    return;
+                }
+
+                if (plugin.getDialogService().processShopPurchase(p, petId)) {
+                    openShopBrowse(p, session, 1);
+                }
+            }));
+        }
 
         NativeButton exitBtn = new NativeButton(GuiText.component(lang.getMessageOrDefault("dialog.shop_confirm_cancel", "&c✘ HỦY BỎ")), null, 100, (p, resp) -> openShopBrowse(p, session, 1));
         return engine.showMultiAction(player, GuiText.title(lang.getMessageOrDefault("dialog.shop_confirm_title", "&8&lXÁC NHẬN MUA PET")), body, null, buttons, exitBtn, 1);

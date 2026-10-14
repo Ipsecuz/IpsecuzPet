@@ -9,6 +9,8 @@ import org.bukkit.inventory.ItemStack;
 import org.ipsecuz.pet.IpsecuzPet;
 import org.ipsecuz.pet.LanguageManager;
 import org.ipsecuz.pet.SchedulerUtils;
+import org.ipsecuz.pet.ShopPriceFormatter;
+import org.ipsecuz.pet.ShopTransactionReceipt;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -386,28 +388,27 @@ public class DialogService {
         }
 
         try {
-            String type = plugin.getConfig().getString("pets." + petId + ".currency", "ITEM");
-            double cost = plugin.getConfig().getDouble("pets." + petId + ".price", 0);
+            if (plugin.getShopPriceFormatter() != null) {
+                ShopPriceFormatter.PriceResult priceInfo = plugin.getShopPriceFormatter().format(player, petId);
+                if (!priceInfo.isAvailable() || priceInfo.getType() == ShopPriceFormatter.PriceType.INVALID) {
+                    player.sendMessage(lang.getMessageOrDefault("shop.provider_unavailable", "&cKhông thể mua: %reason%", "%reason%", priceInfo.getUnavailableReason()));
+                    return false;
+                }
+            }
 
-            if (!plugin.getCurrencyManager().processTransaction(player, petId)) {
+            ShopTransactionReceipt receipt = plugin.getCurrencyManager().executeShopTransaction(player, petId);
+            if (!receipt.isSuccess()) {
                 return false;
             }
 
             boolean acquired = plugin.getOwnershipManager().acquirePet(player, petId, 1, 0, 1, org.ipsecuz.pet.PetTrait.rollRandomTrait(), null);
             if (!acquired) {
-                // Explicit rollback / refund on acquisition failure
-                plugin.getLogger().warning("[DialogService] Failed to acquire pet " + petId + " for " + player.getName() + " after payment deduction. Executing refund.");
-                if ("MONEY".equalsIgnoreCase(type)) {
-                    plugin.getCurrencyManager().depositMoney(player, cost);
-                } else if ("POINTS".equalsIgnoreCase(type)) {
-                    plugin.getCurrencyManager().givePoints(player, (int) cost);
-                } else {
-                    String matName = plugin.getConfig().getString("pets." + petId + ".material", "DIAMOND");
-                    if (plugin.getItemHookManager() != null) {
-                        ItemStack refundItem = plugin.getItemHookManager().getItem(matName, org.bukkit.Material.DIAMOND);
-                        refundItem.setAmount((int) cost);
-                        player.getInventory().addItem(refundItem);
-                    }
+                // Explicit safe rollback on acquisition failure
+                plugin.getLogger().warning("[DialogService] Failed to acquire pet " + petId + " for " + player.getName() + " after payment deduction. Executing exact rollback.");
+                boolean rolledBack = receipt.rollback(player, plugin);
+                if (!rolledBack) {
+                    plugin.getLogger().severe("[DialogService] Failed to complete immediate rollback for " + player.getName() + ". Storing pending refund.");
+                    plugin.getConfigManager().recordPendingRefund(player.getUniqueId(), petId, receipt);
                 }
                 player.sendMessage(lang.getMessageOrDefault("shop.purchase_failed_refunded", "&cKhông thể tiếp nhận Thú cưng vào kho! Đã hoàn trả lại chi phí giao dịch."));
                 return false;

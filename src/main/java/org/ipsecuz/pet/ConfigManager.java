@@ -332,4 +332,24 @@ public class ConfigManager {
         dataConfig.set(uuid + ".revive_progress", 0);
         saveData();
     }
+
+    /**
+     * Records an uncompleted refund (e.g. custom item provider offline) into data.yml
+     * so administrators and recovery tasks can inspect and grant it safely.
+     */
+    public void recordPendingRefund(UUID uuid, String petId, ShopTransactionReceipt receipt) {
+        if (uuid == null || receipt == null) return;
+        synchronized (saveLock) {
+            String txId = UUID.randomUUID().toString();
+            String path = "pending_shop_refunds." + txId;
+            dataConfig.set(path + ".player", uuid.toString());
+            dataConfig.set(path + ".petId", petId != null ? petId : "unknown");
+            dataConfig.set(path + ".currency", receipt.getPriceType() != null ? receipt.getPriceType().name() : "UNKNOWN");
+            dataConfig.set(path + ".amount", receipt.getAmount());
+            dataConfig.set(path + ".material", receipt.getItemIdentifier());
+            dataConfig.set(path + ".timestamp", System.currentTimeMillis());
+            dataConfig.set(path + ".status", "PENDING");
+            forceSave();
+        }
+    }
 }

@@ -676,6 +676,22 @@ public class PetCommand implements CommandExecutor {
         if (!"None".equals(diag.get("historical_last_failure"))) {
             sender.sendMessage("§8Historical Last Failure: §7" + diag.get("historical_last_failure"));
         }
+
+        boolean vaultOk = plugin.getCurrencyManager() != null && plugin.getCurrencyManager().hasEconomy();
+        boolean ppOk = plugin.getCurrencyManager() != null && plugin.getCurrencyManager().getPointsAPI() != null;
+        boolean iaOk = plugin.getItemHookManager() != null && plugin.getItemHookManager().isItemsAdderAvailable();
+        boolean oraxOk = plugin.getItemHookManager() != null && plugin.getItemHookManager().isOraxenAvailable();
+        boolean nexoOk = plugin.getItemHookManager() != null && plugin.getItemHookManager().isNexoAvailable();
+        int invalidShopEntries = plugin.getShopPriceFormatter() != null ? plugin.getShopPriceFormatter().getInvalidShopEntriesCount() : 0;
+
+        sender.sendMessage("§b✦ §lSHOP & TRANSACTION PROVIDER STATUS §b✦");
+        sender.sendMessage("§7Economy (Vault): " + (vaultOk ? "§aAvailable" : "§cMissing"));
+        sender.sendMessage("§7PlayerPoints: " + (ppOk ? "§aAvailable" : "§cMissing"));
+        sender.sendMessage("§7Custom Item Providers: "
+                + "ItemsAdder: " + (iaOk ? "§a✓" : "§7✗") + " §8| "
+                + "Oraxen: " + (oraxOk ? "§a✓" : "§7✗") + " §8| "
+                + "Nexo: " + (nexoOk ? "§a✓" : "§7✗"));
+        sender.sendMessage("§7Invalid Shop Entries: " + (invalidShopEntries == 0 ? "§a0 (All valid)" : "§c" + invalidShopEntries + " entries with invalid config"));
         sender.sendMessage("§8§m--------------------------------------------------");
         return true;
     }

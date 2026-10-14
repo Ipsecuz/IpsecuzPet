@@ -17,6 +17,7 @@ import org.ipsecuz.pet.IpsecuzPet;
 import org.ipsecuz.pet.LanguageManager;
 import org.ipsecuz.pet.PetRarity;
 import org.ipsecuz.pet.PetStatEngine;
+import org.ipsecuz.pet.ShopPriceFormatter;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -395,17 +396,19 @@ public class ChestGuiFallback implements DialogProvider {
 
         fillBorders(inv, Material.LIME_STAINED_GLASS_PANE);
 
-        double cost = plugin.getConfig().getDouble("pets." + petId + ".cost", 0.0);
-        String curr = plugin.getConfig().getString("pets." + petId + ".currency", "VAULT");
+        ShopPriceFormatter.PriceResult priceResult = plugin.getShopPriceFormatter().format(player, petId);
+        String name = lang.getPetName(petId);
 
         ItemStack preview = new ItemStack(Material.NAME_TAG);
         ItemMeta meta = preview.getItemMeta();
         if (meta != null) {
-            meta.displayName(GuiText.component("&e&lMUA: " + petId));
+            meta.displayName(GuiText.component("&e&l" + name));
             List<Component> lore = new ArrayList<>();
             lore.add(GuiText.component("&7" + lang.getMessage("dialog.shop_confirm_desc")));
             lore.add(Component.empty());
-            lore.add(GuiText.component("&6Giá bán: &f" + cost + " &e(" + curr + ")"));
+            for (String line : priceResult.getDetailLines()) {
+                lore.add(GuiText.component(line));
+            }
             meta.lore(lore);
             preview.setItemMeta(meta);
         }

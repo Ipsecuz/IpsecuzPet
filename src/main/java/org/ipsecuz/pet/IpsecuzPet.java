@@ -29,6 +29,7 @@ public class IpsecuzPet extends JavaPlugin {
     private RenameSessionManager renameSessionManager;
     private PlayerSettingsManager playerSettingsManager;
     private org.ipsecuz.pet.dialog.DialogService dialogService;
+    private ShopPriceFormatter shopPriceFormatter;
 
     @Override
     public void onEnable() {
@@ -51,6 +52,10 @@ public class IpsecuzPet extends JavaPlugin {
 
         // 2.8 Nạp Universal Requirement Engine
         this.requirementManager = new org.ipsecuz.pet.requirement.RequirementManager(this);
+
+        // 2.9 Nạp ShopPriceFormatter (Hệ thống tính giá cửa hàng dùng chung)
+        this.shopPriceFormatter = new ShopPriceFormatter(this);
+        this.shopPriceFormatter.validateAllPets();
 
         // 3. Nạp ModuleManager (quản lý folder modules/*.yml)
         this.moduleManager = new ModuleManager(this);
@@ -173,4 +178,6 @@ public class IpsecuzPet extends JavaPlugin {
     public RenameSessionManager getRenameSessionManager() { return renameSessionManager; }
     public PlayerSettingsManager getPlayerSettingsManager() { return playerSettingsManager; }
     public org.ipsecuz.pet.dialog.DialogService getDialogService() { return dialogService; }
+    public ShopPriceFormatter getShopPriceFormatter() { return shopPriceFormatter; }
+    public void setShopPriceFormatter(ShopPriceFormatter shopPriceFormatter) { this.shopPriceFormatter = shopPriceFormatter; }
 }
